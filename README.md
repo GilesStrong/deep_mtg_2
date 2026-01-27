@@ -1,4 +1,4 @@
-# my_package
+# Deep MTG 2
 
 ## Installation
 

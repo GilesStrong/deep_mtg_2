@@ -1,0 +1,14 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 
+#     PIP_DISABLE_PIP_VERSION_CHECK=1 \
+#     UV_PROJECT_ENVIRONMENT=/workspace/.venv \
+#     PATH="/workspace/.venv/bin:$PATH"
+
+# WORKDIR /workspace
+
+# Basic OS deps you’ll want in dev (git for pre-commit hooks, curl for installers, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl ca-certificates build-essential \
+    && rm -rf /var/lib/apt/lists/*

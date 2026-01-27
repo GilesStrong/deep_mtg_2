@@ -8,8 +8,7 @@ on:
       - ".github/workflows/ci.yml"
       - "pyproject.toml"
       - "uv.lock"
-      - "src/**"
-      - "tests/**"
+      - "app/**"
 
 jobs:
   linting:
@@ -45,10 +44,10 @@ jobs:
 
       # Ruff: formatting check (no changes) and lint (GitHub format for inline annotations)
       - name: Ruff format (check)
-        run: uv run ruff format --check src tests
+        run: uv run ruff format --check app
 
       - name: Ruff lint
-        run: uv run ruff check --output-format=github src tests
+        run: uv run ruff check --output-format=github app
 
       # MyPy (uses your [tool.mypy] config in pyproject)
       - name: MyPy

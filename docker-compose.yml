@@ -1,0 +1,90 @@
+version: '3.8'
+
+x-app-common: &app-common
+  image: deepmtg-app:dev
+  build:
+    context: .
+  env_file:
+    - .env
+  volumes:
+    - .:/app
+  depends_on:
+    - db
+    - redis
+  networks:
+    - deepmtg_network
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  db:
+    image: postgres:16
+    container_name: postgres_db
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-deepmtgdb}
+      POSTGRES_USER: ${POSTGRES_USER:-deepmtguser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-deepmtgpassword}
+    ports:
+      - "5433:5432"
+    volumes:
+      - deepmtg_postgres_data:/var/lib/postgresql/data
+    networks:
+      - deepmtg_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - deepmtg_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    <<: *app-common
+    container_name: django_app
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+
+  celery_worker:
+    <<: *app-common
+    container_name: celery_worker
+    command: celery -A app worker --loglevel=info
+    depends_on:
+      - db
+      - redis
+
+  celery_beat:
+    <<: *app-common
+    container_name: celery_beat
+    command: celery -A app beat --loglevel=info
+    restart: always
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  deepmtg_postgres_data:
+
+networks:
+  deepmtg_network:
