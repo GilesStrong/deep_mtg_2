@@ -1,0 +1,77 @@
+[project]
+name = "my_package"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Giles Strong", email = "giles.c.strong@gmail.com"},
+]
+readme = "README.md"
+keywords = []
+requires-python = ">=3.12,<4.0"
+dependencies = [
+]
+
+[dependency-groups]
+dev = [
+  "notebook>=7.0.0",
+  "jupyter>=1.0.0",
+  "traitlets==5.9.0",
+  "ipykernel>=6.29.5",
+  "pre-commit>=3.6.1",
+  "mypy>=1.8.0",
+  "pytest-mock>=3.12.0",
+  "flaky>=3.7.0",
+  "pytest-lazy-fixture>=0.6.3",
+  "pytest<8.0.0",
+  "pandas-stubs>=2.2.2",
+  "ruff>=0.6",    
+  "pytest-asyncio>=0.23.8",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"] 
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/my_package"]
+sources = ["src"]
+include = ["src/my_package/py.typed"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/my_package/py.typed"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [
+  "dev/",
+  "**/*.ipynb",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "C90", "I"]
+ignore = ["B007", "E203", "E266", "E501", "E741", "C901", "E402", "E211", "W291", "F722"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 18
+
+[tool.ruff.format]
+quote-style = "preserve"
+
+[tool.mypy]
+python_version = "3.12"
+disallow_untyped_calls = false
+disallow_untyped_defs = true
+check_untyped_defs = true
+exclude = "tests/|\\.venv/|dev/"
+no_strict_optional = true
+disable_error_code = "attr-defined, override, union-attr"
+
+[[tool.mypy.overrides]]
+module = [
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-m 'not long'"
+asyncio_mode = "auto"
