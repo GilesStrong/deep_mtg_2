@@ -12,9 +12,11 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        entry: "./run-mypy"
+        entry: uv run -- mypy
+        args: ["."]
         language: system
         types: [python]
+        pass_filenames: false
         require_serial: true
         verbose: true
 
