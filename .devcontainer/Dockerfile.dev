@@ -16,5 +16,5 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Basic OS deps you’ll want in dev (git for pre-commit hooks, curl for installers, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl ca-certificates build-essential \
+    git curl ca-certificates build-essential openssh-client \
     && rm -rf /var/lib/apt/lists/*
