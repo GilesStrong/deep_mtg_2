@@ -1,6 +1,7 @@
 from enum import StrEnum
 
 from beartype import beartype
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -39,14 +40,14 @@ def _validate_str_list(value: list[str]) -> None:
 def _validate_type_list(value: list[str]) -> None:
     for v in value:
         if v not in TypeEnum._value2member_map_:
-            raise ValueError(f"Invalid type: {v}")
+            raise ValidationError(f"Invalid type: {v}")
 
 
 @beartype
 def _validate_mana_color_list(value: list[str]) -> None:
     for v in value:
         if v not in ManaColorEnum._value2member_map_:
-            raise ValueError(f"Invalid mana color: {v}")
+            raise ValidationError(f"Invalid mana color: {v}")
 
 
 class Card(models.Model):

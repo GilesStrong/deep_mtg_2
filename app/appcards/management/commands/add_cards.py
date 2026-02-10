@@ -4,13 +4,14 @@ import re
 from pathlib import Path
 from typing import Any
 
-from appcards.constants.extraction import EXTRACTION_SCHEMA
-from appcards.models.card import Card
 from beartype import beartype
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from langchain_community.document_loaders import JSONLoader
 from tqdm import tqdm
+
+from appcards.constants.extraction import EXTRACTION_SCHEMA
+from appcards.models.card import Card
 
 DIGIT_IN_BRACES = re.compile(r"\{(\d+)\}")
 
@@ -24,7 +25,7 @@ def extract_digit(s: str) -> int | None:
 def add_cards(card_json_path: Path) -> None:
     loader = JSONLoader(card_json_path, EXTRACTION_SCHEMA, text_content=False)
     extracted_cards = loader.load()
-    seen_card_names = set(Card.objects.values_list('name', flat=True))
+    seen_card_names: set[str] = set()
     new_cards: list[Card] = []
 
     for card_data in tqdm(extracted_cards, desc="Processing cards"):
@@ -35,15 +36,15 @@ def add_cards(card_json_path: Path) -> None:
             continue
 
         text = card_dict['text'] or ""
-        subtypes = card_dict['subtypes'] or []
         supertypes = card_dict['supertypes'] or []
+        subtypes = card_dict['subtypes'] or []
         keywords = card_dict['keywords'] or []
         power = card_dict['power']
         toughness = card_dict['toughness']
         keywords = card_dict['keywords'] or []
         colors = card_dict['colors'] or []
         types = card_dict['types'] or []
-        rarity = card_dict['rarity'] or "COMMON"
+        rarity = card_dict['rarity'] or "common"
         converted_mana_cost = card_dict['convertedManaCost'] or 0
 
         if card_dict['manaCost'] is None:
@@ -81,6 +82,7 @@ def add_cards(card_json_path: Path) -> None:
             rarity=rarity,
             keywords=keywords,
         )
+        card.full_clean()
         new_cards.append(card)
         seen_card_names.add(name)
 
@@ -97,7 +99,9 @@ class Command(BaseCommand):
     help = 'Add multiple cards to the database'
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument('--card-json-path', type=str, help='Path to the JSON file containing card data')
+        parser.add_argument(
+            '--card-json-path', type=str, required=True, help='Path to the JSON file containing card data'
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         add_cards(Path(options['card_json_path']))
