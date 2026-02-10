@@ -18,6 +18,10 @@ dependencies = [
   "celery>=5.4.0",
   "redis>=5.2.1",
   "django-celery-beat>=2.7.0",
+  "beartype>=0.22.9",
+  "langchain-community>=0.4.1",
+  "jq>=1.11.0",
+  "tqdm>=4.67.1",
 ]
 
 [dependency-groups]
@@ -30,6 +34,7 @@ dev = [
   "pytest<8.0.0",
   "ruff>=0.6",    
   "pytest-asyncio>=0.23.8",
+  "types-tqdm>=4.67.3.20260205",
 ]
 
 [build-system]
@@ -59,7 +64,7 @@ python_version = "3.12"
 disallow_untyped_calls = false
 disallow_untyped_defs = true
 check_untyped_defs = true
-exclude = "tests/|\\.venv/|dev/"
+exclude = "tests/|\\.venv/|dev/|migrations/"
 no_strict_optional = true
 disable_error_code = "attr-defined, override, union-attr"
 
