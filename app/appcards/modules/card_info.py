@@ -1,3 +1,4 @@
+from beartype import beartype
 from django.forms.models import model_to_dict
 from pydantic import BaseModel
 
@@ -20,6 +21,7 @@ class CardInfo(BaseModel):
     set_codes: list[str]
 
 
+@beartype
 def card_to_info(card: Card) -> CardInfo:
     card_dict = model_to_dict(card, fields=[f.name for f in card._meta.fields])
     card_dict['set_codes'] = [p.set_code for p in card.printings.all()]
