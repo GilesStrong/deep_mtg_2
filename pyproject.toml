@@ -22,6 +22,10 @@ dependencies = [
   "langchain-community>=0.4.1",
   "jq>=1.11.0",
   "tqdm>=4.67.1",
+  "kombu>=5.6.2",
+  "pydantic-ai>=1.58.0",
+  "pydantic>=2.12.5",
+  "pydantic-settings>=2.12.0",
 ]
 
 [dependency-groups]
@@ -32,7 +36,7 @@ dev = [
   "flaky>=3.7.0",
   "pytest-lazy-fixture>=0.6.3",
   "pytest<8.0.0",
-  "ruff>=0.6",    
+  "ruff==0.14.14",
   "pytest-asyncio>=0.23.8",
   "types-tqdm>=4.67.3.20260205",
 ]
@@ -71,6 +75,8 @@ disable_error_code = "attr-defined, override, union-attr"
 [[tool.mypy.overrides]]
 module = [
   "django.*",
+  "celery.*",
+  "kombu.*",
 ]
 ignore_missing_imports = true
 

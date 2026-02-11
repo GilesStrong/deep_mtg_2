@@ -12,6 +12,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 
+from kombu import Exchange, Queue
+
+from app.app_settings import APP_SETTINGS
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,12 +24,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-uj_s#k1xgb(#^z#67w-ziz*#wb!3%z&p)u4glzv=!ois*qhprt'
+SECRET_KEY = APP_SETTINGS.SECRET_KEY
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = APP_SETTINGS.DEBUG
 
-ALLOWED_HOSTS: list[str] = []
+ALLOWED_HOSTS: list[str] = APP_SETTINGS.ALLOWED_HOSTS
 
 
 # Application definition
@@ -74,10 +78,15 @@ WSGI_APPLICATION = 'app.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": APP_SETTINGS.POSTGRES_DB,
+        "USER": APP_SETTINGS.POSTGRES_USER,
+        "PASSWORD": APP_SETTINGS.POSTGRES_PASSWORD,
+        "HOST": APP_SETTINGS.POSTGRES_HOST,
+        "PORT": APP_SETTINGS.POSTGRES_PORT,
     }
 }
 
@@ -122,3 +131,17 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+CELERY_BROKER_URL = APP_SETTINGS.CELERY_BROKER_URL
+CELERY_RESULT_BACKEND = APP_SETTINGS.CELERY_RESULT_BACKEND
+
+CELERY_TASK_DEFAULT_QUEUE = APP_SETTINGS.CELERY_TASK_DEFAULT_QUEUE
+CELERY_TASK_DEFAULT_EXCHANGE = APP_SETTINGS.CELERY_TASK_DEFAULT_EXCHANGE
+CELERY_TASK_DEFAULT_ROUTING_KEY = APP_SETTINGS.CELERY_TASK_DEFAULT_ROUTING_KEY
+CELERY_TASK_CREATE_MISSING_QUEUES = APP_SETTINGS.CELERY_TASK_CREATE_MISSING_QUEUES
+
+CELERY_TASK_QUEUES = (
+    Queue("default", Exchange("default"), routing_key="default"),
+    Queue("llm", Exchange("llm"), routing_key="llm"),
+)

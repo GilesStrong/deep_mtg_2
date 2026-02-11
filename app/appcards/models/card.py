@@ -1,4 +1,6 @@
 from enum import StrEnum
+from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from beartype import beartype
 from django.core.exceptions import ValidationError
@@ -51,7 +53,8 @@ def _validate_mana_color_list(value: list[str]) -> None:
 
 
 class Card(models.Model):
-    name = models.CharField(max_length=255, unique=True, editable=False, primary_key=True)
+    id = models.UUIDField(default=uuid4, editable=False, primary_key=True, unique=True)
+    name = models.CharField(max_length=255, unique=True, editable=False)
     text = models.TextField(blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -79,3 +82,10 @@ class Card(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    if TYPE_CHECKING:
+        from django.db.models.manager import RelatedManager
+
+        from appcards.models.printing import Printing
+
+        printings: RelatedManager["Printing"]
