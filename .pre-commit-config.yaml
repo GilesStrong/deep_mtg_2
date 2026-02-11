@@ -1,12 +1,11 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.7
+    rev: v0.14.14
     hooks:
       - id: ruff
-        args: [--fix, --output-format=github]
+        args: [--fix]
         exclude: '(^dev/)|(\.ipynb$)'
       - id: ruff-format
-        args: [--output-format=github]
         exclude: '(^dev/)|(\.ipynb$)'
 
   - repo: local
