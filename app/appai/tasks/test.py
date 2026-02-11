@@ -1,7 +1,8 @@
-import os
-
 import requests
 from celery import Task, shared_task
+from pydantic_ai import Agent
+
+from appai.modules.get_model import get_model
 
 
 @shared_task(
@@ -11,13 +12,10 @@ from celery import Task, shared_task
     retry_kwargs={"max_retries": 5},
     soft_time_limit=90,
     time_limit=120,
+    queue="llm",
+    routing_key="llm",
 )
 def generate_text(self: Task, prompt: str, model: str = "gemma3:12b") -> str:
-    base_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
-    r = requests.post(
-        f"{base_url}/api/generate",
-        json={"model": model, "prompt": prompt, "stream": False},
-        timeout=(5, 110),
-    )
-    r.raise_for_status()
-    return r.json()["response"]
+    get_model_task = get_model(model_name=model)
+    agent = Agent(model=get_model_task)
+    return agent.run_sync(prompt).output

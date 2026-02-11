@@ -11,6 +11,7 @@ EXTRACTION_SCHEMA: str = """
     supertypes: .supertypes,
     text: .text,
     toughness: .toughness,
-    types: .types
+    types: .types,
+    setCode: .setCode
 }
 """

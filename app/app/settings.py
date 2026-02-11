@@ -78,10 +78,15 @@ WSGI_APPLICATION = 'app.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": APP_SETTINGS.POSTGRES_DB,
+        "USER": APP_SETTINGS.POSTGRES_USER,
+        "PASSWORD": APP_SETTINGS.POSTGRES_PASSWORD,
+        "HOST": APP_SETTINGS.POSTGRES_HOST,
+        "PORT": APP_SETTINGS.POSTGRES_PORT,
     }
 }
 
@@ -140,7 +145,3 @@ CELERY_TASK_QUEUES = (
     Queue("default", Exchange("default"), routing_key="default"),
     Queue("llm", Exchange("llm"), routing_key="llm"),
 )
-
-CELERY_TASK_ROUTES = {
-    "appai.tasks.*": {"queue": "llm", "routing_key": "llm"},
-}

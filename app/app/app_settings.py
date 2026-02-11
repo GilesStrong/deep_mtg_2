@@ -33,10 +33,15 @@ class PostgresSettings(BaseSettings):
     POSTGRES_DB: str
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
+    POSTGRES_HOST: str
+    POSTGRES_PORT: int
 
 
 class AISettings(BaseSettings):
     OLLAMA_BASE_URL: str
+    OLLAMA_MAX_TOKENS: int
+    OLLAMA_NUM_CTX: int
+    TEXT_MODEL: str
 
 
 class AppSettings(EnvSettings, DjangoSettings, CelerySettings, PostgresSettings, AISettings):
