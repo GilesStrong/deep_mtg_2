@@ -70,7 +70,13 @@ services:
   celery_worker:
     <<: *app-common
     container_name: celery_worker
-    command: celery -A app worker --loglevel=info
+    command: celery -A app worker -Q default --loglevel=info --concurrency=8 -n worker_default@%h
+
+  celery_llm_worker:
+    <<: *app-common
+    container_name: celery_llm_worker
+    command: celery -A app worker -Q llm --loglevel=info --concurrency=1 --pool=prefork --max-tasks-per-child=50 -n worker_llm@%h
+
 
   celery_beat:
     <<: *app-common
