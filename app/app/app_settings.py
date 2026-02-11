@@ -63,7 +63,8 @@ def get_app_settings() -> AppSettings:
     if env_file_path:
         return AppSettings(_env_file=env_file_path)  # type: ignore[call-arg]
     else:
-        raise RuntimeError('.env file not found')
+        print("Warning: .env file not found. Using default environment variables.")
+        return AppSettings()  # type: ignore[call-arg]
 
 
 APP_SETTINGS = get_app_settings()

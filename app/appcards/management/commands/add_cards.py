@@ -42,7 +42,7 @@ def add_cards(card_json_path: Path) -> None:
 
         if name not in cards_by_name:
             mana_cost_str = card_dict.get("manaCost")
-            if card_dict['manaCost'] is None:
+            if mana_cost_str is None:
                 mana_cost_red = 0
                 mana_cost_blue = 0
                 mana_cost_green = 0
@@ -50,7 +50,6 @@ def add_cards(card_json_path: Path) -> None:
                 mana_cost_black = 0
                 mana_cost_colorless = 0
             else:
-                mana_cost_str = card_dict['manaCost']
                 mana_cost_red = mana_cost_str.count('R')
                 mana_cost_blue = mana_cost_str.count('U')
                 mana_cost_green = mana_cost_str.count('G')

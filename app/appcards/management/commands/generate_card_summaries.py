@@ -54,7 +54,7 @@ def generate_card_summaries(n_max_summaries: Optional[int], max_workers: int = 5
 
 
 class Command(BaseCommand):
-    help = 'Add multiple cards to the database'
+    help = 'Generate LLM summaries for cards without summaries'
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
