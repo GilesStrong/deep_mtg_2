@@ -1,0 +1,1 @@
+CARD_COLLECTION_NAME = "cards"

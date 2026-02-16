@@ -42,9 +42,17 @@ class AISettings(BaseSettings):
     OLLAMA_MAX_TOKENS: int
     OLLAMA_NUM_CTX: int
     TEXT_MODEL: str
+    EMBEDDING_MODEL: str
+    EMBEDDING_DIMENSION: int
 
 
-class AppSettings(EnvSettings, DjangoSettings, CelerySettings, PostgresSettings, AISettings):
+class QdrantSettings(BaseSettings):
+    QDRANT_URL: str
+    HNSW_M: int
+    HNSW_EF_CONSTRUCT: int
+
+
+class AppSettings(EnvSettings, DjangoSettings, CelerySettings, PostgresSettings, AISettings, QdrantSettings):
     model_config = SettingsConfigDict(env_file_encoding='utf-8')
 
 

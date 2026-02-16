@@ -18,4 +18,4 @@ from appcards.modules.summarise_card import summarise_card as _summarise_card
 )
 @beartype
 def summarise_card(self: Task, card_details: dict[str, Any]) -> str:
-    return _summarise_card(self, CardInfo.model_validate(card_details))
+    return _summarise_card(CardInfo.model_validate(card_details))

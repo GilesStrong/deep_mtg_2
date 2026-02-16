@@ -1,7 +1,6 @@
 from appai.constants.models import TEXT_MODEL
 from appai.constants.prompt_gotchas import GOTCHAS
 from beartype import beartype
-from celery import Task
 from pydantic_ai import Agent
 
 from appcards.modules.card_info import CardInfo
@@ -42,6 +41,6 @@ The summary should cover:
 
 
 @beartype
-def summarise_card(self: Task, card_details: CardInfo) -> str:
+def summarise_card(card_details: CardInfo) -> str:
     agent = Agent(model=TEXT_MODEL, system_prompt=SUMMARY_PROMPT)
     return agent.run_sync(card_details.model_dump_json()).output
