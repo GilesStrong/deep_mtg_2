@@ -198,13 +198,19 @@ griffelib==2.0.0
 groq==1.0.0
     # via pydantic-ai-slim
 grpcio==1.78.0
-    # via xai-sdk
+    # via
+    #   qdrant-client
+    #   xai-sdk
 h11==0.16.0
     # via
     #   httpcore
     #   uvicorn
+h2==4.3.0
+    # via httpx
 hf-xet==1.2.0 ; platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'
     # via huggingface-hub
+hpack==4.1.0
+    # via h2
 httpcore==1.0.9
     # via httpx
 httpx==0.28.1
@@ -221,6 +227,7 @@ httpx==0.28.1
     #   openai
     #   pydantic-ai-slim
     #   pydantic-graph
+    #   qdrant-client
 httpx-sse==0.4.3
     # via
     #   langchain-community
@@ -229,6 +236,8 @@ huggingface-hub==0.36.2
     # via
     #   pydantic-ai-slim
     #   tokenizers
+hyperframe==6.1.0
+    # via h2
 identify==2.6.16
     # via pre-commit
 idna==3.11
@@ -340,7 +349,9 @@ nexus-rpc==1.2.0
 nodeenv==1.10.0
     # via pre-commit
 numpy==2.4.1
-    # via langchain-community
+    # via
+    #   langchain-community
+    #   qdrant-client
 openai==2.20.0
     # via pydantic-ai-slim
 openapi-pydantic==0.5.1
@@ -406,6 +417,8 @@ platformdirs==4.5.1
     #   virtualenv
 pluggy==1.6.0
     # via pytest
+portalocker==3.2.0
+    # via qdrant-client
 pre-commit==4.5.1
 prometheus-client==0.24.1
     # via pydocket
@@ -422,6 +435,7 @@ protobuf==6.33.5
     #   googleapis-common-protos
     #   logfire
     #   opentelemetry-proto
+    #   qdrant-client
     #   temporalio
     #   xai-sdk
 psycopg==3.3.2
@@ -464,6 +478,7 @@ pydantic==2.12.5
     #   pydantic-evals
     #   pydantic-graph
     #   pydantic-settings
+    #   qdrant-client
     #   xai-sdk
 pydantic-ai==1.58.0
     # via app
@@ -524,7 +539,9 @@ pytz==2025.2
     #   croniter
     #   drf-yasg
 pywin32==311 ; sys_platform == 'win32'
-    # via mcp
+    # via
+    #   mcp
+    #   portalocker
 pywin32-ctypes==0.2.3 ; sys_platform == 'win32'
     # via keyring
 pyyaml==6.0.3
@@ -538,6 +555,8 @@ pyyaml==6.0.3
     #   mistralai
     #   pre-commit
     #   pydantic-evals
+qdrant-client==1.16.2
+    # via app
 redis==7.1.0
     # via
     #   app
@@ -553,6 +572,7 @@ regex==2026.1.15
     # via tiktoken
 requests==2.32.5
     # via
+    #   app
     #   cohere
     #   google-auth
     #   google-genai
@@ -699,6 +719,7 @@ uritemplate==4.2.0
 urllib3==2.6.3
     # via
     #   botocore
+    #   qdrant-client
     #   requests
     #   types-requests
 uuid-utils==0.14.0
