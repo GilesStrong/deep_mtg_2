@@ -4,7 +4,7 @@ from beartype import beartype
 from celery import Task, shared_task
 
 from appcards.modules.card_info import CardInfo
-from appcards.modules.summarise_card import summarise_card as _summarise_card
+from appcards.modules.summarise_card import _summarise_card
 
 
 @shared_task(

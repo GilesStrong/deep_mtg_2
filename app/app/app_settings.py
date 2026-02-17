@@ -50,6 +50,7 @@ class QdrantSettings(BaseSettings):
     QDRANT_URL: str
     HNSW_M: int
     HNSW_EF_CONSTRUCT: int
+    HNSW_EF_SEARCH: int
 
 
 class AppSettings(EnvSettings, DjangoSettings, CelerySettings, PostgresSettings, AISettings, QdrantSettings):

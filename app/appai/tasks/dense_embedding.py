@@ -1,7 +1,7 @@
 from beartype import beartype
 from celery import Task, shared_task
 
-from appai.modules.dense_embedding import dense_embed as _dense_embed
+from appai.modules.dense_embedding import _dense_embed
 
 
 @shared_task(

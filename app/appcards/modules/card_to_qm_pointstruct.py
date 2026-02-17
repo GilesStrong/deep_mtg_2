@@ -1,8 +1,5 @@
-from typing import Any, cast
-
-from appai.tasks.dense_embedding import dense_embed
+from appai.modules.dense_embedding import dense_embed
 from beartype import beartype
-from celery.result import AsyncResult
 from qdrant_client.http import models as qm
 
 from appcards.models import Card
@@ -13,8 +10,7 @@ from appcards.modules.card_info import card_to_info
 def card_to_qm_pointstruct(card: Card) -> qm.PointStruct:
     if card.llm_summary is None:
         raise ValueError("Card must have a summary to be embedded")
-    result: AsyncResult = cast(Any, dense_embed.delay)(card.llm_summary)
-    dense_vector = cast(list[float], result.get(timeout=60))
+    dense_vector = dense_embed(card.llm_summary)
 
     card_info = card_to_info(card)
     payload = {
