@@ -27,11 +27,11 @@ def run_query(
 
 
 @beartype
-def run_query_from_dsl(collection_name: str, dsl_query: DSLQuery) -> list[qm.ScoredPoint]:
+def run_query_from_dsl(dsl_query: DSLQuery) -> list[qm.ScoredPoint]:
     query_vector = dense_embed(dsl_query.query_string) if dsl_query.query_string else None
     filter = dsl_query.filter.to_qdrant() if dsl_query.filter else None
     return run_query(
-        collection_name=collection_name,
+        collection_name=dsl_query.collection_name,
         query_vector=query_vector,
         query_filter=filter,
         limit=dsl_query.limit,
