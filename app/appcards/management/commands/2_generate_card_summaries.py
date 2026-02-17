@@ -1,16 +1,15 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Semaphore
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 from beartype import beartype
-from celery.result import AsyncResult
 from django.core.management.base import BaseCommand
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from appcards.models import Card
 from appcards.modules.card_info import card_to_info
-from appcards.tasks.summarise_card import summarise_card
+from appcards.modules.summarise_card import summarise_card
 
 
 @retry(
@@ -21,8 +20,7 @@ from appcards.tasks.summarise_card import summarise_card
 def generate_card_summary(card: Card, semaphore: Semaphore) -> None:
     with semaphore:
         info = card_to_info(card)
-        result: AsyncResult = cast(Any, summarise_card.delay)(info.model_dump())
-        summary = cast(str, result.get(timeout=120))
+        summary = summarise_card(info)
         card.llm_summary = summary
         card.save(update_fields=['llm_summary'])
         print(f"✓ Generated summary for: {card.name}")

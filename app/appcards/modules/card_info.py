@@ -18,7 +18,13 @@ class CardInfo(BaseModel):
     mana_cost_white: int
     mana_cost_black: int
     mana_cost_colorless: int
+    converted_mana_cost: int
+    colors: list[str]
+    types: list[str]
+    rarity: str
+    keywords: list[str]
     set_codes: list[str]
+    llm_summary: str | None = None
 
 
 @beartype

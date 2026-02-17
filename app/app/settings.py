@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'appcards',
     'appai',
+    "appsearch",
 ]
 
 MIDDLEWARE = [

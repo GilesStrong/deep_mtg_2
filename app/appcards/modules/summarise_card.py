@@ -1,7 +1,10 @@
+from typing import Any, cast
+
+from app.utils import in_celery_task
 from appai.constants.models import TEXT_MODEL
 from appai.constants.prompt_gotchas import GOTCHAS
 from beartype import beartype
-from celery import Task
+from celery.result import AsyncResult
 from pydantic_ai import Agent
 
 from appcards.modules.card_info import CardInfo
@@ -42,6 +45,17 @@ The summary should cover:
 
 
 @beartype
-def summarise_card(self: Task, card_details: CardInfo) -> str:
+def _summarise_card(card_details: CardInfo) -> str:
     agent = Agent(model=TEXT_MODEL, system_prompt=SUMMARY_PROMPT)
     return agent.run_sync(card_details.model_dump_json()).output
+
+
+@beartype
+def summarise_card(card_details: CardInfo) -> str:
+    if in_celery_task():
+        from appcards.tasks.summarise_card import summarise_card as _summarise_card_task
+
+        result: AsyncResult = cast(Any, _summarise_card_task.delay)(card_details.model_dump())
+        return cast(str, result.get(timeout=90))
+    else:
+        return _summarise_card(card_details)

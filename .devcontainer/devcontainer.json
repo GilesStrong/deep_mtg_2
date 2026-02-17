@@ -9,7 +9,8 @@
   "runServices": [
     "db",
     "redis",
-    "web"
+    "web",
+    "qdrant"
   ],
   "features": {
     "ghcr.io/va-h/devcontainers-features/uv": {
