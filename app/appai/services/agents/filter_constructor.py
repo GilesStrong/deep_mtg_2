@@ -145,8 +145,8 @@ async def filter_constructor(query: str) -> Filter:
                         if type(value) is not int:
                             raise ModelRetry(f"Invalid numeric filter: {value} is not a valid integer")
 
-            for condition in output.should + output.must + output.must_not:
-                _validate_condition(condition)
+        for condition in output.should + output.must + output.must_not:
+            _validate_condition(condition)
 
         return output
 
