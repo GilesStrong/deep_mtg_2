@@ -172,7 +172,13 @@ async def filter_constructor(query: str) -> Filter:
         Filter: A Filter object containing the filters for searching cards.
     """
 
-    agent = Agent(model=TOOL_MODEL, system_prompt=FILTER_CONSTRUCTION_PROMPT, output_retries=10, output_type=Filter)
+    agent = Agent(
+        model=TOOL_MODEL,
+        system_prompt=FILTER_CONSTRUCTION_PROMPT,
+        output_retries=10,
+        output_type=Filter,
+        instrument=True,
+    )
 
     @agent.output_validator
     async def _validate_output(output: Filter) -> Filter:

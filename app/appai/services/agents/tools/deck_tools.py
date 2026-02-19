@@ -58,7 +58,7 @@ async def add_card_to_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID, num
     deck_card, created = DeckCard.objects.get_or_create(deck=deck, card=card, defaults={'quantity': 0})
     deck_card.quantity += number_to_add
     deck_card.save()
-    ctx.deps.validated = False
+    ctx.deps.validated = validate_deck_basic(deck).valid
 
     total_cards = DeckCard.objects.filter(deck=deck).aggregate(Sum('quantity'))['quantity__sum'] or 0
     return f"Added {number_to_add}x '{card.name}' to deck '{deck.name}'. Deck now has {total_cards} total cards ({deck_card.quantity}x {card.name})."
@@ -100,7 +100,7 @@ async def remove_card_from_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID
         return f"Removed all copies of '{card.name}' from deck '{deck.name}'. Deck now has {total_cards} total cards."
     else:
         deck_card.save()
-        ctx.deps.validated = False
+        ctx.deps.validated = validate_deck_basic(deck).valid
         total_cards = DeckCard.objects.filter(deck=deck).aggregate(Sum('quantity'))['quantity__sum'] or 0
         return f"Removed {number_to_remove}x '{card.name}' from deck '{deck.name}'. Deck now has {total_cards} total cards ({deck_card.quantity}x {card.name} remaining)."
 
@@ -156,4 +156,6 @@ async def validate_deck(ctx: RunContext[DeckBuildingDeps]) -> DeckValidationResu
         DeckValidationResult: A message indicating whether the deck is valid or listing any issues found.
     """
 
-    return validate_deck_basic(ctx.deps.deck_id)
+    response = validate_deck_basic(ctx.deps.deck_id)
+    ctx.deps.validated = response.valid
+    return response
