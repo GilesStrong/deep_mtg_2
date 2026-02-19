@@ -104,7 +104,7 @@ type Condition = RangeCondition | MatchAnyCondition | MatchValueCondition
 
 class Filter(BaseModel):
     min_should_count: int = Field(
-        default=0,
+        default=1,
         description="Minimum number of the 'should' conditions that must be satisfied (if any 'should' conditions are provided)",
     )
     should: list[Condition] = Field(
