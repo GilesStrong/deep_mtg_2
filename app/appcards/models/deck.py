@@ -1,0 +1,98 @@
+from typing import Any
+from uuid import UUID, uuid4
+
+from beartype import beartype
+from django.core.exceptions import ValidationError
+from django.db import models
+from pydantic import BaseModel, Field
+
+from appcards.models.card import Card
+
+
+class DeckCard(models.Model):
+    """Through model to track card quantities in a deck"""
+
+    id = models.UUIDField(default=uuid4, editable=False, primary_key=True, unique=True)
+    deck = models.ForeignKey('Deck', on_delete=models.CASCADE)
+    card = models.ForeignKey(Card, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        unique_together = ('deck', 'card')
+
+    def __str__(self) -> str:
+        return f"{self.quantity}x {self.card.name} in {self.deck.name}"
+
+
+@beartype
+def _validate_set_str(value: set[str]) -> None:
+    pass
+
+
+class Deck(models.Model):
+    id = models.UUIDField(default=uuid4, editable=False, primary_key=True, unique=True)
+    name = models.CharField(max_length=255, unique=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    cards = models.ManyToManyField(Card, through=DeckCard, related_name='decks')
+    set_codes = models.JSONField(default=set, blank=True, validators=[_validate_set_str])
+    llm_summary = models.TextField(blank=True, null=True)
+    valid = models.BooleanField(default=False)
+
+    def __str__(self) -> str:
+        return self.name
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if not self.name:
+            raise ValidationError("Deck name cannot be empty.")
+
+        set_codes = set()
+        for card in self.cards.prefetch_related('printings').all():
+            set_codes.update(card.printings.values_list('set_code', flat=True))
+        self.set_codes = set_codes
+        self.valid = validate_deck_basic(self).valid
+        super().save(*args, **kwargs)
+
+
+class DeckValidationResult(BaseModel):
+    valid: bool = Field(..., description="Whether the deck is valid according to basic rules")
+    issues: list[str] = Field(default_factory=list, description="A list of issues found with the deck, if any")
+    total_cards: int = Field(..., description="The total number of cards in the deck")
+
+
+@beartype
+def validate_deck_basic(deck_id: UUID | Deck) -> DeckValidationResult:
+    """
+    Validates a deck against basic rules (e.g. minimum 60 cards, no more than 4 copies of a card except basic lands).
+    This function is intended to be used as a quick check for deck validity, and does not enforce any format-specific rules (e.g. Standard legality, Commander rules, etc.).
+    It does not check for card legality based on set codes or banned/restricted lists, only the basic structural rules of deck construction.
+    It also does not check for any specific card requirements, limitations, or allowances that may exist.
+
+    Args:
+        deck_id (UUID): The ID of the deck to validate.
+
+    Returns:
+        DeckValidationResult: An object indicating whether the deck is valid, any issues found, and the total number of cards in the deck.
+    """
+
+    if isinstance(deck_id, UUID):
+        try:
+            deck = Deck.objects.get(id=deck_id)
+        except Deck.DoesNotExist:
+            return DeckValidationResult(valid=False, issues=["Deck does not exist"], total_cards=0)
+    else:
+        deck = deck_id
+
+    issues = []
+    deck_cards = DeckCard.objects.filter(deck=deck).select_related('card')
+    total_cards = deck_cards.aggregate(models.Sum('quantity'))['quantity__sum'] or 0
+    if total_cards < 60:
+        issues.append(f"Deck '{deck.name}' is invalid: it has only {total_cards} cards (minimum is 60).")
+    for dc in deck_cards:
+        if dc.quantity > 4 and (
+            'Basic' not in dc.card.supertypes or 'deck can have any number of cards named' not in dc.card.text.lower()
+        ):
+            issues.append(f"{dc.quantity} copies of '{dc.card.name}' (ID: {dc.card.id})")
+    if len(issues) > 0:
+        return DeckValidationResult(valid=False, issues=issues, total_cards=total_cards)
+    return DeckValidationResult(valid=True, issues=[], total_cards=total_cards)

@@ -17,3 +17,19 @@ EVERGREEN_KEYWORDS = {
     "Vigilance",
     "Ward",
 }
+
+CURRENT_STANDARD_SET_CODES = {
+    "FDN",
+    "WOE",
+    "LCI",
+    "MKM",
+    "OTJ",
+    "BIG",
+    "BLB",
+    "DSK",
+    "DFT",
+    "TDM",
+    "FIN",
+    "EOE",
+    "SPM",
+}
