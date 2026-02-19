@@ -11,7 +11,7 @@ from appcards.constants.storage import CARD_COLLECTION_NAME
 
 
 class Command(BaseCommand):
-    help = 'Generate LLM embeddings for cards without embeddings'
+    help = 'Playground for testing retrieval of cards with filters constructed from natural language queries'
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('--query', type=str, required=True, help='Search query to filter cards')
