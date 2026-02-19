@@ -138,11 +138,11 @@ async def filter_constructor(query: str) -> Filter:
                 'mana_cost_colorless',
             ]:
                 if isinstance(condition, MatchValueCondition):
-                    if not isinstance(condition.value, int):
+                    if type(condition.value) is not int:
                         raise ModelRetry(f"Invalid numeric filter: {condition.value} is not a valid integer")
                 elif isinstance(condition, MatchAnyCondition):
                     for value in condition.any:
-                        if not isinstance(value, int):
+                        if type(value) is not int:
                             raise ModelRetry(f"Invalid numeric filter: {value} is not a valid integer")
 
             for condition in output.should + output.must + output.must_not:
