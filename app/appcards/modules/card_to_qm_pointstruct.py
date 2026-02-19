@@ -13,29 +13,8 @@ def card_to_qm_pointstruct(card: Card) -> qm.PointStruct:
     dense_vector = dense_embed(card.llm_summary)
 
     card_info = card_to_info(card)
-    payload = {
-        "name": card_info.name,
-        "text": card_info.text,
-        "llm_summary": card_info.llm_summary,
-        "subtypes": card_info.subtypes,
-        "supertypes": card_info.supertypes,
-        "power": card_info.power,
-        "toughness": card_info.toughness,
-        "mana_cost_red": card_info.mana_cost_red,
-        "mana_cost_blue": card_info.mana_cost_blue,
-        "mana_cost_green": card_info.mana_cost_green,
-        "mana_cost_white": card_info.mana_cost_white,
-        "mana_cost_black": card_info.mana_cost_black,
-        "mana_cost_colorless": card_info.mana_cost_colorless,
-        "converted_mana_cost": card_info.converted_mana_cost,
-        "colors": card_info.colors,
-        "set_codes": card_info.set_codes,
-        "types": card_info.types,
-        "rarity": card_info.rarity,
-        "keywords": card_info.keywords,
-    }
     return qm.PointStruct(
         id=str(card.id),
         vector={"dense": dense_vector},
-        payload=payload,
+        payload=card_info.model_dump(mode="json"),
     )

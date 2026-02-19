@@ -42,6 +42,7 @@ class AISettings(BaseSettings):
     OLLAMA_MAX_TOKENS: int
     OLLAMA_NUM_CTX: int
     TEXT_MODEL: str
+    TOOL_MODEL: str
     EMBEDDING_MODEL: str
     EMBEDDING_DIMENSION: int
 

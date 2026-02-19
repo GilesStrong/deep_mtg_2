@@ -52,7 +52,7 @@ class MatchAnyCondition(BaseModel):
     """
 
     key: str = Field(..., description="Field name to apply the match any condition on")
-    any: list[str] = Field(..., description="List of values to match any of")
+    any: list[str] | list[str] = Field(..., description="List of values to match any of")
 
     @field_validator('any')
     @classmethod
@@ -99,19 +99,22 @@ class MatchValueCondition(BaseModel):
         return qm.FieldCondition(key=self.key, match=qm.MatchValue(value=self.value))
 
 
+type Condition = RangeCondition | MatchAnyCondition | MatchValueCondition
+
+
 class Filter(BaseModel):
     min_should_count: int = Field(
         default=1,
         description="Minimum number of the 'should' conditions that must be satisfied (if any 'should' conditions are provided)",
     )
-    should: list[RangeCondition | MatchAnyCondition | MatchValueCondition] = Field(
+    should: list[Condition] = Field(
         default_factory=list,
         description="List of conditions where at least `min_should` must be satisfied (logical OR)",
     )
-    must: list[RangeCondition | MatchAnyCondition | MatchValueCondition] = Field(
+    must: list[Condition] = Field(
         default_factory=list, description="List of conditions that must all be satisfied (logical AND)"
     )
-    must_not: list[RangeCondition | MatchAnyCondition | MatchValueCondition] = Field(
+    must_not: list[Condition] = Field(
         default_factory=list, description="List of conditions that must not be satisfied (logical NAND)"
     )
 
