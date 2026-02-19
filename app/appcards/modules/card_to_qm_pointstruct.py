@@ -16,5 +16,5 @@ def card_to_qm_pointstruct(card: Card) -> qm.PointStruct:
     return qm.PointStruct(
         id=str(card.id),
         vector={"dense": dense_vector},
-        payload=card_info.model_dump(),
+        payload=card_info.model_dump(mode="json"),
     )
