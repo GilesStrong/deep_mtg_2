@@ -25,8 +25,9 @@ class DeckCard(models.Model):
 
 
 @beartype
-def _validate_set_str(value: set[str]) -> None:
-    pass
+def _validate_set_str(value: list[str]) -> None:
+    if len(value) != len(set(value)):
+        raise ValidationError("Set codes must be unique.")
 
 
 class Deck(models.Model):
@@ -35,7 +36,7 @@ class Deck(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     cards = models.ManyToManyField(Card, through=DeckCard, related_name='decks')
-    set_codes = models.JSONField(default=set, blank=True, validators=[_validate_set_str])
+    set_codes = models.JSONField(default=list, blank=True, validators=[_validate_set_str])
     llm_summary = models.TextField(blank=True, null=True)
     valid = models.BooleanField(default=False)
 
@@ -53,7 +54,7 @@ class Deck(models.Model):
         for deck_card in deck_cards:
             set_codes.update(deck_card.card.printings.values_list('set_code', flat=True))
 
-        self.set_codes = set_codes
+        self.set_codes = list(set_codes)
         self.valid = validate_deck_basic(self).valid
         super().save(*args, **kwargs)
 

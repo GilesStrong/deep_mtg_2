@@ -1,9 +1,12 @@
+from uuid import UUID
+
 from appcards.constants.storage import CARD_COLLECTION_NAME
 from appcards.models import Card
 from appcards.models.deck import DeckCard
 from appcards.modules.card_info import CardInfo, card_to_info
 from appsearch.services.qdrant.search import run_query_from_dsl
 from appsearch.services.qdrant.search_dsl import Filter, MatchAnyCondition, Query
+from asgiref.sync import sync_to_async
 from beartype import beartype
 from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
@@ -49,6 +52,8 @@ async def search_for_cards(
 
     Therefore the query can be a natural language description of the type of card the user is looking for, and the search will return cards that match that description, even if the query does not include specific details about the card.
 
+    Be aware that the results of the search are NOT added to the deck. Use the appropriate tool to add cards to the deck after retrieving them with this search tool.
+
     Args:
         query (str): The search query to use.
         search_with_advanced_filter (bool): Whether to construct and apply a filter based on the current deck state.
@@ -57,18 +62,24 @@ async def search_for_cards(
     Returns:
         SearchResults: The search results containing the matching cards, the original query, and the filter used.
     """
+    print(f"Searching for cards with query: {query}")
     if max_results > MAX_SEARCH_RESULTS:
         max_results = MAX_SEARCH_RESULTS
 
     # Build filters
-    existing_card_ids = list(DeckCard.objects.filter(deck_id=ctx.deps.deck_id).values_list("card__id", flat=True))
+    existing_card_ids: list[UUID] = await sync_to_async(list)(  # type: ignore [call-arg]
+        DeckCard.objects.filter(deck_id=ctx.deps.deck_id).values_list("card__id", flat=True)
+    )
+
     basic_filter = Filter(
         must=[
             MatchAnyCondition(key="set_codes", any=list(ctx.deps.available_set_codes)),
         ],
         must_not=[
-            MatchAnyCondition(key="id", any=existing_card_ids),
-        ],
+            MatchAnyCondition(key="id", any=[str(card_id) for card_id in existing_card_ids]),
+        ]
+        if len(existing_card_ids) > 0
+        else [],
     )
 
     if search_with_advanced_filter:
@@ -81,22 +92,24 @@ async def search_for_cards(
         )
     else:
         combined_filter = basic_filter
+    print(f"Constructed filter for search: {combined_filter.model_dump_json(indent=2, ensure_ascii=False)}")
 
     # Run search
-    found_cards = run_query_from_dsl(
-        dsl_query=Query(
-            collection_name=CARD_COLLECTION_NAME, query_string=query, filter=combined_filter, limit=max_results
-        ),
+    found_cards = await sync_to_async(run_query_from_dsl)(
+        Query(collection_name=CARD_COLLECTION_NAME, query_string=query, filter=combined_filter, limit=max_results),
     )
+    print(f"Found {len(found_cards)} cards matching query: {query}")
 
     # Convert results to CardInfo
     card_infos = []
     for point in found_cards:
+        print(
+            f"Processing search result card ID: {point.id}, score: {point.score}, payload name: {point.payload['name']}"
+        )
         try:
-            card = Card.objects.get(id=point.id)
-            card_infos.append(card_to_info(card))
+            card = await Card.objects.aget(id=point.id)
+            card_infos.append(await sync_to_async(card_to_info)(card))
         except Card.DoesNotExist:
             print(f"Card with ID {point.id} was found in search results but does not exist in the database.")
             continue
-
     return SearchResults(cards=card_infos, filter_used=combined_filter)

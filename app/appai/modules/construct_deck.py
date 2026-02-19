@@ -16,7 +16,6 @@ class DeckConstructorResults(BaseModel):
 
 @beartype
 async def construct_deck(deck_description: str) -> DeckConstructorResults:
-    deck = Deck(name="New Deck")
-    deck.save()
+    deck = await Deck.objects.acreate(name="New Deck")
     response = await run_deck_constructor_agent(deck.id, deck_description)
     return DeckConstructorResults(deck_id=deck.id, deck_summary=response)
