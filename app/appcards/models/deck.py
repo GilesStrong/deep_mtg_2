@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from beartype import beartype
@@ -13,7 +13,7 @@ class DeckCard(models.Model):
     """Through model to track card quantities in a deck"""
 
     id = models.UUIDField(default=uuid4, editable=False, primary_key=True, unique=True)
-    deck = models.ForeignKey('Deck', on_delete=models.CASCADE)
+    deck = models.ForeignKey('Deck', on_delete=models.CASCADE, related_name='deckcard_set')
     card = models.ForeignKey(Card, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
 
@@ -46,12 +46,21 @@ class Deck(models.Model):
         if not self.name:
             raise ValidationError("Deck name cannot be empty.")
 
+        # Use a single query with prefetch_related to get all cards and their printings
+        deck_cards = DeckCard.objects.filter(deck=self).select_related('card').prefetch_related('card__printings')
+
         set_codes = set()
-        for card in self.cards.prefetch_related('printings').all():
-            set_codes.update(card.printings.values_list('set_code', flat=True))
+        for deck_card in deck_cards:
+            set_codes.update(deck_card.card.printings.values_list('set_code', flat=True))
+
         self.set_codes = set_codes
         self.valid = validate_deck_basic(self).valid
         super().save(*args, **kwargs)
+
+    if TYPE_CHECKING:
+        from django.db.models.manager import RelatedManager
+
+        deckcard_set: RelatedManager["DeckCard"]
 
 
 class DeckValidationResult(BaseModel):

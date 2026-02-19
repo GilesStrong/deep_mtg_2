@@ -71,7 +71,7 @@ Unless going for a fast agro deck, staying on curve and ensuring card draw and m
 
 
 @beartype
-async def construct_deck(
+async def run_deck_constructor_agent(
     deck_id: UUID, deck_description: str, available_set_codes: set[str] = CURRENT_STANDARD_SET_CODES
 ) -> str:
     """
