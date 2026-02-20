@@ -30,7 +30,7 @@ async def search_for_cards(
 ) -> SearchResults:
     """
     Searches for cards matching a query.
-    The search will be perfomed using a vector search between the query and the card embeddings, which are based on automatically generated summaries of the cards.
+    The search will be performed using a vector search between the query and the card embeddings, which are based on automatically generated summaries of the cards.
 
     Optionally, an advanced filter can be automatically constructed from the query and applied to the search.
     The filter will be constructed based on the query, and can be used to narrow down the search results based on:
