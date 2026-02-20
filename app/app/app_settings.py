@@ -45,6 +45,8 @@ class AISettings(BaseSettings):
     TOOL_MODEL: str
     EMBEDDING_MODEL: str
     EMBEDDING_DIMENSION: int
+    GOOGLE_API_KEY: str
+    DEEPSEEK_API_KEY: str
 
 
 class QdrantSettings(BaseSettings):
@@ -54,7 +56,14 @@ class QdrantSettings(BaseSettings):
     HNSW_EF_SEARCH: int
 
 
-class AppSettings(EnvSettings, DjangoSettings, CelerySettings, PostgresSettings, AISettings, QdrantSettings):
+class LogfireSettings(BaseSettings):
+    LOGFIRE_TOKEN: str
+    LOGFIRE_ENVIRONMENT: str
+
+
+class AppSettings(
+    EnvSettings, DjangoSettings, CelerySettings, PostgresSettings, AISettings, QdrantSettings, LogfireSettings
+):
     model_config = SettingsConfigDict(env_file_encoding='utf-8')
 
 

@@ -1,3 +1,4 @@
+from aiocache import cached
 from appcards.constants.cards import EVERGREEN_KEYWORDS
 from appcards.models.card import ManaColorEnum, Rarity, TypeEnum
 from appcards.modules.card_info import CardInfo
@@ -160,6 +161,7 @@ The final filter will be created based on your response.
 """
 
 
+@cached(ttl=3600)  # Cache for 1 hour
 @beartype
 async def filter_constructor(query: str) -> Filter:
     """

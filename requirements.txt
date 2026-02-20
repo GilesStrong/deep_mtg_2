@@ -2,6 +2,8 @@
 #    uv export --format=requirements.txt --all-groups --no-hashes --output-file=requirements.txt --frozen
 ag-ui-protocol==0.1.10
     # via pydantic-ai-slim
+aiocache==0.12.3
+    # via app
 aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.13.3
@@ -312,7 +314,9 @@ langsmith==0.6.6
 librt==0.7.8 ; platform_python_implementation != 'PyPy'
     # via mypy
 logfire==4.22.0
-    # via pydantic-ai-slim
+    # via
+    #   app
+    #   pydantic-ai-slim
 logfire-api==4.22.0
     # via
     #   pydantic-evals

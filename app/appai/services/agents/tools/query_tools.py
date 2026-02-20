@@ -26,7 +26,7 @@ class SearchResults(BaseModel):
 
 @beartype
 async def search_for_cards(
-    ctx: RunContext[DeckBuildingDeps], query: str, search_with_advanced_filter: bool, max_results: int = 10
+    ctx: RunContext[DeckBuildingDeps], query: str, search_with_advanced_filter: bool = True, max_results: int = 10
 ) -> SearchResults:
     """
     Searches for cards matching a query.
@@ -62,7 +62,6 @@ async def search_for_cards(
     Returns:
         SearchResults: The search results containing the matching cards, the original query, and the filter used.
     """
-    print(f"Searching for cards with query: {query}")
     if max_results > MAX_SEARCH_RESULTS:
         max_results = MAX_SEARCH_RESULTS
 
@@ -92,24 +91,18 @@ async def search_for_cards(
         )
     else:
         combined_filter = basic_filter
-    print(f"Constructed filter for search: {combined_filter.model_dump_json(indent=2, ensure_ascii=False)}")
 
     # Run search
     found_cards = await sync_to_async(run_query_from_dsl)(
         Query(collection_name=CARD_COLLECTION_NAME, query_string=query, filter=combined_filter, limit=max_results),
     )
-    print(f"Found {len(found_cards)} cards matching query: {query}")
 
     # Convert results to CardInfo
     card_infos = []
     for point in found_cards:
-        print(
-            f"Processing search result card ID: {point.id}, score: {point.score}, payload name: {point.payload['name']}"
-        )
         try:
             card = await Card.objects.aget(id=point.id)
             card_infos.append(await sync_to_async(card_to_info)(card))
         except Card.DoesNotExist:
-            print(f"Card with ID {point.id} was found in search results but does not exist in the database.")
             continue
     return SearchResults(cards=card_infos, filter_used=combined_filter)

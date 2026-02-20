@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Any, cast
 
 import requests
@@ -7,6 +8,7 @@ from beartype import beartype
 from celery.result import AsyncResult
 
 
+@lru_cache(maxsize=128)
 @beartype
 def _dense_embed(text: str) -> list[float]:
     response = requests.post(

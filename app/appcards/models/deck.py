@@ -100,7 +100,7 @@ def validate_deck_basic(deck_id: UUID | Deck) -> DeckValidationResult:
         issues.append(f"Deck '{deck.name}' is invalid: it has only {total_cards} cards (minimum is 60).")
     for dc in deck_cards:
         if dc.quantity > 4 and (
-            'Basic' not in dc.card.supertypes or 'deck can have any number of cards named' not in dc.card.text.lower()
+            'Basic' not in dc.card.supertypes and 'deck can have any number of cards named' not in dc.card.text.lower()
         ):
             issues.append(f"{dc.quantity} copies of '{dc.card.name}' (ID: {dc.card.id})")
     if len(issues) > 0:

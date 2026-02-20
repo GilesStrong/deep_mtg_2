@@ -23,21 +23,17 @@ async def rename_deck(ctx: RunContext[DeckBuildingDeps], new_name: str) -> str:
     Returns:
         str: A message indicating the result of the operation.
     """
-    print(f"Renaming deck ID {ctx.deps.deck_id} to '{new_name}'...")
     if new_name.strip() == "":
         message = "Deck name cannot be empty."
-        print(message)
         return message
     try:
         deck = await Deck.objects.aget(id=ctx.deps.deck_id)
         deck.name = unicodedata.normalize("NFKC", html.escape(new_name))
         await deck.asave()
         message = f"Deck renamed to '{deck.name}'."
-        print(message)
         return message
     except Deck.DoesNotExist:
         message = f"Deck with ID {ctx.deps.deck_id} does not exist."
-        print(message)
         return message
 
 
@@ -53,19 +49,16 @@ async def add_card_to_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID, num
     Returns:
         str: A message indicating the result of the operation.
     """
-    print(f"Adding {number_to_add}x card ID {card_id} to deck ID {ctx.deps.deck_id}...")
     try:
         deck = await Deck.objects.aget(id=ctx.deps.deck_id)
     except Deck.DoesNotExist:
         message = f"Deck with ID {ctx.deps.deck_id} does not exist."
-        print(message)
         return message
 
     try:
         card = await Card.objects.aget(id=card_id)
     except Card.DoesNotExist:
         message = f"Card with ID {card_id} does not exist."
-        print(message)
         return message
 
     deck_card, created = await DeckCard.objects.aget_or_create(deck=deck, card=card, defaults={'quantity': 0})
@@ -78,7 +71,6 @@ async def add_card_to_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID, num
     total_cards = await DeckCard.objects.filter(deck=deck).aaggregate(Sum('quantity'))
     total_cards = total_cards['quantity__sum'] or 0
     message = f"Added {number_to_add}x '{card.name}' to deck '{deck.name}'. Deck now has {total_cards} total cards ({deck_card.quantity}x {card.name})."
-    print(message)
     return message
 
 
@@ -94,26 +86,22 @@ async def remove_card_from_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID
     Returns:
         str: A message indicating the result of the operation.
     """
-    print(f"Removing {number_to_remove}x card ID {card_id} from deck ID {ctx.deps.deck_id}...")
     try:
         deck = await Deck.objects.aget(id=ctx.deps.deck_id)
     except Deck.DoesNotExist:
         message = f"Deck with ID {ctx.deps.deck_id} does not exist."
-        print(message)
         return message
 
     try:
         card = await Card.objects.aget(id=card_id)
     except Card.DoesNotExist:
         message = f"Card with ID {card_id} does not exist."
-        print(message)
         return message
 
     try:
         deck_card = await DeckCard.objects.aget(deck=deck, card=card)
     except DeckCard.DoesNotExist:
         message = f"Card '{card.name}' is not in deck '{deck.name}'."
-        print(message)
         return message
 
     deck_card.quantity -= number_to_remove
@@ -126,7 +114,6 @@ async def remove_card_from_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID
         message = (
             f"Removed all copies of '{card.name}' from deck '{deck.name}'. Deck now has {total_cards} total cards."
         )
-        print(message)
         return message
     else:
         await deck_card.asave()
@@ -135,7 +122,6 @@ async def remove_card_from_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID
         total_cards = await DeckCard.objects.filter(deck=deck).aaggregate(Sum('quantity'))
         total_cards = total_cards['quantity__sum'] or 0
         message = f"Removed {number_to_remove}x '{card.name}' from deck '{deck.name}'. Deck now has {total_cards} total cards ({deck_card.quantity}x {card.name} remaining)."
-        print(message)
         return message
 
 
@@ -147,18 +133,15 @@ async def clear_deck(ctx: RunContext[DeckBuildingDeps]) -> str:
     Returns:
         str: A message indicating the result of the operation.
     """
-    print(f"Clearing all cards from deck ID {ctx.deps.deck_id}...")
     try:
         deck = await Deck.objects.aget(id=ctx.deps.deck_id)
     except Deck.DoesNotExist:
         message = f"Deck with ID {ctx.deps.deck_id} does not exist."
-        print(message)
         return message
 
     await DeckCard.objects.filter(deck=deck).adelete()
     ctx.deps.validated = False
     message = f"All cards removed from deck '{deck.name}'."
-    print(message)
     return message
 
 
@@ -171,26 +154,21 @@ async def list_deck_cards(ctx: RunContext[DeckBuildingDeps]) -> str:
         str: A message listing all cards in the deck.
     """
     try:
-        print(f"Listing cards for deck ID {ctx.deps.deck_id}...")
-
         deck_cards: list[DeckCard] = await sync_to_async(list)(  # type: ignore [call-arg]
             DeckCard.objects.filter(deck_id=ctx.deps.deck_id).select_related('card', 'deck')
         )
 
         if not deck_cards:
             message = "Deck is empty."
-            print(message)
             return message
 
         card_list = "\n".join(
             [f"{dc.quantity}x {dc.card.name} -- {dc.card.id}: {dc.card.llm_summary}" for dc in deck_cards]
         )
         message = f"Cards in deck:\n{card_list}"
-        print(message)
         return message
     except Deck.DoesNotExist:
         message = f"Deck with ID {ctx.deps.deck_id} does not exist."
-        print(message)
         return message
 
 
@@ -205,10 +183,6 @@ async def validate_deck(ctx: RunContext[DeckBuildingDeps]) -> DeckValidationResu
     Returns:
         DeckValidationResult: A message indicating whether the deck is valid or listing any issues found.
     """
-    print(f"Validating deck ID {ctx.deps.deck_id}...")
     response = await sync_to_async(validate_deck_basic)(ctx.deps.deck_id)
     ctx.deps.validated = response.valid
-    print(
-        f"Deck validation result for deck ID {ctx.deps.deck_id}: valid={response.valid}, issues={response.issues}, total_cards={response.total_cards}"
-    )
     return response
