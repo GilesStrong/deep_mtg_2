@@ -3,7 +3,7 @@ from uuid import UUID
 import logfire
 from appcards.models.deck import Deck
 from beartype import beartype
-from mistralai import Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from appai.services.agents.deck_constructor import run_deck_constructor_agent
