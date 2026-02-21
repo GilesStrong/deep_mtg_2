@@ -77,21 +77,6 @@ Unless going for a fast agro deck, staying on curve and ensuring card draw and m
 """
 
 
-# async def _history_trimmer(
-#     ctx: RunContext[DeckBuildingDeps],
-#     messages: list[ModelMessage],
-# ) -> list[ModelMessage]:
-#     system_prompt = messages[0]
-#     user_request = messages[1]
-#     current_deck_state = await list_deck_cards(ctx)
-#     current_deck_state_message = ModelRequest(
-#         parts=[SystemPromptPart(content=f"Current deck state:\n{current_deck_state}")]
-#     )
-#     trimmed_history = [system_prompt, user_request, current_deck_state_message]
-#     messages = messages[2:]
-#     for message in messages[-10:]:
-
-
 @beartype
 async def run_deck_constructor_agent(
     deck_id: UUID, deck_description: str, available_set_codes: set[str] = CURRENT_STANDARD_SET_CODES
@@ -123,7 +108,7 @@ async def run_deck_constructor_agent(
         retries=10,
         output_retries=10,
     )
-    deps = DeckBuildingDeps(deck_id=deck_id, validated=False, available_set_codes=available_set_codes)
+    deps = DeckBuildingDeps(deck_id=deck_id, available_set_codes=available_set_codes)
     response = await agent.run(deck_description, deps=deps)
     deck = await Deck.objects.aget(id=deck_id)
     deck.llm_summary = response.output

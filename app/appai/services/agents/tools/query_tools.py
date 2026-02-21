@@ -22,8 +22,12 @@ class SearchResults(BaseModel):
     filter_used: Filter = Field(
         description="The filter that was applied to the search, including any conditions that were automatically constructed based on the query and the current deck state."
     )
+    max_results: int = Field(
+        description="The maximum number of results that were requested to be returned, which may be less than the actual number of results found."
+    )
 
 
+# TODO: Make the main agent be able to specify the filter, and/or split the filter query and the vector-search query
 @beartype
 async def search_for_cards(
     ctx: RunContext[DeckBuildingDeps], query: str, search_with_advanced_filter: bool = True, max_results: int = 10
@@ -40,7 +44,7 @@ async def search_for_cards(
     - Keywords
     - Cost
 
-    Additonally, a basic filter will be constructed based on the current state of the deck:
+    Additionally, a basic filter will be constructed based on the current state of the deck:
     - Ignore cards that are already in the deck
     - Ignore cards that are not legal in the format of the deck
 
@@ -56,7 +60,7 @@ async def search_for_cards(
 
     Args:
         query (str): The search query to use.
-        search_with_advanced_filter (bool): Whether to construct and apply a filter based on the current deck state.
+        search_with_advanced_filter (bool): Whether to construct and apply a filter based on interpreted query.
         max_results (int): The maximum number of results to return, subject to a maximum limit.
 
     Returns:
@@ -105,4 +109,4 @@ async def search_for_cards(
             card_infos.append(await sync_to_async(card_to_info)(card))
         except Card.DoesNotExist:
             continue
-    return SearchResults(cards=card_infos, filter_used=combined_filter)
+    return SearchResults(cards=card_infos, filter_used=combined_filter, max_results=max_results)

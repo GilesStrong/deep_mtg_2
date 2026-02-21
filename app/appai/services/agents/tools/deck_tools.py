@@ -2,8 +2,8 @@ import html
 import unicodedata
 from uuid import UUID
 
-from appcards.models import Card, Deck
-from appcards.models.deck import DeckCard, DeckValidationResult, validate_deck_basic
+from appcards.models.card import Card
+from appcards.models.deck import MAX_DECK_NAME_LENGTH, Deck, DeckCard, DeckValidationResult, validate_deck_basic
 from asgiref.sync import sync_to_async
 from beartype import beartype
 from django.db.models import Sum
@@ -28,7 +28,11 @@ async def rename_deck(ctx: RunContext[DeckBuildingDeps], new_name: str) -> str:
         return message
     try:
         deck = await Deck.objects.aget(id=ctx.deps.deck_id)
-        deck.name = unicodedata.normalize("NFKC", html.escape(new_name))
+        new_name = unicodedata.normalize("NFKC", html.escape(new_name))
+        if len(new_name) > MAX_DECK_NAME_LENGTH:
+            message = f"Deck name cannot exceed {MAX_DECK_NAME_LENGTH} characters."
+            return message
+        deck.name = new_name
         await deck.asave()
         message = f"Deck renamed to '{deck.name}'."
         return message
@@ -44,11 +48,15 @@ async def add_card_to_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID, num
 
     Args:
         card_id (UUID): The ID of the card to add.
-        number_to_add (int): The number of copies of the card to add.
+        number_to_add (int): The number of copies of the card to add (positive, non-zero integer).
 
     Returns:
         str: A message indicating the result of the operation.
     """
+    if number_to_add <= 0:
+        message = "Number of copies to add must be a positive, non-zero integer."
+        return message
+
     try:
         deck = await Deck.objects.aget(id=ctx.deps.deck_id)
     except Deck.DoesNotExist:
@@ -65,9 +73,6 @@ async def add_card_to_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID, num
     deck_card.quantity += number_to_add
     await deck_card.asave()
 
-    validation_result = await sync_to_async(validate_deck_basic)(deck)
-    ctx.deps.validated = validation_result.valid
-
     total_cards = await DeckCard.objects.filter(deck=deck).aaggregate(Sum('quantity'))
     total_cards = total_cards['quantity__sum'] or 0
     message = f"Added {number_to_add}x '{card.name}' to deck '{deck.name}'. Deck now has {total_cards} total cards ({deck_card.quantity}x {card.name})."
@@ -81,11 +86,15 @@ async def remove_card_from_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID
 
     Args:
         card_id (UUID): The ID of the card to remove.
-        number_to_remove (int): The number of copies of the card to remove.
+        number_to_remove (int): The number of copies of the card to remove (positive, non-zero integer).
 
     Returns:
         str: A message indicating the result of the operation.
     """
+    if number_to_remove <= 0:
+        message = "Number of copies to remove must be a positive, non-zero integer."
+        return message
+
     try:
         deck = await Deck.objects.aget(id=ctx.deps.deck_id)
     except Deck.DoesNotExist:
@@ -108,7 +117,6 @@ async def remove_card_from_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID
 
     if deck_card.quantity <= 0:
         await deck_card.adelete()
-        ctx.deps.validated = False
         total_cards = await DeckCard.objects.filter(deck=deck).aaggregate(Sum('quantity'))
         total_cards = total_cards['quantity__sum'] or 0
         message = (
@@ -117,8 +125,6 @@ async def remove_card_from_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID
         return message
     else:
         await deck_card.asave()
-        validation_result = await sync_to_async(validate_deck_basic)(deck)
-        ctx.deps.validated = validation_result.valid
         total_cards = await DeckCard.objects.filter(deck=deck).aaggregate(Sum('quantity'))
         total_cards = total_cards['quantity__sum'] or 0
         message = f"Removed {number_to_remove}x '{card.name}' from deck '{deck.name}'. Deck now has {total_cards} total cards ({deck_card.quantity}x {card.name} remaining)."
@@ -140,7 +146,6 @@ async def clear_deck(ctx: RunContext[DeckBuildingDeps]) -> str:
         return message
 
     await DeckCard.objects.filter(deck=deck).adelete()
-    ctx.deps.validated = False
     message = f"All cards removed from deck '{deck.name}'."
     return message
 
@@ -184,5 +189,4 @@ async def validate_deck(ctx: RunContext[DeckBuildingDeps]) -> DeckValidationResu
         DeckValidationResult: A message indicating whether the deck is valid or listing any issues found.
     """
     response = await sync_to_async(validate_deck_basic)(ctx.deps.deck_id)
-    ctx.deps.validated = response.valid
     return response

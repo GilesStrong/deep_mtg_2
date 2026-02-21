@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 
 from appcards.models.card import Card
 
+MAX_DECK_NAME_LENGTH = 64
+
 
 class DeckCard(models.Model):
     """Through model to track card quantities in a deck"""
@@ -32,7 +34,7 @@ def _validate_set_str(value: list[str]) -> None:
 
 class Deck(models.Model):
     id = models.UUIDField(default=uuid4, editable=False, primary_key=True, unique=True)
-    name = models.CharField(max_length=64)
+    name = models.CharField(max_length=MAX_DECK_NAME_LENGTH, blank=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     cards = models.ManyToManyField(Card, through=DeckCard, related_name='decks')
@@ -47,15 +49,17 @@ class Deck(models.Model):
         if not self.name:
             raise ValidationError("Deck name cannot be empty.")
 
-        # Use a single query with prefetch_related to get all cards and their printings
-        deck_cards = DeckCard.objects.filter(deck=self).select_related('card').prefetch_related('card__printings')
+        # Only validate and update set codes if the deck has already been saved (i.e. has a primary key), to avoid unnecessary queries when creating a new deck that doesn't have any cards yet.
+        if self.pk:
+            # Use a single query with prefetch_related to get all cards and their printings
+            deck_cards = DeckCard.objects.filter(deck=self).select_related('card').prefetch_related('card__printings')
 
-        set_codes = set()
-        for deck_card in deck_cards:
-            set_codes.update(deck_card.card.printings.values_list('set_code', flat=True))
+            set_codes = set()
+            for deck_card in deck_cards:
+                set_codes.update(deck_card.card.printings.values_list('set_code', flat=True))
 
-        self.set_codes = list(set_codes)
-        self.valid = validate_deck_basic(self).valid
+            self.set_codes = list(set_codes)
+            self.valid = validate_deck_basic(self).valid
         super().save(*args, **kwargs)
 
     if TYPE_CHECKING:

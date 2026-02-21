@@ -10,12 +10,12 @@ from beartype import beartype
 
 @cached(ttl=3600)  # Cache for 1 hour
 @beartype
-async def inspect_card(card_id: UUID | str) -> CardInfo | str:
+async def inspect_card(card_id: UUID) -> CardInfo | str:
     """
     Retrieves details about a card.
 
     Args:
-        card_id (UUID|str): The ID or exact name of the card to inspect.
+        card_id (UUID): The ID of the card to inspect.
 
     Returns:
         CardInfo|str: A description of the card, or an error message if not found.

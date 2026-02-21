@@ -105,8 +105,6 @@ def validate_card_filter(card_filter: Filter) -> None:
                 if condition.value not in TypeEnum._value2member_map_:
                     raise ModelRetry(f"Invalid type filter: {condition.value} is not a valid type")
         if condition.key in [
-            'power',
-            'toughness',
             'converted_mana_cost',
             'mana_cost_red',
             'mana_cost_blue',
@@ -122,6 +120,16 @@ def validate_card_filter(card_filter: Filter) -> None:
                 for value in condition.any:
                     if type(value) is not int:
                         raise ModelRetry(f"Invalid numeric filter: {value} is not a valid integer")
+            # Don't need to validate range conditions here, since Pydantic will ensure the values are the correct type
+
+        if condition.key in ['power', 'toughness']:
+            if isinstance(condition, MatchValueCondition):
+                if type(condition.value) is not str:
+                    raise ModelRetry(f"Invalid string filter: {condition.value} is not a valid string")
+            elif isinstance(condition, MatchAnyCondition):
+                for value in condition.any:
+                    if type(value) is not str:
+                        raise ModelRetry(f"Invalid string filter: {value} is not a valid string")
 
     for condition in card_filter.should + card_filter.must + card_filter.must_not:
         _validate_condition(condition)
