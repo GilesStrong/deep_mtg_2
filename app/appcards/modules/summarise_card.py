@@ -46,8 +46,9 @@ The summary should cover:
 
 @beartype
 def _summarise_card(card_details: CardInfo) -> str:
-    agent = Agent(model=TEXT_MODEL, system_prompt=SUMMARY_PROMPT)
-    return agent.run_sync(card_details.model_dump_json()).output
+    agent = Agent(model=TEXT_MODEL, system_prompt=SUMMARY_PROMPT, instrument=True)
+    data = card_details.model_dump_json(exclude={"id"})
+    return agent.run_sync(data).output
 
 
 @beartype

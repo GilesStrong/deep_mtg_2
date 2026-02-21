@@ -1,3 +1,4 @@
+from aiocache import cached
 from appcards.constants.cards import EVERGREEN_KEYWORDS
 from appcards.models.card import ManaColorEnum, Rarity, TypeEnum
 from appcards.modules.card_info import CardInfo
@@ -7,6 +8,7 @@ from appsearch.services.qdrant.search_dsl import (
     MatchAnyCondition,
     MatchValueCondition,
 )
+from beartype import beartype
 from pydantic_ai import Agent, ModelRetry
 
 from appai.constants.models import TOOL_MODEL
@@ -40,6 +42,97 @@ def _get_metadata_fields() -> str:
 
 
 METADATA_FIELD_DESCRIPTIONS = _get_metadata_fields()
+
+
+@beartype
+def validate_card_filter(card_filter: Filter) -> None:
+    """
+    Validates a card filter to ensure all conditions use valid fields and values.
+
+    This function checks that:
+    - All condition keys are valid metadata filter fields
+    - Keywords are evergreen keywords when filtering by 'keywords'
+    - Colors are valid mana colors when filtering by 'colors'
+    - Rarities are valid rarity values when filtering by 'rarity'
+    - Types are valid type enum values when filtering by 'types'
+    - Numeric fields (power, toughness, mana costs) contain integer values
+
+    Args:
+        card_filter (Filter): The filter object containing should, must, and must_not conditions
+            to validate.
+
+    Raises:
+        ModelRetry: If any condition contains an invalid field name, keyword, color, rarity,
+            type, or non-integer value for numeric fields.
+
+    Returns:
+        None: This function validates in place and raises exceptions on invalid input.
+    """
+
+    def _validate_condition(condition: Condition) -> None:
+        if condition.key not in METADATA_FILTER_FIELDS:
+            raise ModelRetry(f"Invalid filter field: {condition.key}")
+        if condition.key == 'keywords':
+            if isinstance(condition, MatchAnyCondition):
+                for keyword in condition.any:
+                    if keyword not in EVERGREEN_KEYWORDS:
+                        raise ModelRetry(f"Invalid keyword filter: {keyword} is not an evergreen keyword")
+            elif isinstance(condition, MatchValueCondition):
+                if condition.value not in EVERGREEN_KEYWORDS:
+                    raise ModelRetry(f"Invalid keyword filter: {condition.value} is not an evergreen keyword")
+        if condition.key == 'colors':
+            if isinstance(condition, MatchAnyCondition):
+                for color in condition.any:
+                    if color not in ManaColorEnum._value2member_map_:
+                        raise ModelRetry(f"Invalid color filter: {color} is not a valid mana color")
+            elif isinstance(condition, MatchValueCondition):
+                if condition.value not in ManaColorEnum._value2member_map_:
+                    raise ModelRetry(f"Invalid color filter: {condition.value} is not a valid mana color")
+        if condition.key == 'rarity':
+            if isinstance(condition, MatchAnyCondition):
+                for rarity in condition.any:
+                    if rarity not in Rarity._value2member_map_:
+                        raise ModelRetry(f"Invalid rarity filter: {rarity} is not a valid rarity")
+            elif isinstance(condition, MatchValueCondition):
+                if condition.value not in Rarity._value2member_map_:
+                    raise ModelRetry(f"Invalid rarity filter: {condition.value} is not a valid rarity")
+        if condition.key == 'types':
+            if isinstance(condition, MatchAnyCondition):
+                for kind in condition.any:
+                    if kind not in TypeEnum._value2member_map_:
+                        raise ModelRetry(f"Invalid type filter: {kind} is not a valid type")
+            elif isinstance(condition, MatchValueCondition):
+                if condition.value not in TypeEnum._value2member_map_:
+                    raise ModelRetry(f"Invalid type filter: {condition.value} is not a valid type")
+        if condition.key in [
+            'converted_mana_cost',
+            'mana_cost_red',
+            'mana_cost_blue',
+            'mana_cost_green',
+            'mana_cost_white',
+            'mana_cost_black',
+            'mana_cost_colorless',
+        ]:
+            if isinstance(condition, MatchValueCondition):
+                if type(condition.value) is not int:
+                    raise ModelRetry(f"Invalid numeric filter: {condition.value} is not a valid integer")
+            elif isinstance(condition, MatchAnyCondition):
+                for value in condition.any:
+                    if type(value) is not int:
+                        raise ModelRetry(f"Invalid numeric filter: {value} is not a valid integer")
+            # Don't need to validate range conditions here, since Pydantic will ensure the values are the correct type
+
+        if condition.key in ['power', 'toughness']:
+            if isinstance(condition, MatchValueCondition):
+                if type(condition.value) is not str:
+                    raise ModelRetry(f"Invalid string filter: {condition.value} is not a valid string")
+            elif isinstance(condition, MatchAnyCondition):
+                for value in condition.any:
+                    if type(value) is not str:
+                        raise ModelRetry(f"Invalid string filter: {value} is not a valid string")
+
+    for condition in card_filter.should + card_filter.must + card_filter.must_not:
+        _validate_condition(condition)
 
 
 FILTER_CONSTRUCTION_PROMPT = f"""
@@ -76,6 +169,8 @@ The final filter will be created based on your response.
 """
 
 
+@cached(ttl=3600)  # Cache for 1 hour
+@beartype
 async def filter_constructor(query: str) -> Filter:
     """
     Construct filters for cards based on a query string.
@@ -87,67 +182,17 @@ async def filter_constructor(query: str) -> Filter:
         Filter: A Filter object containing the filters for searching cards.
     """
 
-    agent = Agent(model=TOOL_MODEL, system_prompt=FILTER_CONSTRUCTION_PROMPT, output_retries=10, output_type=Filter)
+    agent = Agent(
+        model=TOOL_MODEL,
+        system_prompt=FILTER_CONSTRUCTION_PROMPT,
+        output_retries=10,
+        output_type=Filter,
+        instrument=True,
+    )
 
     @agent.output_validator
     async def _validate_output(output: Filter) -> Filter:
-        def _validate_condition(condition: Condition) -> None:
-            if condition.key not in METADATA_FILTER_FIELDS:
-                raise ModelRetry(f"Invalid filter field: {condition.key}")
-            if condition.key == 'keywords':
-                if isinstance(condition, MatchAnyCondition):
-                    for keyword in condition.any:
-                        if keyword not in EVERGREEN_KEYWORDS:
-                            raise ModelRetry(f"Invalid keyword filter: {keyword} is not an evergreen keyword")
-                elif isinstance(condition, MatchValueCondition):
-                    if condition.value not in EVERGREEN_KEYWORDS:
-                        raise ModelRetry(f"Invalid keyword filter: {condition.value} is not an evergreen keyword")
-            if condition.key == 'colors':
-                if isinstance(condition, MatchAnyCondition):
-                    for color in condition.any:
-                        if color not in ManaColorEnum._value2member_map_:
-                            raise ModelRetry(f"Invalid color filter: {color} is not a valid mana color")
-                elif isinstance(condition, MatchValueCondition):
-                    if condition.value not in ManaColorEnum._value2member_map_:
-                        raise ModelRetry(f"Invalid color filter: {condition.value} is not a valid mana color")
-            if condition.key == 'rarity':
-                if isinstance(condition, MatchAnyCondition):
-                    for rarity in condition.any:
-                        if rarity not in Rarity._value2member_map_:
-                            raise ModelRetry(f"Invalid rarity filter: {rarity} is not a valid rarity")
-                elif isinstance(condition, MatchValueCondition):
-                    if condition.value not in Rarity._value2member_map_:
-                        raise ModelRetry(f"Invalid rarity filter: {condition.value} is not a valid rarity")
-            if condition.key == 'types':
-                if isinstance(condition, MatchAnyCondition):
-                    for kind in condition.any:
-                        if kind not in TypeEnum._value2member_map_:
-                            raise ModelRetry(f"Invalid type filter: {kind} is not a valid type")
-                elif isinstance(condition, MatchValueCondition):
-                    if condition.value not in TypeEnum._value2member_map_:
-                        raise ModelRetry(f"Invalid type filter: {condition.value} is not a valid type")
-            if condition.key in [
-                'power',
-                'toughness',
-                'converted_mana_cost',
-                'mana_cost_red',
-                'mana_cost_blue',
-                'mana_cost_green',
-                'mana_cost_white',
-                'mana_cost_black',
-                'mana_cost_colorless',
-            ]:
-                if isinstance(condition, MatchValueCondition):
-                    if type(condition.value) is not int:
-                        raise ModelRetry(f"Invalid numeric filter: {condition.value} is not a valid integer")
-                elif isinstance(condition, MatchAnyCondition):
-                    for value in condition.any:
-                        if type(value) is not int:
-                            raise ModelRetry(f"Invalid numeric filter: {value} is not a valid integer")
-
-        for condition in output.should + output.must + output.must_not:
-            _validate_condition(condition)
-
+        validate_card_filter(output)
         return output
 
     response = await agent.run(query)

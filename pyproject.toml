@@ -7,7 +7,7 @@ authors = [
 ]
 readme = "README.md"
 keywords = []
-requires-python = ">=3.12,<4.0"
+requires-python = "~=3.12.0"
 dependencies = [
   "django>=5.1.6",
   "djangorestframework>=3.15.2",
@@ -28,6 +28,8 @@ dependencies = [
   "pydantic-settings>=2.12.0",
   "qdrant-client>=1.16.2",
   "requests>=2.32.5",
+  "logfire>=4.22.0",
+  "aiocache>=0.12.3",
 ]
 
 [dependency-groups]
@@ -79,6 +81,7 @@ module = [
   "django.*",
   "celery.*",
   "kombu.*",
+  "aiocache.*",
 ]
 ignore_missing_imports = true
 

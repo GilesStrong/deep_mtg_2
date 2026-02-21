@@ -10,8 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
+import logfire
 from kombu import Exchange, Queue
 
 from app.app_settings import APP_SETTINGS
@@ -146,3 +148,9 @@ CELERY_TASK_QUEUES = (
     Queue("default", Exchange("default"), routing_key="default"),
     Queue("llm", Exchange("llm"), routing_key="llm"),
 )
+
+logfire.configure(environment=APP_SETTINGS.LOGFIRE_ENVIRONMENT, token=APP_SETTINGS.LOGFIRE_TOKEN)
+logfire.instrument_pydantic_ai()
+
+os.environ["GOOGLE_API_KEY"] = APP_SETTINGS.GOOGLE_API_KEY
+os.environ["DEEPSEEK_API_KEY"] = APP_SETTINGS.DEEPSEEK_API_KEY
