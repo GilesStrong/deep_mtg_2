@@ -69,6 +69,9 @@ async def add_card_to_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID, num
         message = f"Card with ID {card_id} does not exist."
         return message
 
+    if number_to_add <= 0:
+        message = "number_to_add must be a positive integer."
+        return message
     deck_card, created = await DeckCard.objects.aget_or_create(deck=deck, card=card, defaults={'quantity': 0})
     deck_card.quantity += number_to_add
     await deck_card.asave()
