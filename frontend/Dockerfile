@@ -1,17 +1,20 @@
-FROM oven/bun:1.1.0
+FROM node:20-bookworm-slim
 
 WORKDIR /app
+
+# Install bun (package manager)
+RUN npm i -g bun@1.1.38
 
 # Copy only manifests for caching
 COPY package.json bun.lockb ./
 
-# Install deps (cached layer)
+# Install deps
 RUN bun install --frozen-lockfile
 
 # Copy app
 COPY . .
 
-# Next dev server must bind 0.0.0.0 and use port 3001 for your Caddyfile
 EXPOSE 3001
 
-CMD ["bun", "run", "dev", "--", "-H", "0.0.0.0", "-p", "3001"]
+# Run Next using Node (NOT bun runtime)
+CMD ["node", "node_modules/next/dist/bin/next", "dev", "-H", "0.0.0.0", "-p", "3001"]

@@ -11,7 +11,9 @@
     "db",
     "redis",
     "web",
-    "qdrant"
+    "qdrant",
+    "proxy",
+    "frontend"
   ],
   "forwardPorts": [
     3000,

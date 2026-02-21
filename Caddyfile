@@ -1,16 +1,22 @@
 :3000 {
-    # NextAuth endpoints
-    handle /api/auth/* {
-        reverse_proxy frontend:3001
-    }
 
-    # API routes - forward to Django backend
-    handle /api/* {
-        reverse_proxy web:8000
-    }
+  # 1) NextAuth must be handled by the Next frontend (it's /api/auth/*)
+  @nextauth path /api/auth/*
+  handle @nextauth {
+    reverse_proxy {$FRONTEND_UPSTREAM:frontend:3001}
+  }
 
-    # Everything else goes to Next.js frontend
-    handle {
-        reverse_proxy frontend:3001
-    }
+  # 2) Backend (exclude /api/auth/* so it doesn't steal NextAuth)
+  @backend {
+    path /api/* /admin* /static/* /media/*
+    not path /api/auth/*
+  }
+  handle @backend {
+    reverse_proxy {$BACKEND_UPSTREAM:web:8000}
+  }
+
+  # 3) Everything else -> frontend
+  handle {
+    reverse_proxy {$FRONTEND_UPSTREAM:frontend:3001}
+  }
 }
