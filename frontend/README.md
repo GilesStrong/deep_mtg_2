@@ -56,7 +56,7 @@ npm run start
 ### Tech Stack
 
 - **Next.js 16** with App Router
-- **React 19**
+- **React 18**
 - **TypeScript** (strict mode)
 - **Tailwind CSS** for styling
 - **shadcn/ui** for UI components

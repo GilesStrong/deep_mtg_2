@@ -2,6 +2,7 @@
   "name": "deepmtg-django (uv)",
   "dockerComposeFile": [
     "../docker-compose.yml",
+    "../docker-compose.override.yml",
     "docker-compose.devcontainer.yml"
   ],
   "service": "web",
@@ -12,6 +13,18 @@
     "web",
     "qdrant"
   ],
+  "forwardPorts": [
+    3000,
+    8001
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "DeepMTG UI (Caddy proxy)"
+    },
+    "8001": {
+      "label": "Django (direct)"
+    }
+  },
   "features": {
     "ghcr.io/va-h/devcontainers-features/uv": {
       "shellautocompletion": true
