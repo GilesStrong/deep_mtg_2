@@ -1,0 +1,16 @@
+:3000 {
+    # NextAuth endpoints
+    handle /api/auth/* {
+        reverse_proxy frontend:3001
+    }
+
+    # API routes - forward to Django backend
+    handle /api/* {
+        reverse_proxy web:8000
+    }
+
+    # Everything else goes to Next.js frontend
+    handle {
+        reverse_proxy frontend:3001
+    }
+}
