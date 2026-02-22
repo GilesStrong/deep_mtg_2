@@ -354,6 +354,8 @@ mypy-extensions==1.1.0
     # via
     #   mypy
     #   typing-inspect
+nanoid==2.0.0
+    # via app
 nexus-rpc==1.2.0
     # via temporalio
 nodeenv==1.10.0

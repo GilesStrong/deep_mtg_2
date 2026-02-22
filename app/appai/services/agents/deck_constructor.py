@@ -1,3 +1,4 @@
+from typing import Optional
 from uuid import UUID
 
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
@@ -79,7 +80,7 @@ Unless going for a fast agro deck, staying on curve and ensuring card draw and m
 
 @beartype
 async def run_deck_constructor_agent(
-    deck_id: UUID, deck_description: str, available_set_codes: set[str] = CURRENT_STANDARD_SET_CODES
+    deck_id: UUID, deck_description: str, available_set_codes: Optional[set[str]] = None
 ) -> str:
     """
     Constructs a deck based on a natural language description.
@@ -88,6 +89,7 @@ async def run_deck_constructor_agent(
     Args:
         deck_id (UUID): The ID of the deck to construct.
         deck_description (str): A natural language description of the desired deck, including its strategy, key cards, and any specific requirements or constraints.
+        available_set_codes (Optional[set[str]]): An optional set of available set codes to restrict the card selection to specific sets. If not provided, it will default to the current standard set codes.
     """
 
     agent = Agent(
@@ -108,7 +110,10 @@ async def run_deck_constructor_agent(
         retries=10,
         output_retries=10,
     )
-    deps = DeckBuildingDeps(deck_id=deck_id, available_set_codes=available_set_codes)
+    deps = DeckBuildingDeps(
+        deck_id=deck_id,
+        available_set_codes=available_set_codes if available_set_codes is not None else CURRENT_STANDARD_SET_CODES,
+    )
     response = await agent.run(deck_description, deps=deps)
     deck = await Deck.objects.aget(id=deck_id)
     deck.llm_summary = response.output

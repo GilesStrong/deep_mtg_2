@@ -17,12 +17,18 @@ class DeckConstructorResults(BaseModel):
 
 
 @beartype
-async def construct_deck(deck_description: str, deck_id: Optional[UUID] = None) -> DeckConstructorResults:
+async def construct_deck(
+    deck_description: str, deck_id: Optional[UUID] = None, available_set_codes: Optional[set[str]] = None
+) -> DeckConstructorResults:
     if deck_id is not None:
         logfire.info(f"Using provided deck ID: {deck_id}")
         deck = await Deck.objects.aget(id=deck_id)
     else:
         deck = await Deck.objects.acreate(name="New Deck")
         logfire.info(f"Constructing new deck, with ID: {deck.id}")
-    response = await run_deck_constructor_agent(deck.id, deck_description)
+    response = await run_deck_constructor_agent(
+        deck_id=deck.id, deck_description=deck_description, available_set_codes=available_set_codes
+    )
+    deck.llm_summary = response
+    await deck.asave()
     return DeckConstructorResults(deck_id=deck.id, deck_summary=response)

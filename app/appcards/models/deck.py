@@ -67,6 +67,10 @@ class Deck(models.Model):
 
         deckcard_set: RelatedManager["DeckCard"]
 
+    def update_validity(self) -> None:
+        self.valid = validate_deck_basic(self).valid
+        self.save()
+
 
 class DeckValidationResult(BaseModel):
     valid: bool = Field(..., description="Whether the deck is valid according to basic rules")
