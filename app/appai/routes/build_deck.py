@@ -49,13 +49,13 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
 
     return BuildDeckPostOut(
         task_id=build.id,
-        status_url=f'/api/app/ai/deck_build_status/{build.id}/',
+        status_url=f'/api/app/ai/deck/build_status/{build.id}/',
         deck_id=deck_id,
     )
 
 
 @router.get(
-    '/deck_build_status/{task_id}/',
+    '/build_status/{task_id}/',
     summary='Check deck build status',
     description='Check the status of a deck building task using the task ID.',
     response={200: BuildDeckStatusOut},
