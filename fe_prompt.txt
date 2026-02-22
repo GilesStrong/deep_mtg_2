@@ -1,0 +1,115 @@
+You are an expert full-stack engineer. Generate a production-quality TypeScript frontend for my project as a monorepo frontend app. You MUST output complete files (with paths) and nothing else.
+
+Context / constraints
+- Monorepo layout: root has backend/ (Django code is already in repo root /app in container) and frontend/ (Next.js).
+- Existing docker-compose.yml already defines services: db, redis, web (Django), celery workers, qdrant, networks deepmtg_network and llm_net.
+- We are ONLY generating frontend/ plus a Docker Compose override file for dev (do not modify my existing docker-compose.yml; create docker-compose.override.yml or docker-compose.frontend.yml).
+- Dev mode B: Next.js runs in Docker with hot reload using volume mounts.
+- Option 1 routing: production will serve frontend at / and backend at /api on the same domain. In dev we should mimic this using a reverse proxy container so that:
+  - Browser hits http://localhost:3000/ for frontend
+  - Browser hits http://localhost:3000/api/* and that forwards to Django service `web` at http://web:8000/api/*
+  - This avoids CORS: frontend code always fetches same-origin /api/*
+- Auth: Google OAuth login.
+- Use Next.js (latest stable) with App Router, TypeScript, Tailwind. Use shadcn/ui for UI components.
+- Keep state/data fetching minimal: native fetch + server actions where appropriate; avoid complex client state libs unless necessary.
+- Use environment variables for secrets (Google client ID/secret) and behavior.
+- Backend endpoints are dummy for now; implement mock API route handlers in Next when BACKEND_MOCK=true, otherwise forward to real backend.
+- IMPORTANT: Because we will also run a reverse proxy container that forwards /api to Django, the Next app should still implement mock handlers under /api/* (when BACKEND_MOCK=true) and in non-mock mode it can just call /api/* (same-origin) and let the proxy hit Django. For server-side calls (Next server actions), use the same origin paths where possible.
+
+MVP features to implement
+1) Login with Google (NextAuth)
+- Provide /login page with “Sign in with Google”.
+- After login redirect to /dashboard.
+- Show logged-in user’s name/email, and a “Sign out” button.
+- Protect /dashboard and /decks/* routes. Unauthed users go to /login.
+
+2) Prompt to create a new deck
+- /dashboard includes:
+  - Textarea: “Describe the deck you want”
+  - Select: format (commander/modern/standard) (static)
+  - Submit button: “Generate Deck”
+- On submit: POST /api/decks/generate with JSON:
+  { "prompt": string, "format": string }
+- Response:
+  { "job_id": string }
+- Show a status card and poll GET /api/jobs/{job_id} every 1-2 seconds.
+- Job response:
+  { "status": "queued" | "running" | "succeeded" | "failed",
+    "progress": number (0-100),
+    "message": string,
+    "deck_id"?: string }
+- When succeeded, show “View deck” → /decks/{deck_id}.
+
+3) Deck view page
+- Route /decks/[deckId]
+- Fetch GET /api/decks/{deckId}
+- Response:
+  { "id": string, "name": string, "format": string,
+    "cards": [{ "name": string, "qty": number }] }
+- Render the deck list.
+
+Dummy backend behavior (mock mode)
+- If BACKEND_MOCK=true:
+  - Implement Next route handlers under app/api/*:
+    - POST /api/decks/generate: create job in an in-memory map (dev-only) and return job_id.
+    - GET /api/jobs/[job_id]: progress increases with time; after ~8–15 seconds mark succeeded and return deck_id.
+    - GET /api/decks/[deck_id]: return deterministic fake deck list.
+- If BACKEND_MOCK=false:
+  - Do NOT hardcode http://localhost:8001 in the frontend.
+  - The browser should call /api/* and the reverse proxy will forward to Django at http://web:8000.
+  - (Optional) For completeness, allow Next route handlers to proxy to http://web:8000 when invoked on the server, but prefer the reverse proxy approach for same-origin.
+
+Routing / proxy in dev
+- Create a reverse proxy container (prefer Caddy for simplicity, Nginx also ok) that:
+  - Listens on host port 3000
+  - Routes:
+    - /api/* → http://web:8000
+    - /api/auth/* → http://frontend:3001  (NextAuth endpoints live in Next)
+    - everything else → http://frontend:3001
+  - This ensures one origin (localhost:3000) in dev and matches Option 1.
+- Next container should listen on internal port 3001 (so proxy can use 3000 externally).
+- Django `web` already listens on 8000 in the compose network.
+
+Project files to generate (minimum)
+- frontend/:
+  - package.json (Next, React, NextAuth, Tailwind, shadcn/ui deps)
+  - next.config.* (keep minimal; do not rely on Next rewrites for /api because we’re using a reverse proxy)
+  - tailwind.config, postcss.config, tsconfig, eslint config
+  - app/ layout and pages:
+    - /login
+    - /dashboard (protected)
+    - /decks/[deckId] (protected)
+  - NextAuth:
+    - app/api/auth/[...nextauth]/route.ts
+    - middleware.ts to protect routes
+  - UI components and styling (shadcn/ui)
+  - lib/ helpers (auth config, fetch helper, types)
+  - .env.example (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NEXTAUTH_SECRET, NEXTAUTH_URL, BACKEND_MOCK)
+
+- Root-level dev compose override:
+  - docker-compose.override.yml (or docker-compose.frontend.yml) that adds:
+    - frontend service (Next dev server with hot reload)
+    - proxy service (caddy or nginx) exposing port 3000
+  - It must attach to deepmtg_network (and nothing else is required)
+  - frontend should mount ./frontend into container for hot reload
+
+- Provide a short README snippet (at repo root OR in frontend/README.md) with:
+  - How to run dev: `docker compose up`
+  - Which URL to open: http://localhost:3000
+  - Required env vars and example secrets
+  - How to enable mock mode (BACKEND_MOCK=true)
+
+Important implementation details
+- Same-origin fetches only: frontend code always calls /api/*
+- Protect pages via middleware + server-side session checks where needed.
+- Keep secrets out: only .env.example.
+- Use clean minimal design.
+- TypeScript strict mode.
+
+Output format
+- Print a file tree first.
+- Then output each file as:
+  === path/to/file ===
+  <file contents>
+
+Do not include any commentary outside the files.

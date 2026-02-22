@@ -15,16 +15,6 @@
             "justMyCode": true,
             "envFile": "${workspaceFolder}/.env",
             "django": true,
-            "autoreload": {
-                "enabled": true,
-                "watch": [
-                    "${workspaceFolder}/app"
-                ],
-                "ignore": [
-                    "**/migrations/**",
-                    "**/__pycache__/**"
-                ]
-            }
         },
         {
             "name": "celery beat",
