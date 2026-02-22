@@ -40,9 +40,15 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
     # Enqueue the task to build the deck
     build = DeckBuildTask.objects.create(deck_id=deck_id, status=DeckBuildStatus.PENDING)
 
-    task: AsyncResult = cast(Any, construct_deck.delay)(
-        deck_description=payload.prompt, deck_id=deck_id, available_set_codes=payload.set_codes, task_id=str(build.id)
+    task: AsyncResult = cast(Any, construct_deck.apply_async)(
+        kwargs={
+            "deck_description": payload.prompt,
+            "deck_id": str(deck_id),
+            "available_set_codes": payload.set_codes,
+        },
+        task_id=str(build.id),
     )
+
     if task.id != str(build.id):
         logfire.error(f"Task ID mismatch: expected {build.id}, got {task.id}")
         raise RuntimeError("Failed to enqueue deck building task")

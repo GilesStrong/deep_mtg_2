@@ -22,20 +22,32 @@ from appai.modules.construct_deck import construct_deck as _construct_deck
 )
 @beartype
 def construct_deck(
-    self: Task, deck_description: str, deck_id: Optional[UUID] = None, available_set_codes: Optional[list[str]] = None
+    self: Task,
+    deck_description: str,
+    deck_id: Optional[str] = None,
+    available_set_codes: Optional[list[str]] = None,
 ) -> None:
     logfire.info(
         f"Starting deck construction task with description: {deck_description} and deck_id: {deck_id}. Task ID: {self.request.id}"
     )
+    if deck_id is not None:
+        deck_uuid = UUID(str(deck_id))
+    else:
+        deck_uuid = None
     DeckBuildTask.objects.filter(id=self.request.id).update(status=DeckBuildStatus.IN_PROGRESS)
     start = default_timer()
-    asyncio.run(
-        _construct_deck(
-            deck_description=deck_description,
-            deck_id=deck_id,
-            available_set_codes=set(available_set_codes) if available_set_codes else None,
+    try:
+        asyncio.run(
+            _construct_deck(
+                deck_description=deck_description,
+                deck_id=deck_uuid,
+                available_set_codes=set(available_set_codes) if available_set_codes else None,
+            )
         )
-    )
+    except Exception as e:
+        logfire.error(f"Error during deck construction task with ID: {self.request.id}: {e}")
+        DeckBuildTask.objects.filter(id=self.request.id).update(status=DeckBuildStatus.FAILED)
+        raise RuntimeError("Deck construction failed")
     DeckBuildTask.objects.filter(id=self.request.id).update(status=DeckBuildStatus.COMPLETED)
     time_taken = default_timer() - start
     logfire.info(f"Deck construction task with ID: {self.request.id} completed in {time_taken:.2f} seconds")

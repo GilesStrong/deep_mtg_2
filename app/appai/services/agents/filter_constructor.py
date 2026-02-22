@@ -11,7 +11,7 @@ from appsearch.services.qdrant.search_dsl import (
 from beartype import beartype
 from pydantic_ai import Agent, ModelRetry
 
-from appai.constants.models import TOOL_MODEL
+from appai.constants.llm_models import TOOL_MODEL
 
 METADATA_FILTER_FIELDS = [
     'subtypes',

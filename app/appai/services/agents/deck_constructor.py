@@ -1,13 +1,14 @@
 from typing import Optional
 from uuid import UUID
 
+from app.app_settings import APP_SETTINGS
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
 from appcards.models.deck import Deck
 from asgiref.sync import sync_to_async
 from beartype import beartype
-from pydantic_ai import Agent
+from pydantic_ai import Agent, UsageLimits
 
-from appai.constants.models import TOOL_MODEL
+from appai.constants.llm_models import TOOL_MODEL
 from appai.constants.prompt_gotchas import GOTCHAS
 from appai.services.agents.deps import DeckBuildingDeps
 from appai.services.agents.tools.card_tools import inspect_card
@@ -114,7 +115,9 @@ async def run_deck_constructor_agent(
         deck_id=deck_id,
         available_set_codes=available_set_codes if available_set_codes is not None else CURRENT_STANDARD_SET_CODES,
     )
-    response = await agent.run(deck_description, deps=deps)
+    response = await agent.run(
+        deck_description, deps=deps, usage_limits=UsageLimits(request_limit=APP_SETTINGS.MAX_AGENT_CALLS_PER_TASK)
+    )
     deck = await Deck.objects.aget(id=deck_id)
     deck.llm_summary = response.output
     await sync_to_async(deck.save)()

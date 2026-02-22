@@ -1,3 +1,3 @@
-from .deck_build import DeckBuildTask
+from .deck_build import DeckBuildStatus, DeckBuildTask
 
-__all__ = ["DeckBuildTask"]
+__all__ = ["DeckBuildTask", "DeckBuildStatus"]
