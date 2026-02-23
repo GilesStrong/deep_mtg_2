@@ -19,9 +19,6 @@ MAX_SEARCH_RESULTS = 25
 
 class SearchResults(BaseModel):
     cards: list[CardInfo] = Field(description="The list of cards matching the search query, with their details.")
-    filter_used: Filter = Field(
-        description="The filter that was applied to the search, including any conditions that were automatically constructed based on the query and the current deck state."
-    )
     max_results: int = Field(
         description="The maximum number of results that were requested to be returned, which may be less than the actual number of results found."
     )
@@ -78,11 +75,6 @@ async def search_for_cards(
         must=[
             MatchAnyCondition(key="set_codes", any=list(ctx.deps.available_set_codes)),
         ],
-        must_not=[
-            MatchAnyCondition(key="id", any=[str(card_id) for card_id in existing_card_ids]),
-        ]
-        if len(existing_card_ids) > 0
-        else [],
     )
 
     if search_with_advanced_filter:
@@ -96,9 +88,16 @@ async def search_for_cards(
     else:
         combined_filter = basic_filter
 
+    exclude_ids: list[str] | None
+    if len(existing_card_ids) > 0:
+        exclude_ids = [str(card_id) for card_id in existing_card_ids]
+    else:
+        exclude_ids = None
+
     # Run search
     found_cards = await sync_to_async(run_query_from_dsl)(
         Query(collection_name=CARD_COLLECTION_NAME, query_string=query, filter=combined_filter, limit=max_results),
+        exclude_ids=exclude_ids,
     )
 
     # Convert results to CardInfo
@@ -109,4 +108,4 @@ async def search_for_cards(
             card_infos.append(await sync_to_async(card_to_info)(card))
         except Card.DoesNotExist:
             continue
-    return SearchResults(cards=card_infos, filter_used=combined_filter, max_results=max_results)
+    return SearchResults(cards=card_infos, max_results=max_results)

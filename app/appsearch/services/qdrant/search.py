@@ -27,12 +27,34 @@ def run_query(
 
 
 @beartype
-def run_query_from_dsl(dsl_query: DSLQuery) -> list[qm.ScoredPoint]:
+def run_query_from_dsl(
+    dsl_query: DSLQuery, exclude_ids: Optional[list[str]] = None, include_ids: Optional[list[str]] = None
+) -> list[qm.ScoredPoint]:
     query_vector = dense_embed(dsl_query.query_string) if dsl_query.query_string else None
-    filter = dsl_query.filter.to_qdrant() if dsl_query.filter else None
+    query_filter = dsl_query.filter.to_qdrant() if dsl_query.filter else None
+
+    must_not = [qm.HasIdCondition(has_id=exclude_ids)] if exclude_ids else []  # type: ignore [arg-type]
+    must = [qm.HasIdCondition(has_id=include_ids)] if include_ids else []  # type: ignore [arg-type]
+    if query_filter:
+        if query_filter.must:
+            if isinstance(query_filter.must, list):
+                query_filter.must.extend(must)
+            else:
+                query_filter.must = [query_filter.must] + must  # type: ignore [operator]
+        else:
+            query_filter.must = must  # type: ignore [assignment]
+        if query_filter.must_not:
+            if isinstance(query_filter.must_not, list):
+                query_filter.must_not.extend(must_not)
+            else:
+                query_filter.must_not = [query_filter.must_not] + must_not  # type: ignore [operator]
+        else:
+            query_filter.must_not = must_not  # type: ignore [assignment]
+    must = []
+
     return run_query(
         collection_name=dsl_query.collection_name,
         query_vector=query_vector,
-        query_filter=filter,
+        query_filter=query_filter,
         limit=dsl_query.limit,
     )
