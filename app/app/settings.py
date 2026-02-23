@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'appcards',
     'appai',
     "appsearch",
+    'appuser',
 ]
 
 MIDDLEWARE = [
