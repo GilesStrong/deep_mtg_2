@@ -56,6 +56,8 @@ class Deck(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name="user_decks",
+        null=True,
+        blank=True,
     )
 
     def __str__(self) -> str:

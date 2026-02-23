@@ -1,13 +1,29 @@
 from django.http import HttpRequest
-from ninja import Router
+from ninja import Query, Router
 from ninja.errors import HttpError
 
 from appuser.models.user import User
-from appuser.modules.create_user import create_user
 from appuser.modules.google_auth import verify_google_token
 from appuser.serializers.user import GetUserIn, GetUserOut
 
 router = Router(tags=['user'])
+
+
+def _get_or_create_user_from_token(google_auth_token: str) -> GetUserOut:
+    try:
+        id_info = verify_google_token(google_auth_token)
+    except ValueError:
+        raise HttpError(400, "Invalid Google authentication token, or unable to verify token")
+
+    google_id = id_info.google_id
+    if not id_info.verified:
+        raise HttpError(400, "Google account is not verified.")
+
+    user, _ = User.objects.get_or_create(
+        google_id=google_id,
+        defaults={"verified": id_info.verified},
+    )
+    return GetUserOut(id=user.id, verified=user.verified)
 
 
 @router.get(
@@ -17,7 +33,7 @@ router = Router(tags=['user'])
     response={200: GetUserOut},
     operation_id='get_user_info',
 )
-def get_user_info(request: HttpRequest, query_params: GetUserIn) -> GetUserOut:
+def get_user_info(request: HttpRequest, query_params: Query[GetUserIn]) -> GetUserOut:
     """
     Retrieve user information based on a Google authentication token.
 
@@ -38,15 +54,15 @@ def get_user_info(request: HttpRequest, query_params: GetUserIn) -> GetUserOut:
         HttpError (400): If the Google authentication token is invalid or cannot be verified.
         HttpError (400): If the Google account's email is not verified.
     """
-    try:
-        id_info = verify_google_token(query_params.google_auth_token)
-    except ValueError:
-        raise HttpError(400, "Invalid Google authentication token, or unable to verify token")
+    return _get_or_create_user_from_token(query_params.google_auth_token)
 
-    google_id = id_info.google_id
-    if not id_info.verified:
-        raise HttpError(400, "Google account is not verified.")
-    if not User.objects.filter(google_id=google_id).exists():
-        create_user(query_params.google_auth_token)
-    user = User.objects.get(google_id=google_id)
-    return GetUserOut(id=user.id, verified=user.verified)
+
+@router.post(
+    '/',
+    summary='Get user info',
+    description='Retrieve information about the currently authenticated user.',
+    response={200: GetUserOut},
+    operation_id='post_user_info',
+)
+def post_user_info(request: HttpRequest, payload: GetUserIn) -> GetUserOut:
+    return _get_or_create_user_from_token(payload.google_auth_token)

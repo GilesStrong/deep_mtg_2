@@ -16,6 +16,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Loader2 } from "lucide-react";
+import { clearCachedBackendUserId, syncBackendUserId } from "@/lib/backend-user";
 
 type DeckSummary = {
     id: string;
@@ -30,7 +31,7 @@ type DeckSummary = {
 const POLLABLE_STATUSES = new Set(["PENDING", "IN_PROGRESS"]);
 
 export default function DashboardPage() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const router = useRouter();
     const [decks, setDecks] = useState<DeckSummary[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -39,14 +40,31 @@ export default function DashboardPage() {
     const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
 
     const fetchDecks = useCallback(async () => {
-        const response = await fetch("/api/app/cards/deck/");
+        let userId = await syncBackendUserId(session);
+        if (!userId) {
+            throw new Error("Missing backend user ID");
+        }
+
+        let response = await fetch(
+            `/api/app/cards/deck/?user_id=${encodeURIComponent(userId)}`
+        );
+        if (response.status === 422) {
+            clearCachedBackendUserId();
+            userId = await syncBackendUserId(session);
+            if (!userId) {
+                throw new Error("Missing backend user ID");
+            }
+
+            response = await fetch(`/api/app/cards/deck/?user_id=${encodeURIComponent(userId)}`);
+        }
+
         if (!response.ok) {
             throw new Error("Failed to fetch deck summaries");
         }
 
         const data = (await response.json()) as DeckSummary[];
         setDecks(data);
-    }, []);
+    }, [session]);
 
     useEffect(() => {
         const loadSetCodes = async () => {
@@ -71,6 +89,10 @@ export default function DashboardPage() {
     }, []);
 
     useEffect(() => {
+        if (status !== "authenticated") {
+            return;
+        }
+
         const load = async () => {
             try {
                 await fetchDecks();
@@ -82,7 +104,7 @@ export default function DashboardPage() {
         };
 
         void load();
-    }, [fetchDecks]);
+    }, [fetchDecks, status]);
 
     const activeDecks = useMemo(
         () =>

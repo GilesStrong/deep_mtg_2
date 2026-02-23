@@ -27,6 +27,7 @@ app_api.add_router('/ai', ai_router)
 app_api.add_router('/cards', cards_router)
 app_api.add_router('/user', user_router)
 
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/app/', app_api.urls),

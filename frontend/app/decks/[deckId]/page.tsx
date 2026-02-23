@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { clearCachedBackendUserId, syncBackendUserId } from "@/lib/backend-user";
 
 interface DeckCard {
   id: string;
@@ -62,7 +63,22 @@ export default function DeckPage() {
 
   const fetchDeck = useCallback(async () => {
     try {
-      const response = await fetch(`/api/app/cards/deck/${deckId}/full/`);
+      const userId = await syncBackendUserId(session);
+      if (!userId) throw new Error("Missing backend user ID");
+
+      let response = await fetch(
+        `/api/app/cards/deck/${deckId}/full/?user_id=${encodeURIComponent(userId)}`
+      );
+      if (response.status === 422) {
+        clearCachedBackendUserId();
+        const refreshedUserId = await syncBackendUserId(session);
+        if (!refreshedUserId) throw new Error("Missing backend user ID");
+
+        response = await fetch(
+          `/api/app/cards/deck/${deckId}/full/?user_id=${encodeURIComponent(refreshedUserId)}`
+        );
+      }
+
       if (!response.ok) throw new Error("Failed to fetch deck");
 
       const data = (await response.json()) as {
@@ -139,7 +155,7 @@ export default function DeckPage() {
     } finally {
       setLoading(false);
     }
-  }, [deckId]);
+  }, [deckId, session]);
 
   useEffect(() => {
     if (deckId) {
@@ -189,10 +205,13 @@ export default function DeckPage() {
     setIsSaving(true);
 
     try {
+      const userId = await syncBackendUserId(session);
+      if (!userId) throw new Error("Missing backend user ID");
+
       const response = await fetch(`/api/app/cards/deck/${deck.id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatePayload),
+        body: JSON.stringify({ ...updatePayload, user_id: userId }),
       });
 
       if (!response.ok) {
@@ -220,9 +239,27 @@ export default function DeckPage() {
     setIsDeleting(true);
 
     try {
-      const response = await fetch(`/api/app/cards/deck/${deck.id}/`, {
-        method: "DELETE",
-      });
+      const userId = await syncBackendUserId(session);
+      if (!userId) throw new Error("Missing backend user ID");
+
+      let response = await fetch(
+        `/api/app/cards/deck/${deck.id}/?user_id=${encodeURIComponent(userId)}`,
+        {
+          method: "DELETE",
+        });
+
+      if (response.status === 422) {
+        clearCachedBackendUserId();
+        const refreshedUserId = await syncBackendUserId(session);
+        if (!refreshedUserId) throw new Error("Missing backend user ID");
+
+        response = await fetch(
+          `/api/app/cards/deck/${deck.id}/?user_id=${encodeURIComponent(refreshedUserId)}`,
+          {
+            method: "DELETE",
+          }
+        );
+      }
 
       if (!response.ok && response.status !== 204) {
         throw new Error("Failed to delete deck");

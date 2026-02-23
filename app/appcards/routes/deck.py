@@ -1,6 +1,6 @@
 from appai.models.deck_build import DeckBuildTask
 from django.http import HttpRequest
-from ninja import Path, Router
+from ninja import Path, Query, Router
 from ninja.errors import HttpError
 
 from appcards.models.deck import Deck, DeckCard
@@ -32,7 +32,7 @@ def _get_latest_build(deck_id: str) -> DeckBuildTask | None:
     response={200: list[GetSummaryDeckOut]},
     operation_id='list_decks',
 )
-def list_decks(request: HttpRequest, query_params: UserIDIn) -> list[GetSummaryDeckOut]:
+def list_decks(request: HttpRequest, query_params: Query[UserIDIn]) -> list[GetSummaryDeckOut]:
     """
     Fvf2EuwRMA0g9izKpjFdQ
 
@@ -77,7 +77,11 @@ def list_decks(request: HttpRequest, query_params: UserIDIn) -> list[GetSummaryD
     response={200: GetSummaryDeckOut},
     operation_id='get_deck',
 )
-def get_summary_deck(request: HttpRequest, path_params: Path[GetDeckIn], query_params: UserIDIn) -> GetSummaryDeckOut:
+def get_summary_deck(
+    request: HttpRequest,
+    path_params: Path[GetDeckIn],
+    query_params: Query[UserIDIn],
+) -> GetSummaryDeckOut:
     """
     Q7sP1itKOKULDuVIHtFVU
 
@@ -117,7 +121,11 @@ def get_summary_deck(request: HttpRequest, path_params: Path[GetDeckIn], query_p
     response={200: GetFullDeckOut},
     operation_id='get_full_deck',
 )
-def get_deck(request: HttpRequest, path_params: Path[GetDeckIn], query_params: UserIDIn) -> GetFullDeckOut:
+def get_deck(
+    request: HttpRequest,
+    path_params: Path[GetDeckIn],
+    query_params: Query[UserIDIn],
+) -> GetFullDeckOut:
     """
     iLkBgG18y5wAR5n3lnBWp
 
@@ -162,7 +170,11 @@ def get_deck(request: HttpRequest, path_params: Path[GetDeckIn], query_params: U
     response={204: None},
     operation_id='delete_deck',
 )
-def delete_deck(request: HttpRequest, path_params: Path[GetDeckIn], query_params: UserIDIn) -> None:
+def delete_deck(
+    request: HttpRequest,
+    path_params: Path[GetDeckIn],
+    query_params: Query[UserIDIn],
+) -> None:
     """
     WaqnXA1TLRljEvGixbNXP
 

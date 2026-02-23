@@ -19,6 +19,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { syncBackendUserId } from "@/lib/backend-user";
 
 function GenerateDeckPageContent() {
     const { data: session } = useSession();
@@ -129,7 +130,13 @@ function GenerateDeckPageContent() {
         setStatus("PENDING");
 
         try {
-            const payload: { prompt: string; set_codes: string[]; deck_id?: string } = {
+            const userId = await syncBackendUserId(session);
+            if (!userId) {
+                throw new Error("Missing backend user ID");
+            }
+
+            const payload: { user_id: string; prompt: string; set_codes: string[]; deck_id?: string } = {
+                user_id: userId,
                 prompt,
                 set_codes: selectedSetCodes,
             };
