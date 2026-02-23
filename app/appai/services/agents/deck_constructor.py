@@ -147,7 +147,6 @@ async def run_deck_constructor_agent(
     )
 
     deck = await Deck.objects.aget(id=deck_id)
-
     input_message = f"# Generation request\n{deck_description}"
     # Append previous details
     if deck.name != "New Deck":
@@ -165,6 +164,9 @@ async def run_deck_constructor_agent(
         usage_limits=UsageLimits(request_limit=APP_SETTINGS.MAX_AGENT_CALLS_PER_TASK),
     )
 
+    deck = await Deck.objects.aget(
+        id=deck_id
+    )  # Refetch the deck to get the latest state after modifications by the agent
     deck.name = response.output.deck_name
     deck.llm_summary = response.output.summary
     deck.short_llm_summary = response.output.short_summary

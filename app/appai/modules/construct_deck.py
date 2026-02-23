@@ -33,7 +33,7 @@ async def construct_deck(
     generation_history = deck.generation_history if deck.generation_history else []
     if len(generation_history) > 5:
         generation_history = (
-            generation_history[0] + generation_history[-4:]
+            generation_history[:1] + generation_history[-4:]
         )  # Always keep the first entry, and the most recent 4 entries
     response = await run_deck_constructor_agent(
         deck_id=deck.id,
