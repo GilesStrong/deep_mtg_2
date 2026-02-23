@@ -34,6 +34,11 @@ def _validate_set_str(value: list[str]) -> None:
         raise ValidationError("Set codes must be unique.")
 
 
+@beartype
+def _validate_list_str(value: list[str]) -> None:
+    pass
+
+
 class Deck(models.Model):
     id = models.UUIDField(default=uuid4, editable=False, primary_key=True, unique=True)
     name = models.CharField(max_length=MAX_DECK_NAME_LENGTH, blank=False)
@@ -43,6 +48,7 @@ class Deck(models.Model):
     set_codes = models.JSONField(default=list, blank=True, validators=[_validate_set_str])
     short_llm_summary = models.TextField(blank=True, null=True, max_length=SHORT_SUMMARY_LENGTH_LIMIT[1])
     llm_summary = models.TextField(blank=True, null=True, max_length=SUMMARY_LENGTH_LIMIT[1])
+    generation_histrory = models.JSONField(default=list, blank=True, validators=[_validate_list_str])
     valid = models.BooleanField(default=False)
 
     def __str__(self) -> str:
