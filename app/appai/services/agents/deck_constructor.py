@@ -155,7 +155,9 @@ async def run_deck_constructor_agent(
     if deck.llm_summary is not None:
         input_message += f"\n\n# Current deck summary\n{deck.llm_summary}"
     if len(generation_history) > 0:
-        input_message += f"\n\n# Previous generation history\n{generation_history}"
+        input_message += "\n\n# Previous generation history"
+        for i, previous_request in enumerate(generation_history):
+            input_message += f"\n## Generation {i + 1}\n{previous_request}"
 
     response = await agent.run(
         input_message,

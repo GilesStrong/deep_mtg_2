@@ -61,7 +61,7 @@ async def search_for_cards(
         max_results (int): The maximum number of results to return, subject to a maximum limit.
 
     Returns:
-        SearchResults: The search results containing the matching cards, the original query, and the filter used.
+        SearchResults: The search results containing the matching cards and the maximum number of results that were requested.
     """
     if max_results > MAX_SEARCH_RESULTS:
         max_results = MAX_SEARCH_RESULTS
