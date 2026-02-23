@@ -47,6 +47,7 @@ class AISettings(BaseSettings):
     EMBEDDING_DIMENSION: int
     GOOGLE_API_KEY: str
     DEEPSEEK_API_KEY: str
+    MAX_AGENT_CALLS_PER_TASK: int
 
 
 class QdrantSettings(BaseSettings):

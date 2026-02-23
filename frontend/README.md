@@ -18,7 +18,6 @@ cp frontend/.env.example frontend/.env
 - `GOOGLE_CLIENT_SECRET`: Your Google OAuth Client Secret
 - `NEXTAUTH_SECRET`: A random secret string (at least 32 characters)
 - `NEXTAUTH_URL`: Should be `http://localhost:3000` for local dev
-- `BACKEND_MOCK`: Set to `true` to use mock API, `false` to connect to Django backend
 
 ### Running the Application
 
@@ -35,14 +34,7 @@ http://localhost:3000
 The reverse proxy (Caddy) handles routing:
 - `/` → Next.js frontend
 - `/api/auth/*` → NextAuth (Next.js)
-- `/api/*` → Django backend (or mock in Next.js if BACKEND_MOCK=true)
-
-### Mock Mode
-
-When `BACKEND_MOCK=true`, the frontend uses in-memory mock data for development without requiring the Django backend to be fully implemented. The mock simulates:
-- Deck generation jobs with progress tracking
-- Job status polling
-- Deck retrieval with sample card data
+- `/api/*` → Django backend
 
 ### Production Build
 
@@ -68,7 +60,7 @@ npm run start
 ```
 frontend/
 ├── app/
-│   ├── api/              # API route handlers (mock mode)
+│   ├── api/              # API route handlers (NextAuth)
 │   ├── dashboard/        # Dashboard page (protected)
 │   ├── decks/           # Deck view pages (protected)
 │   ├── login/           # Login page
@@ -79,7 +71,7 @@ frontend/
 ├── lib/
 │   ├── auth.ts          # NextAuth configuration
 │   └── utils.ts         # Utility functions
-├── middleware.ts        # Route protection middleware
+├── proxy.ts             # Route protection proxy
 └── package.json
 ```
 

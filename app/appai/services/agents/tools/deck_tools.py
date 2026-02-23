@@ -1,44 +1,13 @@
-import html
-import unicodedata
 from uuid import UUID
 
 from appcards.models.card import Card
-from appcards.models.deck import MAX_DECK_NAME_LENGTH, Deck, DeckCard, DeckValidationResult, validate_deck_basic
+from appcards.models.deck import Deck, DeckCard, DeckValidationResult, validate_deck_basic
 from asgiref.sync import sync_to_async
 from beartype import beartype
 from django.db.models import Sum
 from pydantic_ai import RunContext
 
 from appai.services.agents.deps import DeckBuildingDeps
-
-
-@beartype
-async def rename_deck(ctx: RunContext[DeckBuildingDeps], new_name: str) -> str:
-    """
-    Renames a deck.
-
-    Args:
-        new_name (str): The new name for the deck.
-
-    Returns:
-        str: A message indicating the result of the operation.
-    """
-    if new_name.strip() == "":
-        message = "Deck name cannot be empty."
-        return message
-    try:
-        deck = await Deck.objects.aget(id=ctx.deps.deck_id)
-        new_name = unicodedata.normalize("NFKC", html.escape(new_name))
-        if len(new_name) > MAX_DECK_NAME_LENGTH:
-            message = f"Deck name cannot exceed {MAX_DECK_NAME_LENGTH} characters."
-            return message
-        deck.name = new_name
-        await deck.asave()
-        message = f"Deck renamed to '{deck.name}'."
-        return message
-    except Deck.DoesNotExist:
-        message = f"Deck with ID {ctx.deps.deck_id} does not exist."
-        return message
 
 
 @beartype

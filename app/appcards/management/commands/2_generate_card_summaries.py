@@ -22,7 +22,7 @@ def generate_card_summary(card: Card, semaphore: Semaphore) -> None:
         info = card_to_info(card)
         summary = summarise_card(info)
         card.llm_summary = summary
-        card.save(update_fields=['llm_summary'])
+        card.save()
         print(f"✓ Generated summary for: {card.name}")
 
 

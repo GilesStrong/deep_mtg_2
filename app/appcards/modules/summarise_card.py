@@ -1,7 +1,7 @@
 from typing import Any, cast
 
 from app.utils import in_celery_task
-from appai.constants.models import TEXT_MODEL
+from appai.constants.llm_models import TEXT_MODEL
 from appai.constants.prompt_gotchas import GOTCHAS
 from beartype import beartype
 from celery.result import AsyncResult
