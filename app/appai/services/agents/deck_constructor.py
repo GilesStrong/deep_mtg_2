@@ -119,7 +119,7 @@ async def run_deck_constructor_agent(
     Args:
         deck_id (UUID): The ID of the deck to construct.
         deck_description (str): A natural language description of the desired deck, including its strategy, key cards, and any specific requirements or constraints.
-        generation_history (list[str]): A list of previous generation summaries for the deck, used to inform the construction process.
+        generation_history (list[str]): A list of previous generation requests for the deck, used to inform the construction process.
         available_set_codes (Optional[set[str]]): An optional set of available set codes to restrict the card selection to specific sets. If not provided, it will default to the current standard set codes.
     """
 
@@ -166,8 +166,8 @@ async def run_deck_constructor_agent(
     deck.name = response.output.deck_name
     deck.llm_summary = response.output.summary
     deck.short_llm_summary = response.output.short_summary
-    if deck.generation_histrory is None:
-        deck.generation_histrory = []
-    deck.generation_histrory.append(deck_description)
+    if deck.generation_history is None:
+        deck.generation_history = []
+    deck.generation_history.append(deck_description)
     await sync_to_async(deck.save)()
     return response.output

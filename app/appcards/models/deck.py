@@ -48,7 +48,7 @@ class Deck(models.Model):
     set_codes = models.JSONField(default=list, blank=True, validators=[_validate_set_str])
     short_llm_summary = models.TextField(blank=True, null=True, max_length=SHORT_SUMMARY_LENGTH_LIMIT[1])
     llm_summary = models.TextField(blank=True, null=True, max_length=SUMMARY_LENGTH_LIMIT[1])
-    generation_histrory = models.JSONField(default=list, blank=True, validators=[_validate_list_str])
+    generation_history = models.JSONField(default=list, blank=True, validators=[_validate_list_str])
     valid = models.BooleanField(default=False)
 
     def __str__(self) -> str:

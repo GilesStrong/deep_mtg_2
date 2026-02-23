@@ -30,15 +30,15 @@ async def construct_deck(
         deck = await Deck.objects.acreate(name="New Deck")
         logfire.info(f"Constructing new deck, with ID: {deck.id}")
 
-    generation_histrory = deck.generation_histrory if deck.generation_histrory else []
-    if len(generation_histrory) > 5:
-        generation_histrory = (
-            generation_histrory[0] + generation_histrory[-4:]
+    generation_history = deck.generation_history if deck.generation_history else []
+    if len(generation_history) > 5:
+        generation_history = (
+            generation_history[0] + generation_history[-4:]
         )  # Always keep the first entry, and the most recent 4 entries
     response = await run_deck_constructor_agent(
         deck_id=deck.id,
         deck_description=deck_description,
-        generation_history=generation_histrory,
+        generation_history=generation_history,
         available_set_codes=available_set_codes,
     )
     return DeckConstructorResults(

@@ -64,7 +64,8 @@ def run_query_from_dsl(
                 query_filter.must_not = [query_filter.must_not] + must_not  # type: ignore [operator]
         else:
             query_filter.must_not = must_not  # type: ignore [assignment]
-    must = []
+    else:
+        query_filter = qm.Filter(must=must, must_not=must_not)  # type: ignore [arg-type]
 
     return run_query(
         collection_name=dsl_query.collection_name,
