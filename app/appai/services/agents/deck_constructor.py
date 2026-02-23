@@ -29,9 +29,17 @@ Your task is to construct a standard-legal 60-card deck based on the description
 Use the tools available to you to build the deck step by step, ensuring that you follow the user's instructions and any constraints they have provided.
 
 # Input
-The user will provide a natural language description of the deck they want to build.
+The user will provide a natural language description of the deck they want to build, or how they want the existing deck to be modified (Generation request).
 You should interpret this description to understand the strategy, key cards, and any specific requirements or constraints for the deck.
 Aim to stick as closely as possible to the user's description, while also ensuring that the deck is legal and follows any constraints provided.
+
+If this is not the first time the user has requested a generation for this deck, you will also be provided with:
+- The current name of the deck, feel free to modify the name as you see fit to better reflect the strategy and key features of the deck as it evolves through the generation process.
+- The current summary of the deck, which includes its strategy, key cards, and how it meets the user's requirements based on the last generation. Use this summary to understand the current state of the deck and to inform your next steps in the construction process.
+- A history of previous generations for this deck (Previous generation history).
+Use this history to inform your construction process, ensuring that you build upon previous generations and make improvements based on the feedback and results of those generations.
+Use the history to also avoid changing the deck in ways that have already been tried and did not work, unless the user specifically requests to go in a different direction.
+Additionally, use the history to understand the original purpose and strategy of the deck when the current generation request is to modify an existing deck rather than build a new deck from scratch and does not include a detailed description of the desired deck.
 
 # Output
 You will not output the final deck directly. Instead, you will use the available tools to build the deck iteratively.
@@ -102,7 +110,7 @@ class DeckConstructionOutput(BaseModel):
 
 @beartype
 async def run_deck_constructor_agent(
-    deck_id: UUID, deck_description: str, available_set_codes: Optional[set[str]] = None
+    deck_id: UUID, deck_description: str, generation_history: list[str], available_set_codes: Optional[set[str]] = None
 ) -> DeckConstructionOutput:
     """
     Constructs a deck based on a natural language description.
@@ -111,6 +119,7 @@ async def run_deck_constructor_agent(
     Args:
         deck_id (UUID): The ID of the deck to construct.
         deck_description (str): A natural language description of the desired deck, including its strategy, key cards, and any specific requirements or constraints.
+        generation_history (list[str]): A list of previous generation requests for the deck, used to inform the construction process.
         available_set_codes (Optional[set[str]]): An optional set of available set codes to restrict the card selection to specific sets. If not provided, it will default to the current standard set codes.
     """
 
@@ -136,12 +145,33 @@ async def run_deck_constructor_agent(
         deck_id=deck_id,
         available_set_codes=available_set_codes if available_set_codes is not None else CURRENT_STANDARD_SET_CODES,
     )
-    response = await agent.run(
-        deck_description, deps=deps, usage_limits=UsageLimits(request_limit=APP_SETTINGS.MAX_AGENT_CALLS_PER_TASK)
-    )
+
     deck = await Deck.objects.aget(id=deck_id)
+    input_message = f"# Generation request\n{deck_description}"
+    # Append previous details
+    if deck.name != "New Deck":
+        input_message += f"\n\n# Current deck name\n{deck.name}"
+    if deck.llm_summary is not None:
+        input_message += f"\n\n# Current deck summary\n{deck.llm_summary}"
+    if len(generation_history) > 0:
+        input_message += "\n\n# Previous generation history"
+        for i, previous_request in enumerate(generation_history):
+            input_message += f"\n## Generation {i + 1}\n{previous_request}"
+
+    response = await agent.run(
+        input_message,
+        deps=deps,
+        usage_limits=UsageLimits(request_limit=APP_SETTINGS.MAX_AGENT_CALLS_PER_TASK),
+    )
+
+    deck = await Deck.objects.aget(
+        id=deck_id
+    )  # Refetch the deck to get the latest state after modifications by the agent
     deck.name = response.output.deck_name
     deck.llm_summary = response.output.summary
     deck.short_llm_summary = response.output.short_summary
+    if deck.generation_history is None:
+        deck.generation_history = []
+    deck.generation_history.append(deck_description)
     await sync_to_async(deck.save)()
     return response.output
