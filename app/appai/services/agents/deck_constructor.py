@@ -38,7 +38,7 @@ If this is not the first time the user has requested a generation for this deck,
 - The current summary of the deck, which includes its strategy, key cards, and how it meets the user's requirements based on the last generation. Use this summary to understand the current state of the deck and to inform your next steps in the construction process.
 - A history of previous generations for this deck (Previous generation history).
 Use this history to inform your construction process, ensuring that you build upon previous generations and make improvements based on the feedback and results of those generations.
-Use the history to all avoid changing the deck in ways that have already been tried and did not work, unless the user specifically requests to go in a different direction.
+Use the history to also avoid changing the deck in ways that have already been tried and did not work, unless the user specifically requests to go in a different direction.
 Or also to understand the original purpose and strategy of the deck, if the current generation request is to modify an existing deck rather than build a new deck from scratch, and does not include a detailed description of the desired deck.
 
 # Output
