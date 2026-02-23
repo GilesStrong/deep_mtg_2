@@ -62,8 +62,20 @@ class LogfireSettings(BaseSettings):
     LOGFIRE_ENVIRONMENT: str
 
 
+class GoogleAuthSettings(BaseSettings):
+    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
+
+
 class AppSettings(
-    EnvSettings, DjangoSettings, CelerySettings, PostgresSettings, AISettings, QdrantSettings, LogfireSettings
+    GoogleAuthSettings,
+    EnvSettings,
+    DjangoSettings,
+    CelerySettings,
+    PostgresSettings,
+    AISettings,
+    QdrantSettings,
+    LogfireSettings,
 ):
     model_config = SettingsConfigDict(env_file_encoding='utf-8')
 

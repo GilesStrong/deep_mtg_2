@@ -17,6 +17,7 @@ Including another URLconf
 
 from appai.api import router as ai_router
 from appcards.api import router as cards_router
+from appuser.api import router as user_router
 from django.contrib import admin
 from django.urls import path
 from ninja import NinjaAPI
@@ -24,6 +25,7 @@ from ninja import NinjaAPI
 app_api = NinjaAPI()
 app_api.add_router('/ai', ai_router)
 app_api.add_router('/cards', cards_router)
+app_api.add_router('/user', user_router)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

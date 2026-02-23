@@ -32,6 +32,8 @@ dependencies = [
   "aiocache>=0.12.3",
   "hypercorn>=0.18.0",
   "nanoid>=2.0.0",
+  "google-auth-oauthlib>=1.2.4",
+  "google-auth>=2.48.0",
 ]
 
 [dependency-groups]
