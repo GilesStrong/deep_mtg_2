@@ -36,6 +36,7 @@ def _validate_set_str(value: list[str]) -> None:
 
 @beartype
 def _validate_list_str(value: list[str]) -> None:
+    """Empty logic: beartype validator to ensure a list of strings does not contain any non-string values."""
     pass
 
 
