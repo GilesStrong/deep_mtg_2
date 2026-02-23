@@ -278,7 +278,7 @@ export default function DashboardPage() {
                                 <CardHeader>
                                     <CardTitle className="text-xl">{deck.name}</CardTitle>
                                     <CardDescription>
-                                        Status: {deck.generation_status ?? "UNKNOWN"} • Updated: {new Date(deck.date_updated).toLocaleString()}
+                                        Status: {deck.generation_status ?? "UNKNOWN"} • Updated: {new Date(deck.date_updated).toISOString()}
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-2">

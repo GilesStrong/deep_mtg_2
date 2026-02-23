@@ -12,8 +12,27 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 interface DeckCard {
+  id: string;
   name: string;
   qty: number;
+  text: string;
+  llm_summary: string | null;
+  types: string[];
+  subtypes: string[];
+  supertypes: string[];
+  set_codes: string[];
+  rarity: string;
+  converted_mana_cost: number;
+  mana_cost_colorless: number;
+  mana_cost_white: number;
+  mana_cost_blue: number;
+  mana_cost_black: number;
+  mana_cost_red: number;
+  mana_cost_green: number;
+  power: string | null;
+  toughness: string | null;
+  colors: string[];
+  keywords: string[];
 }
 
 interface Deck {
@@ -23,6 +42,7 @@ interface Deck {
   full_summary: string | null;
   set_codes: string[];
   date_updated: string;
+  creation_status: string | null;
   cards: DeckCard[];
 }
 
@@ -38,6 +58,7 @@ export default function DeckPage() {
   const [fullSummary, setFullSummary] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
 
   const fetchDeck = useCallback(async () => {
     try {
@@ -51,7 +72,29 @@ export default function DeckPage() {
         full_summary: string | null;
         set_codes: string[];
         date_updated: string;
-        cards: [number, { name: string }][];
+        creation_status: string | null;
+        cards: [number, {
+          id: string;
+          name: string;
+          text: string;
+          llm_summary: string | null;
+          types: string[];
+          subtypes: string[];
+          supertypes: string[];
+          set_codes: string[];
+          rarity: string;
+          converted_mana_cost: number;
+          mana_cost_colorless: number;
+          mana_cost_white: number;
+          mana_cost_blue: number;
+          mana_cost_black: number;
+          mana_cost_red: number;
+          mana_cost_green: number;
+          power: string | null;
+          toughness: string | null;
+          colors: string[];
+          keywords: string[];
+        }][];
       };
 
       const mappedDeck: Deck = {
@@ -61,9 +104,29 @@ export default function DeckPage() {
         full_summary: data.full_summary,
         set_codes: data.set_codes,
         date_updated: data.date_updated,
+        creation_status: data.creation_status,
         cards: data.cards.map(([qty, cardInfo]) => ({
+          id: cardInfo.id,
           qty,
           name: cardInfo.name,
+          text: cardInfo.text,
+          llm_summary: cardInfo.llm_summary,
+          types: cardInfo.types,
+          subtypes: cardInfo.subtypes,
+          supertypes: cardInfo.supertypes,
+          set_codes: cardInfo.set_codes,
+          rarity: cardInfo.rarity,
+          converted_mana_cost: cardInfo.converted_mana_cost,
+          mana_cost_colorless: cardInfo.mana_cost_colorless,
+          mana_cost_white: cardInfo.mana_cost_white,
+          mana_cost_blue: cardInfo.mana_cost_blue,
+          mana_cost_black: cardInfo.mana_cost_black,
+          mana_cost_red: cardInfo.mana_cost_red,
+          mana_cost_green: cardInfo.mana_cost_green,
+          power: cardInfo.power,
+          toughness: cardInfo.toughness,
+          colors: cardInfo.colors,
+          keywords: cardInfo.keywords,
         })),
       };
 
@@ -84,20 +147,42 @@ export default function DeckPage() {
     }
   }, [deckId, fetchDeck]);
 
-  const hasChanges = useMemo(() => {
+  const updatePayload = useMemo(() => {
     if (!deck) {
+      return null;
+    }
+
+    const trimmedName = name.trim();
+    const trimmedShortSummary = shortSummary.trim();
+    const trimmedFullSummary = fullSummary.trim();
+
+    return {
+      name: trimmedName.length === 0 || trimmedName === deck.name.trim() ? null : trimmedName,
+      short_summary:
+        trimmedShortSummary.length === 0 || trimmedShortSummary === (deck.short_summary ?? "").trim()
+          ? null
+          : trimmedShortSummary,
+      full_summary:
+        trimmedFullSummary.length === 0 || trimmedFullSummary === (deck.full_summary ?? "").trim()
+          ? null
+          : trimmedFullSummary,
+    };
+  }, [deck, fullSummary, name, shortSummary]);
+
+  const hasChanges = useMemo(() => {
+    if (!updatePayload) {
       return false;
     }
 
     return (
-      name.trim() !== deck.name ||
-      shortSummary !== (deck.short_summary ?? "") ||
-      fullSummary !== (deck.full_summary ?? "")
+      updatePayload.name !== null ||
+      updatePayload.short_summary !== null ||
+      updatePayload.full_summary !== null
     );
-  }, [deck, fullSummary, name, shortSummary]);
+  }, [updatePayload]);
 
   const handleSave = async () => {
-    if (!deck || !name.trim()) {
+    if (!deck || !updatePayload || isDeckBuilding) {
       return;
     }
 
@@ -107,11 +192,7 @@ export default function DeckPage() {
       const response = await fetch(`/api/app/cards/deck/${deck.id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          short_summary: shortSummary,
-          full_summary: fullSummary,
-        }),
+        body: JSON.stringify(updatePayload),
       });
 
       if (!response.ok) {
@@ -127,7 +208,7 @@ export default function DeckPage() {
   };
 
   const handleDelete = async () => {
-    if (!deck) {
+    if (!deck || isDeckBuilding) {
       return;
     }
 
@@ -161,6 +242,39 @@ export default function DeckPage() {
     .toUpperCase() || "U";
 
   const totalCards = deck?.cards.reduce((sum, card) => sum + card.qty, 0) || 0;
+  const isDeckBuilding = deck?.creation_status === "PENDING" || deck?.creation_status === "IN_PROGRESS";
+
+  const formatManaCost = (card: DeckCard) => {
+    const coloredMana = [
+      ["W", card.mana_cost_white],
+      ["U", card.mana_cost_blue],
+      ["B", card.mana_cost_black],
+      ["R", card.mana_cost_red],
+      ["G", card.mana_cost_green],
+    ] as const;
+
+    const symbols = coloredMana
+      .flatMap(([symbol, count]) => Array.from({ length: count }, () => symbol))
+      .join("");
+
+    if (card.mana_cost_colorless > 0) {
+      return `${card.mana_cost_colorless}${symbols}`;
+    }
+
+    return symbols || "0";
+  };
+
+  const toggleCardExpanded = (cardId: string) => {
+    setExpandedCardIds((current) => {
+      const next = new Set(current);
+      if (next.has(cardId)) {
+        next.delete(cardId);
+      } else {
+        next.add(cardId);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -212,12 +326,21 @@ export default function DeckPage() {
                   <div>
                     <CardTitle className="text-3xl">Deck Details</CardTitle>
                     <CardDescription className="text-lg mt-2">
-                      Total Cards: {totalCards} • Updated: {new Date(deck.date_updated).toLocaleString()}
+                      Total Cards: {totalCards} • Updated: {new Date(deck.date_updated).toISOString()}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button onClick={() => router.push(`/decks/generate?deckId=${deck.id}`)}>Regenerate</Button>
-                    <Button variant="destructive" onClick={handleDelete} disabled={isDeleting || isSaving}>
+                    <Button
+                      onClick={() => router.push(`/decks/generate?deckId=${deck.id}`)}
+                      disabled={isDeckBuilding || isDeleting || isSaving}
+                    >
+                      Regenerate
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDelete}
+                      disabled={isDeckBuilding || isDeleting || isSaving}
+                    >
                       {isDeleting ? "Deleting..." : "Delete Deck"}
                     </Button>
                   </div>
@@ -260,7 +383,7 @@ export default function DeckPage() {
 
                   <Button
                     onClick={handleSave}
-                    disabled={isSaving || isDeleting || !name.trim() || !hasChanges}
+                    disabled={isDeckBuilding || isSaving || isDeleting || !hasChanges}
                   >
                     {isSaving ? "Saving..." : "Save Deck Details"}
                   </Button>
@@ -272,15 +395,52 @@ export default function DeckPage() {
                   </div>
 
                   <div className="space-y-1">
-                    {deck.cards.map((card, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between py-2 px-3 rounded hover:bg-secondary/50 transition-colors"
-                      >
-                        <span className="font-medium">{card.name}</span>
-                        <span className="text-sm text-muted-foreground">×{card.qty}</span>
-                      </div>
-                    ))}
+                    {deck.cards.map((card, index) => {
+                      const isExpanded = expandedCardIds.has(card.id);
+                      const typeLine = [...card.supertypes, ...card.types, ...card.subtypes].join(" ");
+
+                      return (
+                        <div
+                          key={`${card.id}-${index}`}
+                          className="rounded border"
+                        >
+                          <button
+                            type="button"
+                            className="w-full flex items-center justify-between py-2 px-3 text-left hover:bg-secondary/50 transition-colors"
+                            onClick={() => toggleCardExpanded(card.id)}
+                          >
+                            <span className="font-medium">{card.name}</span>
+                            <span className="text-sm text-muted-foreground">×{card.qty}</span>
+                          </button>
+
+                          {isExpanded ? (
+                            <div className="border-t px-3 py-3 space-y-2 text-sm">
+                              <p className="text-muted-foreground">
+                                {typeLine || "No type information"}
+                              </p>
+                              <p>
+                                <span className="font-medium">Mana Cost:</span> {formatManaCost(card)}
+                              </p>
+                              <p>
+                                <span className="font-medium">Power/Toughness:</span>{" "}
+                                {card.power && card.toughness ? `${card.power}/${card.toughness}` : "N/A"}
+                              </p>
+                              <p>
+                                <span className="font-medium">Rarity:</span> {card.rarity}
+                              </p>
+                              <p>
+                                <span className="font-medium">Keywords:</span> {card.keywords.length > 0 ? card.keywords.join(", ") : "None"}
+                              </p>
+                              <p>
+                                <span className="font-medium">Set Codes:</span> {card.set_codes.length > 0 ? card.set_codes.join(", ") : "None"}
+                              </p>
+                              <p>{card.text || "No rules text available."}</p>
+                              {card.llm_summary ? <p className="text-muted-foreground">{card.llm_summary}</p> : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </CardContent>
