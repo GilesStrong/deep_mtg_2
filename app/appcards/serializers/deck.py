@@ -32,6 +32,8 @@ class GetSummaryDeckOut(Schema):
     short_summary: str | None
     set_codes: list[str]
     date_updated: str
+    generation_status: str | None = None
+    generation_task_id: UUID | None = None
 
     @field_validator('id', mode='before')
     @classmethod

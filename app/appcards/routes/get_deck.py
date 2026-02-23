@@ -1,11 +1,43 @@
+from appai.models.deck_build import DeckBuildTask
 from django.http import HttpRequest
 from ninja import Path, Router
 
-from appcards.models.deck import DeckCard
+from appcards.models.deck import Deck, DeckCard
 from appcards.modules.card_info import card_to_info
 from appcards.serializers.deck import GetDeckIn, GetFullDeckOut, GetSummaryDeckOut
 
 router = Router(tags=['decks'])
+
+
+def _get_latest_build(deck_id: str) -> DeckBuildTask | None:
+    return DeckBuildTask.objects.filter(deck_id=deck_id).order_by('-updated_at').first()
+
+
+@router.get(
+    '/',
+    summary='List deck summaries',
+    description='Retrieve summaries for all decks, ordered by most recently updated.',
+    response={200: list[GetSummaryDeckOut]},
+    operation_id='list_decks',
+)
+def list_decks(request: HttpRequest) -> list[GetSummaryDeckOut]:
+    decks = []
+
+    for deck in Deck.objects.order_by('-updated_at'):
+        latest_build = _get_latest_build(str(deck.id))
+        decks.append(
+            GetSummaryDeckOut(
+                id=deck.id,
+                name=deck.name,
+                short_summary=deck.short_llm_summary,
+                set_codes=deck.set_codes,
+                date_updated=deck.updated_at.isoformat(),
+                generation_status=latest_build.status if latest_build else None,
+                generation_task_id=latest_build.id if latest_build else None,
+            )
+        )
+
+    return decks
 
 
 @router.get(
@@ -24,12 +56,15 @@ def get_summary_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetS
     """
 
     deck = path_params.deck
+    latest_build = _get_latest_build(str(deck.id))
     return GetSummaryDeckOut(
         id=deck.id,
         name=deck.name,
         short_summary=deck.short_llm_summary,
         set_codes=deck.set_codes,
         date_updated=deck.updated_at.isoformat(),
+        generation_status=latest_build.status if latest_build else None,
+        generation_task_id=latest_build.id if latest_build else None,
     )
 
 

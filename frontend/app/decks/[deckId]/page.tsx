@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-interface Card {
+interface DeckCard {
   name: string;
   qty: number;
 }
@@ -17,8 +17,11 @@ interface Card {
 interface Deck {
   id: string;
   name: string;
-  format: string;
-  cards: Card[];
+  short_summary: string | null;
+  full_summary: string | null;
+  set_codes: string[];
+  date_updated: string;
+  cards: DeckCard[];
 }
 
 export default function DeckPage() {
@@ -32,11 +35,31 @@ export default function DeckPage() {
   useEffect(() => {
     const fetchDeck = async () => {
       try {
-        const response = await fetch(`/api/decks/${deckId}`);
+        const response = await fetch(`/api/app/cards/deck/${deckId}/full/`);
         if (!response.ok) throw new Error("Failed to fetch deck");
 
-        const data = await response.json();
-        setDeck(data);
+        const data = (await response.json()) as {
+          id: string;
+          name: string;
+          short_summary: string | null;
+          full_summary: string | null;
+          set_codes: string[];
+          date_updated: string;
+          cards: [number, { name: string }][];
+        };
+
+        setDeck({
+          id: data.id,
+          name: data.name,
+          short_summary: data.short_summary,
+          full_summary: data.full_summary,
+          set_codes: data.set_codes,
+          date_updated: data.date_updated,
+          cards: data.cards.map(([qty, cardInfo]) => ({
+            qty,
+            name: cardInfo.name,
+          })),
+        });
       } catch (error) {
         console.error("Error fetching deck:", error);
       } finally {
@@ -107,23 +130,33 @@ export default function DeckPage() {
                   <div>
                     <CardTitle className="text-3xl">{deck.name}</CardTitle>
                     <CardDescription className="text-lg mt-2">
-                      Format: <span className="capitalize font-medium">{deck.format}</span> • 
-                      Total Cards: {totalCards}
+                      Total Cards: {totalCards} • Updated: {new Date(deck.date_updated).toLocaleString()}
                     </CardDescription>
                   </div>
+                  <Button onClick={() => router.push(`/decks/generate?deckId=${deck.id}`)}>Regenerate</Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-1">
-                  {deck.cards.map((card, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between py-2 px-3 rounded hover:bg-secondary/50 transition-colors"
-                    >
-                      <span className="font-medium">{card.name}</span>
-                      <span className="text-sm text-muted-foreground">×{card.qty}</span>
-                    </div>
-                  ))}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">{deck.short_summary ?? "No short summary available."}</p>
+                    <p className="text-sm">{deck.full_summary ?? "No full summary available."}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Sets: {deck.set_codes.length > 0 ? deck.set_codes.join(", ") : "None"}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    {deck.cards.map((card, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between py-2 px-3 rounded hover:bg-secondary/50 transition-colors"
+                      >
+                        <span className="font-medium">{card.name}</span>
+                        <span className="text-sm text-muted-foreground">×{card.qty}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -1,5 +1,7 @@
 import next from "eslint-config-next";
 
-export default [
-  ...next.flatConfig.coreWebVitals,
+const config = [
+  ...next,
 ];
+
+export default config;

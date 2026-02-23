@@ -16,12 +16,14 @@ Including another URLconf
 """
 
 from appai.api import router as ai_router
+from appcards.api import router as cards_router
 from django.contrib import admin
 from django.urls import path
 from ninja import NinjaAPI
 
 app_api = NinjaAPI()
 app_api.add_router('/ai', ai_router)
+app_api.add_router('/cards', cards_router)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
