@@ -1,10 +1,11 @@
 from appai.models.deck_build import DeckBuildTask
 from django.http import HttpRequest
 from ninja import Path, Router
+from ninja.errors import HttpError
 
 from appcards.models.deck import Deck, DeckCard
 from appcards.modules.card_info import card_to_info
-from appcards.serializers.deck import GetDeckIn, GetFullDeckOut, GetSummaryDeckOut, UpdateDeckIn
+from appcards.serializers.deck import GetDeckIn, GetFullDeckOut, GetSummaryDeckOut, UpdateDeckIn, UserIDIn
 
 router = Router(tags=['decks'])
 
@@ -31,7 +32,7 @@ def _get_latest_build(deck_id: str) -> DeckBuildTask | None:
     response={200: list[GetSummaryDeckOut]},
     operation_id='list_decks',
 )
-def list_decks(request: HttpRequest) -> list[GetSummaryDeckOut]:
+def list_decks(request: HttpRequest, query_params: UserIDIn) -> list[GetSummaryDeckOut]:
     """
     Fvf2EuwRMA0g9izKpjFdQ
 
@@ -39,11 +40,12 @@ def list_decks(request: HttpRequest) -> list[GetSummaryDeckOut]:
 
     Args:
         request (HttpRequest): The incoming HTTP request object.
+        query_params (UserIDIn): The query parameters containing the user ID for which to list decks.
 
     Returns:
         list[GetSummaryDeckOut]: A list of deck summary objects
     """
-    all_decks = list(Deck.objects.order_by('-updated_at'))
+    all_decks = list(Deck.objects.filter(user_id=query_params.user_id).order_by('-updated_at'))
     deck_ids = [str(deck.id) for deck in all_decks]
     latest_builds = (
         DeckBuildTask.objects.filter(deck_id__in=deck_ids).order_by('deck_id', '-updated_at').distinct('deck_id')
@@ -75,7 +77,7 @@ def list_decks(request: HttpRequest) -> list[GetSummaryDeckOut]:
     response={200: GetSummaryDeckOut},
     operation_id='get_deck',
 )
-def get_summary_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetSummaryDeckOut:
+def get_summary_deck(request: HttpRequest, path_params: Path[GetDeckIn], query_params: UserIDIn) -> GetSummaryDeckOut:
     """
     Q7sP1itKOKULDuVIHtFVU
 
@@ -83,9 +85,19 @@ def get_summary_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetS
 
     This endpoint allows you to fetch the details of a specific deck using its unique identifier.
     The response will include information about the deck, such as its name, short summary, and the set codes it contains.
+
+    Args:
+        request (HttpRequest): The incoming HTTP request object.
+        path_params (Path[GetDeckIn]): The path parameters containing the deck ID to retrieve.
+        query_params (UserIDIn): The query parameters containing the user ID for authorization.
+
+    Returns:
+        GetSummaryDeckOut: An object containing the summary details of the requested deck.
     """
 
     deck = path_params.deck
+    if deck.user.id != query_params.user_id:
+        raise HttpError(403, "You do not have permission to access this deck")
     latest_build = _get_latest_build(str(deck.id))
     return GetSummaryDeckOut(
         id=deck.id,
@@ -105,7 +117,7 @@ def get_summary_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetS
     response={200: GetFullDeckOut},
     operation_id='get_full_deck',
 )
-def get_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetFullDeckOut:
+def get_deck(request: HttpRequest, path_params: Path[GetDeckIn], query_params: UserIDIn) -> GetFullDeckOut:
     """
     iLkBgG18y5wAR5n3lnBWp
 
@@ -113,8 +125,19 @@ def get_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetFullDeckO
 
     This endpoint allows you to fetch the details of a specific deck using its unique identifier.
     The response will include information about the deck, such as its name, full description, and the cards it contains.
+
+    Args:
+        request (HttpRequest): The incoming HTTP request object.
+        path_params (Path[GetDeckIn]): The path parameters containing the deck ID to retrieve.
+        query_params (UserIDIn): The query parameters containing the user ID for authorization.
+
+    Returns:
+        GetFullDeckOut: An object containing the full details of the requested deck, including its cards.
     """
     deck = path_params.deck
+    if deck.user.id != query_params.user_id:
+        raise HttpError(403, "You do not have permission to access this deck")
+
     deck_cards = list(DeckCard.objects.filter(deck_id=deck.id).select_related('card'))
     card_infos = [(deck_card.quantity, card_to_info(deck_card.card)) for deck_card in deck_cards]
     latest_build = _get_latest_build(str(deck.id))
@@ -139,12 +162,26 @@ def get_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetFullDeckO
     response={204: None},
     operation_id='delete_deck',
 )
-def delete_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> None:
+def delete_deck(request: HttpRequest, path_params: Path[GetDeckIn], query_params: UserIDIn) -> None:
     """
     WaqnXA1TLRljEvGixbNXP
 
     Delete a deck by its ID.
+
+    This endpoint allows you to delete a specific deck using its unique identifier.
+    You must have permission to delete the deck (i.e. you must be the owner of the deck) in order to successfully delete it. If the deck is deleted successfully, a 204 No Content response will be returned.
+
+    Args:
+        request (HttpRequest): The incoming HTTP request object.
+        path_params (Path[GetDeckIn]): The path parameters containing the deck ID to delete.
+        query_params (UserIDIn): The query parameters containing the user ID for authorization.
+
+    Returns:
+        None: If the deck is deleted successfully, a 204 No Content response will be returned. If the deck is not found or the user does not have permission to delete it, an appropriate HTTP error response will be returned.
     """
+    deck = path_params.deck
+    if deck.user.id != query_params.user_id:
+        raise HttpError(403, "You do not have permission to access this deck")
     deck = path_params.deck
     deck.delete()
     return None
@@ -166,8 +203,18 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
     This endpoint allows you to update the details of a specific deck using its unique identifier.
     The response will include the updated information about the deck, such as its name, summary description, and full description.
     It does not allow updating the cards in the deck, only the metadata fields.
+
+    Args:
+        request (HttpRequest): The incoming HTTP request object.
+        path_params (Path[GetDeckIn]): The path parameters containing the deck ID to update.
+        payload (UpdateDeckIn): The request body containing the fields to update, such as the new name, short summary, and full summary of the deck.
+
+    Returns:
+        GetFullDeckOut: An object containing the full details of the updated deck, including its cards.
     """
     deck = path_params.deck
+    if deck.user.id != payload.user_id:
+        raise HttpError(403, "You do not have permission to access this deck")
     if payload.name is not None:
         deck.name = payload.name
     if payload.short_summary is not None:

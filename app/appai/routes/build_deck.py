@@ -34,7 +34,7 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
     if payload.deck_id is not None:
         deck_id = payload.deck_id
     else:
-        deck = Deck.objects.create(name="New Deck")
+        deck = Deck.objects.create(name="New Deck", user_id=payload.user_id)
         deck_id = deck.id
 
     # Enqueue the task to build the deck

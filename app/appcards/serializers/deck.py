@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from appuser.models.user import User
 from ninja import Field, Schema
 from ninja.errors import HttpError
 from pydantic import field_validator
@@ -20,10 +21,21 @@ class GetDeckIn(Schema):
     def deck(self) -> Deck:
         if not hasattr(self, '_deck_cache'):
             try:
-                object.__setattr__(self, '_deck_cache', Deck.objects.get(id=self.deck_id))
+                object.__setattr__(self, '_deck_cache', Deck.objects.select_related('user').get(id=self.deck_id))
             except Deck.DoesNotExist:
                 raise HttpError(404, f"Deck with ID {self.deck_id} not found")
         return self._deck_cache
+
+
+class UserIDIn(Schema):
+    user_id: UUID = Field(..., description='The unique identifier of the user whose decks to list.')
+
+    @field_validator('user_id', mode='before')
+    @classmethod
+    def validate_user_id(cls, value: UUID) -> UUID:
+        if not User.objects.filter(id=value).exists():
+            raise HttpError(404, f"User with ID {value} not found")
+        return value
 
 
 class GetSummaryDeckOut(Schema):
@@ -84,6 +96,7 @@ class GetFullDeckOut(Schema):
 
 
 class UpdateDeckIn(Schema):
+    user_id: UUID = Field(..., description="The unique identifier of the user updating the deck")
     name: str | None = Field(
         None, description="The new name of the deck", max_length=MAX_DECK_NAME_LENGTH, min_length=1
     )
@@ -99,3 +112,10 @@ class UpdateDeckIn(Schema):
         min_length=SUMMARY_LENGTH_LIMIT[0],
         max_length=SUMMARY_LENGTH_LIMIT[1],
     )
+
+    @field_validator('user_id', mode='before')
+    @classmethod
+    def validate_user_id(cls, value: UUID) -> UUID:
+        if not User.objects.filter(id=value).exists():
+            raise HttpError(404, f"User with ID {value} not found")
+        return value
