@@ -43,10 +43,16 @@ def list_decks(request: HttpRequest) -> list[GetSummaryDeckOut]:
     Returns:
         list[GetSummaryDeckOut]: A list of deck summary objects
     """
-    decks = []
+    all_decks = list(Deck.objects.order_by('-updated_at'))
+    deck_ids = [str(deck.id) for deck in all_decks]
+    latest_builds = (
+        DeckBuildTask.objects.filter(deck_id__in=deck_ids).order_by('deck_id', '-updated_at').distinct('deck_id')
+    )
+    builds_by_deck_id = {str(build.deck_id): build for build in latest_builds}
 
-    for deck in Deck.objects.order_by('-updated_at'):
-        latest_build = _get_latest_build(str(deck.id))
+    decks = []
+    for deck in all_decks:
+        latest_build = builds_by_deck_id.get(str(deck.id))
         decks.append(
             GetSummaryDeckOut(
                 id=deck.id,
@@ -171,6 +177,9 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
     deck.save()
     latest_build = _get_latest_build(str(deck.id))
     creation_status = latest_build.status if latest_build else None
+
+    deck_cards = list(DeckCard.objects.filter(deck_id=deck.id).select_related('card'))
+    card_infos = [(deck_card.quantity, card_to_info(deck_card.card)) for deck_card in deck_cards]
     return GetFullDeckOut(
         id=deck.id,
         name=deck.name,
@@ -178,6 +187,6 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
         full_summary=deck.llm_summary,
         set_codes=deck.set_codes,
         date_updated=deck.updated_at.isoformat(),
-        cards=[],
+        cards=card_infos,
         creation_status=creation_status,
     )

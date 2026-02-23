@@ -32,7 +32,7 @@ def list_set_codes(request: HttpRequest) -> SetCodesOut:
     '/{card_id}/',
     summary='Get card details',
     description='Retrieve the details of a card by its ID.',
-    response={200: SetCodesOut},
+    response={200: CardInfo},
     operation_id='get_card',
 )
 def get_card(request: HttpRequest, path_params: Path[GetCardIn]) -> CardInfo:

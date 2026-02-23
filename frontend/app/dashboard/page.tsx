@@ -39,20 +39,12 @@ export default function DashboardPage() {
     const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
 
     const fetchDecks = useCallback(async () => {
-        // const response = await fetch("/api/app/cards/deck/");
-        // if (!response.ok) {
-        //     throw new Error("Failed to fetch deck summaries");
-        // }
         const response = await fetch("/api/app/cards/deck/");
-        const text = await response.text();
-        console.log("deck fetch", response.status, response.headers.get("content-type"), text.slice(0, 300));
-
         if (!response.ok) {
-            throw new Error(`Failed to fetch deck summaries: ${response.status}`);
+            throw new Error("Failed to fetch deck summaries");
         }
-        const data = JSON.parse(text) as DeckSummary[];
 
-        // const data = (await response.json()) as DeckSummary[];
+        const data = (await response.json()) as DeckSummary[];
         setDecks(data);
     }, []);
 
