@@ -10,7 +10,7 @@
             "args": [
                 "app.asgi:application",
                 "--bind",
-                "0.0.0.0:8001"
+                "0.0.0.0:8000"
             ],
             "justMyCode": true,
             "envFile": "${workspaceFolder}/.env",

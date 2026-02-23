@@ -3,7 +3,7 @@ from uuid import UUID
 
 from app.app_settings import APP_SETTINGS
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
-from appcards.models.deck import SHORT_SUMMARY_LENGTH_LIMIT, SUMMARY_LENGTH_LIMIT, Deck
+from appcards.models.deck import MAX_DECK_NAME_LENGTH, SHORT_SUMMARY_LENGTH_LIMIT, SUMMARY_LENGTH_LIMIT, Deck
 from asgiref.sync import sync_to_async
 from beartype import beartype
 from pydantic import BaseModel, Field
@@ -18,7 +18,6 @@ from appai.services.agents.tools.deck_tools import (
     clear_deck,
     list_deck_cards,
     remove_card_from_deck,
-    rename_deck,
     validate_deck,
 )
 from appai.services.agents.tools.query_tools import search_for_cards
@@ -81,6 +80,12 @@ Unless going for a fast agro deck, staying on curve and ensuring card draw and m
 
 
 class DeckConstructionOutput(BaseModel):
+    deck_name: str = Field(
+        ...,
+        description=f"The name of the deck, reflecting its strategy and key features. {MAX_DECK_NAME_LENGTH} characters max.",
+        min_length=1,
+        max_length=MAX_DECK_NAME_LENGTH,
+    )
     summary: str = Field(
         ...,
         description=f"A summary of the deck that was constructed, including its strategy, key cards, and how it meets the user's requirements. {SUMMARY_LENGTH_LIMIT[1]} characters max.",
@@ -120,7 +125,6 @@ async def run_deck_constructor_agent(
             search_for_cards,
             inspect_card,
             validate_deck,
-            rename_deck,
             clear_deck,
         ],
         instrument=True,
@@ -136,6 +140,7 @@ async def run_deck_constructor_agent(
         deck_description, deps=deps, usage_limits=UsageLimits(request_limit=APP_SETTINGS.MAX_AGENT_CALLS_PER_TASK)
     )
     deck = await Deck.objects.aget(id=deck_id)
+    deck.name = response.output.deck_name
     deck.llm_summary = response.output.summary
     deck.short_llm_summary = response.output.short_summary
     await sync_to_async(deck.save)()
