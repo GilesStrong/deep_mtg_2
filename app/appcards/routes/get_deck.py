@@ -1,3 +1,4 @@
+from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
 from django.http import HttpRequest
 from ninja import Path, Router
 
@@ -24,11 +25,14 @@ def get_summary_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetS
     """
 
     deck = path_params.deck
+    build_task = DeckBuildTask.objects.filter(deck_id=deck.id).first()
+    creation_status = DeckBuildStatus(build_task.status) if build_task else None
     return GetSummaryDeckOut(
         id=deck.id,
         name=deck.name,
         short_summary=deck.short_llm_summary,
         set_codes=deck.set_codes,
+        creation_status=creation_status,
         date_updated=deck.updated_at.isoformat(),
     )
 
@@ -50,6 +54,8 @@ def get_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetFullDeckO
     deck = path_params.deck
     deck_cards = list(DeckCard.objects.filter(deck_id=deck.id).select_related('card'))
     card_infos = [(deck_card.quantity, card_to_info(deck_card.card)) for deck_card in deck_cards]
+    build_task = DeckBuildTask.objects.filter(deck_id=deck.id).first()
+    creation_status = DeckBuildStatus(build_task.status) if build_task else None
 
     return GetFullDeckOut(
         id=deck.id,
@@ -59,4 +65,5 @@ def get_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetFullDeckO
         set_codes=deck.set_codes,
         date_updated=deck.updated_at.isoformat(),
         cards=card_infos,
+        creation_status=creation_status,
     )
