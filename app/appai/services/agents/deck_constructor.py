@@ -168,6 +168,6 @@ async def run_deck_constructor_agent(
     deck.short_llm_summary = response.output.short_summary
     if deck.generation_histrory is None:
         deck.generation_histrory = []
-    deck.generation_histrory.append(response.output.summary)
+    deck.generation_histrory.append(deck_description)
     await sync_to_async(deck.save)()
     return response.output

@@ -1,5 +1,6 @@
 from typing import Optional
 
+import logfire
 from app.app_settings import APP_SETTINGS
 from appai.modules.dense_embedding import dense_embed
 from beartype import beartype
@@ -11,8 +12,21 @@ from appsearch.services.qdrant.search_dsl import Query as DSLQuery
 
 @beartype
 def run_query(
-    collection_name: str, query_vector: Optional[list[float]], query_filter: Optional[qm.Filter], limit: int = 10
+    collection_name: str,
+    query_vector: Optional[list[float]],
+    query_filter: Optional[qm.Filter],
+    limit: int = 10,
 ) -> list[qm.ScoredPoint]:
+    log_message = f"Running query on collection '{collection_name}' with limit {limit}"
+    if query_filter:
+        log_message += f", using query_filter: {query_filter.model_dump_json(indent=2, ensure_ascii=False)}"
+    else:
+        log_message += ", with no query_filter"
+    if query_vector:
+        log_message += ", using query_vector"
+    else:
+        log_message += ", with no query_vector"
+    logfire.info(log_message)
     res = QDRANT_CLIENT.query_points(
         collection_name=collection_name,
         query=query_vector,
