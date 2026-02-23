@@ -27,8 +27,10 @@ function GenerateDeckPageContent() {
     const deckId = searchParams.get("deckId");
 
     const [prompt, setPrompt] = useState("");
-    const [setCodes, setSetCodes] = useState("");
+    const [availableSetCodes, setAvailableSetCodes] = useState<string[]>([]);
+    const [selectedSetCodes, setSelectedSetCodes] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
     const [taskId, setTaskId] = useState<string | null>(null);
     const [status, setStatus] = useState<string | null>(null);
 
@@ -72,6 +74,30 @@ function GenerateDeckPageContent() {
     }, [router]);
 
     useEffect(() => {
+        const loadSetCodes = async () => {
+            try {
+                const response = await fetch("/api/app/cards/card/set_codes/");
+                if (!response.ok) {
+                    throw new Error("Failed to fetch set codes");
+                }
+
+                const data = (await response.json()) as { set_codes: string[] };
+                const sortedCodes = [...data.set_codes].sort((a, b) => a.localeCompare(b));
+                setAvailableSetCodes(sortedCodes);
+                setSelectedSetCodes(sortedCodes);
+            } catch (error) {
+                console.error("Error loading set codes:", error);
+                setAvailableSetCodes([]);
+                setSelectedSetCodes([]);
+            } finally {
+                setIsLoadingSetCodes(false);
+            }
+        };
+
+        void loadSetCodes();
+    }, []);
+
+    useEffect(() => {
         if (!taskId) {
             return;
         }
@@ -80,8 +106,22 @@ function GenerateDeckPageContent() {
         return () => clearInterval(interval);
     }, [taskId, pollBuildStatus]);
 
+    const toggleSetCode = (code: string) => {
+        if (isGenerating) {
+            return;
+        }
+
+        setSelectedSetCodes((current) => {
+            if (current.includes(code)) {
+                return current.filter((value) => value !== code);
+            }
+
+            return [...current, code];
+        });
+    };
+
     const handleGenerateDeck = async () => {
-        if (!prompt.trim()) {
+        if (!prompt.trim() || selectedSetCodes.length === 0) {
             return;
         }
 
@@ -89,18 +129,10 @@ function GenerateDeckPageContent() {
         setStatus("PENDING");
 
         try {
-            const payload: { prompt: string; set_codes?: string[]; deck_id?: string } = {
+            const payload: { prompt: string; set_codes: string[]; deck_id?: string } = {
                 prompt,
+                set_codes: selectedSetCodes,
             };
-
-            const parsedSetCodes = setCodes
-                .split(",")
-                .map((code) => code.trim())
-                .filter((code) => code.length > 0);
-
-            if (parsedSetCodes.length > 0) {
-                payload.set_codes = parsedSetCodes;
-            }
 
             if (deckId) {
                 payload.deck_id = deckId;
@@ -182,17 +214,42 @@ function GenerateDeckPageContent() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="setCodes">Set Codes (optional, comma-separated)</Label>
-                                <Textarea
-                                    id="setCodes"
-                                    placeholder="FDN, DSK"
-                                    value={setCodes}
-                                    onChange={(e) => setSetCodes(e.target.value)}
-                                    rows={2}
-                                    disabled={isGenerating}
-                                />
+                                <Label>Set Codes</Label>
+                                {isLoadingSetCodes ? (
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Loading set codes...
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <div className="flex flex-wrap gap-2">
+                                            {availableSetCodes.map((code) => {
+                                                const isSelected = selectedSetCodes.includes(code);
+
+                                                return (
+                                                    <Button
+                                                        key={code}
+                                                        type="button"
+                                                        variant={isSelected ? "default" : "outline"}
+                                                        size="sm"
+                                                        disabled={isGenerating}
+                                                        onClick={() => toggleSetCode(code)}
+                                                    >
+                                                        {code}
+                                                    </Button>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">You can deselect all set codes, but generation requires at least one selected set code.</p>
+                                    </div>
+                                )}
                             </div>
-                            <Button onClick={handleGenerateDeck} disabled={!prompt.trim() || isGenerating} className="w-full" size="lg">
+                            <Button
+                                onClick={handleGenerateDeck}
+                                disabled={!prompt.trim() || isGenerating || isLoadingSetCodes || selectedSetCodes.length === 0}
+                                className="w-full"
+                                size="lg"
+                            >
                                 {isGenerating ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from appai.models.deck_build import DeckBuildStatus
 from ninja import Field, Schema
 from ninja.errors import HttpError
 from pydantic import field_validator
@@ -59,7 +58,7 @@ class GetFullDeckOut(Schema):
         default_factory=list,
         description="A list of tuples, where each tuple contains the quantity and the CardInfo of a card in the deck",
     )
-    creation_status: DeckBuildStatus | None = Field(
+    creation_status: str | None = Field(
         None, description="The status of the deck creation process, if the deck is still being constructed"
     )
 

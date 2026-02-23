@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Label } from "@/components/ui/label";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -33,6 +34,9 @@ export default function DashboardPage() {
     const router = useRouter();
     const [decks, setDecks] = useState<DeckSummary[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [availableSetCodes, setAvailableSetCodes] = useState<string[]>([]);
+    const [selectedSetCodes, setSelectedSetCodes] = useState<string[]>([]);
+    const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
 
     const fetchDecks = useCallback(async () => {
         // const response = await fetch("/api/app/cards/deck/");
@@ -50,6 +54,28 @@ export default function DashboardPage() {
 
         // const data = (await response.json()) as DeckSummary[];
         setDecks(data);
+    }, []);
+
+    useEffect(() => {
+        const loadSetCodes = async () => {
+            try {
+                const response = await fetch("/api/app/cards/card/set_codes/");
+                if (!response.ok) {
+                    throw new Error("Failed to fetch set codes");
+                }
+
+                const data = (await response.json()) as { set_codes: string[] };
+                const sortedCodes = [...data.set_codes].sort((a, b) => a.localeCompare(b));
+                setAvailableSetCodes(sortedCodes);
+            } catch (error) {
+                console.error("Error loading set codes:", error);
+                setAvailableSetCodes([]);
+            } finally {
+                setIsLoadingSetCodes(false);
+            }
+        };
+
+        void loadSetCodes();
     }, []);
 
     useEffect(() => {
@@ -120,6 +146,20 @@ export default function DashboardPage() {
             .join("")
             .toUpperCase() || "U";
 
+    const toggleSetCode = (code: string) => {
+        setSelectedSetCodes((current) =>
+            current.includes(code) ? current.filter((value) => value !== code) : [...current, code]
+        );
+    };
+
+    const filteredDecks = useMemo(() => {
+        if (selectedSetCodes.length === 0) {
+            return decks;
+        }
+
+        return decks.filter((deck) => deck.set_codes.some((code) => selectedSetCodes.includes(code)));
+    }, [decks, selectedSetCodes]);
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
             <header className="border-b bg-white/80 backdrop-blur-sm">
@@ -153,6 +193,51 @@ export default function DashboardPage() {
                         <Button onClick={() => router.push("/decks/generate")}>Generate Deck</Button>
                     </div>
 
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base">Filter by Set Code</CardTitle>
+                            <CardDescription>
+                                Select one or more set codes to show only decks that include cards from those sets.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            {isLoadingSetCodes ? (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Loading set codes...
+                                </div>
+                            ) : availableSetCodes.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">No set codes available.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    <Label>Set Codes</Label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {availableSetCodes.map((code) => {
+                                            const isSelected = selectedSetCodes.includes(code);
+
+                                            return (
+                                                <Button
+                                                    key={code}
+                                                    type="button"
+                                                    size="sm"
+                                                    variant={isSelected ? "default" : "outline"}
+                                                    onClick={() => toggleSetCode(code)}
+                                                >
+                                                    {code}
+                                                </Button>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {selectedSetCodes.length === 0
+                                            ? "No filter active. Showing all decks."
+                                            : `Filter active: ${selectedSetCodes.length} set code${selectedSetCodes.length === 1 ? "" : "s"} selected.`}
+                                    </p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
                     {isLoading ? (
                         <Card>
                             <CardContent className="flex items-center justify-center py-12">
@@ -161,20 +246,30 @@ export default function DashboardPage() {
                         </Card>
                     ) : null}
 
-                    {!isLoading && decks.length === 0 ? (
+                    {!isLoading && filteredDecks.length === 0 ? (
                         <Card>
                             <CardHeader>
-                                <CardTitle>No decks yet</CardTitle>
-                                <CardDescription>Create your first deck to get started.</CardDescription>
+                                <CardTitle>No decks found</CardTitle>
+                                <CardDescription>
+                                    {decks.length === 0
+                                        ? "Create your first deck to get started."
+                                        : "Try adjusting your set code filter."}
+                                </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Button onClick={() => router.push("/decks/generate")}>Go to Deck Generation</Button>
+                                {decks.length === 0 ? (
+                                    <Button onClick={() => router.push("/decks/generate")}>Go to Deck Generation</Button>
+                                ) : (
+                                    <Button onClick={() => setSelectedSetCodes([])} variant="outline">
+                                        Clear Filter
+                                    </Button>
+                                )}
                             </CardContent>
                         </Card>
                     ) : null}
 
                     {!isLoading
-                        ? decks.map((deck) => (
+                        ? filteredDecks.map((deck) => (
                             <Card
                                 key={deck.id}
                                 className="cursor-pointer transition-colors hover:bg-secondary/20"

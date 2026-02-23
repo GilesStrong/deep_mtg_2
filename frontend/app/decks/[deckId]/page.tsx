@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
@@ -31,46 +33,126 @@ export default function DeckPage() {
   const deckId = params.deckId as string;
   const [deck, setDeck] = useState<Deck | null>(null);
   const [loading, setLoading] = useState(true);
+  const [name, setName] = useState("");
+  const [shortSummary, setShortSummary] = useState("");
+  const [fullSummary, setFullSummary] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    const fetchDeck = async () => {
-      try {
-        const response = await fetch(`/api/app/cards/deck/${deckId}/full/`);
-        if (!response.ok) throw new Error("Failed to fetch deck");
+  const fetchDeck = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/app/cards/deck/${deckId}/full/`);
+      if (!response.ok) throw new Error("Failed to fetch deck");
 
-        const data = (await response.json()) as {
-          id: string;
-          name: string;
-          short_summary: string | null;
-          full_summary: string | null;
-          set_codes: string[];
-          date_updated: string;
-          cards: [number, { name: string }][];
-        };
+      const data = (await response.json()) as {
+        id: string;
+        name: string;
+        short_summary: string | null;
+        full_summary: string | null;
+        set_codes: string[];
+        date_updated: string;
+        cards: [number, { name: string }][];
+      };
 
-        setDeck({
-          id: data.id,
-          name: data.name,
-          short_summary: data.short_summary,
-          full_summary: data.full_summary,
-          set_codes: data.set_codes,
-          date_updated: data.date_updated,
-          cards: data.cards.map(([qty, cardInfo]) => ({
-            qty,
-            name: cardInfo.name,
-          })),
-        });
-      } catch (error) {
-        console.error("Error fetching deck:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+      const mappedDeck: Deck = {
+        id: data.id,
+        name: data.name,
+        short_summary: data.short_summary,
+        full_summary: data.full_summary,
+        set_codes: data.set_codes,
+        date_updated: data.date_updated,
+        cards: data.cards.map(([qty, cardInfo]) => ({
+          qty,
+          name: cardInfo.name,
+        })),
+      };
 
-    if (deckId) {
-      fetchDeck();
+      setDeck(mappedDeck);
+      setName(mappedDeck.name);
+      setShortSummary(mappedDeck.short_summary ?? "");
+      setFullSummary(mappedDeck.full_summary ?? "");
+    } catch (error) {
+      console.error("Error fetching deck:", error);
+    } finally {
+      setLoading(false);
     }
   }, [deckId]);
+
+  useEffect(() => {
+    if (deckId) {
+      void fetchDeck();
+    }
+  }, [deckId, fetchDeck]);
+
+  const hasChanges = useMemo(() => {
+    if (!deck) {
+      return false;
+    }
+
+    return (
+      name.trim() !== deck.name ||
+      shortSummary !== (deck.short_summary ?? "") ||
+      fullSummary !== (deck.full_summary ?? "")
+    );
+  }, [deck, fullSummary, name, shortSummary]);
+
+  const handleSave = async () => {
+    if (!deck || !name.trim()) {
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const response = await fetch(`/api/app/cards/deck/${deck.id}/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          short_summary: shortSummary,
+          full_summary: fullSummary,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update deck");
+      }
+
+      await fetchDeck();
+    } catch (error) {
+      console.error("Error updating deck:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deck) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete deck \"${deck.name}\"? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch(`/api/app/cards/deck/${deck.id}/`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok && response.status !== 204) {
+        throw new Error("Failed to delete deck");
+      }
+
+      router.push("/dashboard");
+    } catch (error) {
+      console.error("Error deleting deck:", error);
+      setIsDeleting(false);
+    }
+  };
 
   const userInitials = session?.user?.name
     ?.split(" ")
@@ -128,19 +210,62 @@ export default function DeckPage() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-3xl">{deck.name}</CardTitle>
+                    <CardTitle className="text-3xl">Deck Details</CardTitle>
                     <CardDescription className="text-lg mt-2">
                       Total Cards: {totalCards} • Updated: {new Date(deck.date_updated).toLocaleString()}
                     </CardDescription>
                   </div>
-                  <Button onClick={() => router.push(`/decks/generate?deckId=${deck.id}`)}>Regenerate</Button>
+                  <div className="flex items-center gap-2">
+                    <Button onClick={() => router.push(`/decks/generate?deckId=${deck.id}`)}>Regenerate</Button>
+                    <Button variant="destructive" onClick={handleDelete} disabled={isDeleting || isSaving}>
+                      {isDeleting ? "Deleting..." : "Delete Deck"}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">{deck.short_summary ?? "No short summary available."}</p>
-                    <p className="text-sm">{deck.full_summary ?? "No full summary available."}</p>
+                    <Label htmlFor="deckName">Name</Label>
+                    <Textarea
+                      id="deckName"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      rows={2}
+                      disabled={isSaving || isDeleting}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="deckShortSummary">Short Description</Label>
+                    <Textarea
+                      id="deckShortSummary"
+                      value={shortSummary}
+                      onChange={(e) => setShortSummary(e.target.value)}
+                      rows={3}
+                      disabled={isSaving || isDeleting}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="deckLongSummary">Long Description</Label>
+                    <Textarea
+                      id="deckLongSummary"
+                      value={fullSummary}
+                      onChange={(e) => setFullSummary(e.target.value)}
+                      rows={6}
+                      disabled={isSaving || isDeleting}
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleSave}
+                    disabled={isSaving || isDeleting || !name.trim() || !hasChanges}
+                  >
+                    {isSaving ? "Saving..." : "Save Deck Details"}
+                  </Button>
+
+                  <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">
                       Sets: {deck.set_codes.length > 0 ? deck.set_codes.join(", ") : "None"}
                     </p>

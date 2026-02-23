@@ -29,6 +29,13 @@ class BuildDeckPostIn(Schema):
             raise HttpError(404, 'Deck not found')
         return value
 
+    @field_validator('set_codes', mode='before')
+    @classmethod
+    def validate_set_codes(cls, value: list[str] | None) -> list[str] | None:
+        if value is not None and len(value) == 0:
+            raise HttpError(400, 'Set codes list cannot be empty')
+        return value
+
 
 class BuildDeckPostOut(Schema):
     task_id: UUID

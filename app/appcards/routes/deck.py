@@ -1,4 +1,4 @@
-from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
+from appai.models.deck_build import DeckBuildTask
 from django.http import HttpRequest
 from ninja import Path, Router
 
@@ -111,7 +111,8 @@ def get_deck(request: HttpRequest, path_params: Path[GetDeckIn]) -> GetFullDeckO
     deck = path_params.deck
     deck_cards = list(DeckCard.objects.filter(deck_id=deck.id).select_related('card'))
     card_infos = [(deck_card.quantity, card_to_info(deck_card.card)) for deck_card in deck_cards]
-    creation_status = DeckBuildStatus(_get_latest_build(str(deck.id)))
+    latest_build = _get_latest_build(str(deck.id))
+    creation_status = latest_build.status if latest_build else None
 
     return GetFullDeckOut(
         id=deck.id,
@@ -168,7 +169,8 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
     if payload.full_summary is not None:
         deck.llm_summary = payload.full_summary
     deck.save()
-    creation_status = DeckBuildStatus(_get_latest_build(str(deck.id)))
+    latest_build = _get_latest_build(str(deck.id))
+    creation_status = latest_build.status if latest_build else None
     return GetFullDeckOut(
         id=deck.id,
         name=deck.name,

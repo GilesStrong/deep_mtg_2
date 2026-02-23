@@ -1,7 +1,7 @@
 from django.http import HttpRequest
 from ninja import Path, Router
 
-from appcards.models.card import Card
+from appcards.models.printing import Printing
 from appcards.modules.card_info import CardInfo, card_to_info
 from appcards.serializers.card import GetCardIn, SetCodesOut
 
@@ -24,7 +24,7 @@ def list_set_codes(request: HttpRequest) -> SetCodesOut:
 
     This endpoint allows you to fetch the set codes that are currently available for deck construction.
     """
-    set_codes = list(Card.objects.values_list('set_code', flat=True).distinct())
+    set_codes = list(Printing.objects.order_by('set_code').values_list('set_code', flat=True).distinct())
     return SetCodesOut(set_codes=set_codes)
 
 
