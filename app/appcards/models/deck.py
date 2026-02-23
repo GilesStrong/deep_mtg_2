@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 from appcards.models.card import Card
 
 MAX_DECK_NAME_LENGTH = 64
+SUMMARY_LENGTH_LIMIT = (50, 3000)
+SHORT_SUMMARY_LENGTH_LIMIT = (10, 100)
 
 
 class DeckCard(models.Model):
@@ -39,7 +41,8 @@ class Deck(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     cards = models.ManyToManyField(Card, through=DeckCard, related_name='decks')
     set_codes = models.JSONField(default=list, blank=True, validators=[_validate_set_str])
-    llm_summary = models.TextField(blank=True, null=True)
+    short_llm_summary = models.TextField(blank=True, null=True, max_length=SHORT_SUMMARY_LENGTH_LIMIT[1])
+    llm_summary = models.TextField(blank=True, null=True, max_length=SUMMARY_LENGTH_LIMIT[1])
     valid = models.BooleanField(default=False)
 
     def __str__(self) -> str:

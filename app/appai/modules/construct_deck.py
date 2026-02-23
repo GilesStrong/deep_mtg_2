@@ -14,6 +14,9 @@ class DeckConstructorResults(BaseModel):
     deck_summary: str = Field(
         ..., description="A summary of the constructed deck, including its theme, strategy, and key cards"
     )
+    deck_short_summary: str = Field(
+        ..., description="A short summary of the constructed deck, suitable for display in a list of decks"
+    )
 
 
 @beartype
@@ -29,6 +32,6 @@ async def construct_deck(
     response = await run_deck_constructor_agent(
         deck_id=deck.id, deck_description=deck_description, available_set_codes=available_set_codes
     )
-    deck.llm_summary = response
-    await deck.asave()
-    return DeckConstructorResults(deck_id=deck.id, deck_summary=response)
+    return DeckConstructorResults(
+        deck_id=deck.id, deck_summary=response.summary, deck_short_summary=response.short_summary
+    )

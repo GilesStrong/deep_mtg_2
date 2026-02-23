@@ -3,9 +3,10 @@ from uuid import UUID
 
 from app.app_settings import APP_SETTINGS
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
-from appcards.models.deck import Deck
+from appcards.models.deck import SHORT_SUMMARY_LENGTH_LIMIT, SUMMARY_LENGTH_LIMIT, Deck
 from asgiref.sync import sync_to_async
 from beartype import beartype
+from pydantic import BaseModel, Field
 from pydantic_ai import Agent, UsageLimits
 
 from appai.constants.llm_models import TOOL_MODEL
@@ -79,10 +80,25 @@ Unless going for a fast agro deck, staying on curve and ensuring card draw and m
 """
 
 
+class DeckConstructionOutput(BaseModel):
+    summary: str = Field(
+        ...,
+        description=f"A summary of the deck that was constructed, including its strategy, key cards, and how it meets the user's requirements. {SUMMARY_LENGTH_LIMIT[1]} characters max.",
+        min_length=SUMMARY_LENGTH_LIMIT[0],
+        max_length=SUMMARY_LENGTH_LIMIT[1],
+    )
+    short_summary: str = Field(
+        ...,
+        description=f"A short, snappy catchline for the deck. ~15 words, {SHORT_SUMMARY_LENGTH_LIMIT[1]} characters max. Suitable for use when viewing multiple decks side by side to help distinguish them.",
+        min_length=SHORT_SUMMARY_LENGTH_LIMIT[0],
+        max_length=SHORT_SUMMARY_LENGTH_LIMIT[1],
+    )
+
+
 @beartype
 async def run_deck_constructor_agent(
     deck_id: UUID, deck_description: str, available_set_codes: Optional[set[str]] = None
-) -> str:
+) -> DeckConstructionOutput:
     """
     Constructs a deck based on a natural language description.
     This function uses an agent to interpret the description and perform the necessary operations to build the deck.
@@ -110,6 +126,7 @@ async def run_deck_constructor_agent(
         instrument=True,
         retries=10,
         output_retries=10,
+        output_type=DeckConstructionOutput,
     )
     deps = DeckBuildingDeps(
         deck_id=deck_id,
@@ -119,6 +136,7 @@ async def run_deck_constructor_agent(
         deck_description, deps=deps, usage_limits=UsageLimits(request_limit=APP_SETTINGS.MAX_AGENT_CALLS_PER_TASK)
     )
     deck = await Deck.objects.aget(id=deck_id)
-    deck.llm_summary = response.output
+    deck.llm_summary = response.output.summary
+    deck.short_llm_summary = response.output.short_summary
     await sync_to_async(deck.save)()
     return response.output

@@ -11,7 +11,7 @@ from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
 from appai.serializers.build_deck import BuildDeckPostIn, BuildDeckPostOut, BuildDeckStatusIn, BuildDeckStatusOut
 from appai.tasks.construct_deck import construct_deck
 
-router = Router(tags=['Deck Building'])
+router = Router(tags=['decks'])
 
 
 @router.post(
