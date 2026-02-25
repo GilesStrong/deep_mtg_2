@@ -76,7 +76,8 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
 
     # Check reminaing quota before proceeding
     user = get_user_from_request(request)
-    response = check_remaining_daily_quota(get_redis(), user.id)
+    redis_client = get_redis()
+    response = check_remaining_daily_quota(redis_client, user.id)
     if not response.allowed:
         raise HttpError(429, "Daily deck build quota exceeded")
 
@@ -87,7 +88,7 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
             raise HttpError(403, "You do not have permission to access this deck")
 
     # Withdraw from quota
-    response = withdraw_from_daily_quota(get_redis(), user.id)
+    response = withdraw_from_daily_quota(redis_client, user.id)
     if not response.allowed:
         raise HttpError(429, "Daily deck build quota exceeded")
 

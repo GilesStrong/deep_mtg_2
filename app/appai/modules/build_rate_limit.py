@@ -41,7 +41,7 @@ def _seconds_until_local_midnight(now: datetime) -> int:
 
 @beartype
 def check_remaining_daily_quota(
-    r: redis.Redis,
+    redis_client: redis.Redis,
     user_id: UUID,
 ) -> LimitResult:
     """
@@ -52,7 +52,7 @@ def check_remaining_daily_quota(
     counter.
 
     Args:
-        r (redis.Redis): An active Redis client instance used for quota tracking.
+        rredis_client (redis.Redis): An active Redis client instance used for quota tracking.
         user_id (UUID): The unique identifier of the user whose quota is being checked.
 
     Returns:
@@ -68,7 +68,7 @@ def check_remaining_daily_quota(
     day = now.strftime("%Y%m%d")
     key = f"quota:deckbuild:{user_id}:{day}"
 
-    raw_count = r.get(key)
+    raw_count = redis_client.get(key)
     try:
         count = int(raw_count) if raw_count is not None else 0  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -93,7 +93,7 @@ def check_remaining_daily_quota(
 
 @beartype
 def withdraw_from_daily_quota(
-    r: redis.Redis,
+    redis_client: redis.Redis,
     user_id: UUID,
 ) -> LimitResult:
     """
@@ -105,7 +105,7 @@ def withdraw_from_daily_quota(
     the next local midnight, ensuring the quota resets daily.
 
     Args:
-        r (redis.Redis): An active Redis client instance used for quota tracking.
+        redis_client (redis.Redis): An active Redis client instance used for quota tracking.
         user_id (UUID): The unique identifier of the user whose quota is being checked.
 
     Returns:
@@ -130,13 +130,13 @@ def withdraw_from_daily_quota(
     ttl = _seconds_until_local_midnight(now)
 
     # Atomic-ish pattern: INCR then ensure expiry exists
-    count = int(r.incr(key))  # type: ignore[arg-type]
+    count = int(redis_client.incr(key))  # type: ignore[arg-type]
     if count == 1:  # First entry for the day, set the TTL
-        r.expire(key, ttl)
+        redis_client.expire(key, ttl)
     else:
         # If key somehow lost TTL, restore it
-        if r.ttl(key) == -1:
-            r.expire(key, ttl)
+        if redis_client.ttl(key) == -1:
+            redis_client.expire(key, ttl)
 
     remaining = max(0, APP_SETTINGS.DECK_BUILDS_PER_DAY - count)
     allowed = count <= APP_SETTINGS.DECK_BUILDS_PER_DAY
