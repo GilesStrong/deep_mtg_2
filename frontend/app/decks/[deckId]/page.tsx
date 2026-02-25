@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { clearCachedBackendUserId, syncBackendUserId } from "@/lib/backend-user";
+import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
 
 interface DeckCard {
   id: string;
@@ -63,21 +63,7 @@ export default function DeckPage() {
 
   const fetchDeck = useCallback(async () => {
     try {
-      const userId = await syncBackendUserId(session);
-      if (!userId) throw new Error("Missing backend user ID");
-
-      let response = await fetch(
-        `/api/app/cards/deck/${deckId}/full/?user_id=${encodeURIComponent(userId)}`
-      );
-      if (response.status === 422) {
-        clearCachedBackendUserId();
-        const refreshedUserId = await syncBackendUserId(session);
-        if (!refreshedUserId) throw new Error("Missing backend user ID");
-
-        response = await fetch(
-          `/api/app/cards/deck/${deckId}/full/?user_id=${encodeURIComponent(refreshedUserId)}`
-        );
-      }
+      const response = await backendFetch(session, `/api/app/cards/deck/${deckId}/full/`);
 
       if (!response.ok) throw new Error("Failed to fetch deck");
 
@@ -205,13 +191,10 @@ export default function DeckPage() {
     setIsSaving(true);
 
     try {
-      const userId = await syncBackendUserId(session);
-      if (!userId) throw new Error("Missing backend user ID");
-
-      const response = await fetch(`/api/app/cards/deck/${deck.id}/`, {
+      const response = await backendFetch(session, `/api/app/cards/deck/${deck.id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...updatePayload, user_id: userId }),
+        body: JSON.stringify(updatePayload),
       });
 
       if (!response.ok) {
@@ -239,27 +222,9 @@ export default function DeckPage() {
     setIsDeleting(true);
 
     try {
-      const userId = await syncBackendUserId(session);
-      if (!userId) throw new Error("Missing backend user ID");
-
-      let response = await fetch(
-        `/api/app/cards/deck/${deck.id}/?user_id=${encodeURIComponent(userId)}`,
-        {
-          method: "DELETE",
-        });
-
-      if (response.status === 422) {
-        clearCachedBackendUserId();
-        const refreshedUserId = await syncBackendUserId(session);
-        if (!refreshedUserId) throw new Error("Missing backend user ID");
-
-        response = await fetch(
-          `/api/app/cards/deck/${deck.id}/?user_id=${encodeURIComponent(refreshedUserId)}`,
-          {
-            method: "DELETE",
-          }
-        );
-      }
+      const response = await backendFetch(session, `/api/app/cards/deck/${deck.id}/`, {
+        method: "DELETE",
+      });
 
       if (!response.ok && response.status !== 204) {
         throw new Error("Failed to delete deck");
@@ -270,6 +235,11 @@ export default function DeckPage() {
       console.error("Error deleting deck:", error);
       setIsDeleting(false);
     }
+  };
+
+  const handleSignOut = async () => {
+    clearBackendTokens();
+    await signOut({ callbackUrl: "/login" });
   };
 
   const userInitials = session?.user?.name
@@ -334,7 +304,7 @@ export default function DeckPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{session?.user?.name}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+                <DropdownMenuItem onClick={handleSignOut}>
                   Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>

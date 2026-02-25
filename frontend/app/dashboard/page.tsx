@@ -16,7 +16,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Loader2 } from "lucide-react";
-import { clearCachedBackendUserId, syncBackendUserId } from "@/lib/backend-user";
+import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
 
 type DeckSummary = {
     id: string;
@@ -40,23 +40,7 @@ export default function DashboardPage() {
     const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
 
     const fetchDecks = useCallback(async () => {
-        let userId = await syncBackendUserId(session);
-        if (!userId) {
-            throw new Error("Missing backend user ID");
-        }
-
-        let response = await fetch(
-            `/api/app/cards/deck/?user_id=${encodeURIComponent(userId)}`
-        );
-        if (response.status === 422) {
-            clearCachedBackendUserId();
-            userId = await syncBackendUserId(session);
-            if (!userId) {
-                throw new Error("Missing backend user ID");
-            }
-
-            response = await fetch(`/api/app/cards/deck/?user_id=${encodeURIComponent(userId)}`);
-        }
+        const response = await backendFetch(session, "/api/app/cards/deck/");
 
         if (!response.ok) {
             throw new Error("Failed to fetch deck summaries");
@@ -69,7 +53,7 @@ export default function DashboardPage() {
     useEffect(() => {
         const loadSetCodes = async () => {
             try {
-                const response = await fetch("/api/app/cards/card/set_codes/");
+                const response = await backendFetch(session, "/api/app/cards/card/set_codes/");
                 if (!response.ok) {
                     throw new Error("Failed to fetch set codes");
                 }
@@ -85,8 +69,12 @@ export default function DashboardPage() {
             }
         };
 
+        if (status !== "authenticated") {
+            return;
+        }
+
         void loadSetCodes();
-    }, []);
+    }, [session, status]);
 
     useEffect(() => {
         if (status !== "authenticated") {
@@ -130,7 +118,10 @@ export default function DashboardPage() {
                             return;
                         }
 
-                        const statusResponse = await fetch(`/api/app/ai/deck/build_status/${deck.generation_task_id}/`);
+                        const statusResponse = await backendFetch(
+                            session,
+                            `/api/app/ai/deck/build_status/${deck.generation_task_id}/`
+                        );
                         if (!statusResponse.ok) {
                             return;
                         }
@@ -151,7 +142,12 @@ export default function DashboardPage() {
         }, 2500);
 
         return () => clearInterval(interval);
-    }, [activeDecks, fetchDecks]);
+    }, [activeDecks, fetchDecks, session]);
+
+    const handleSignOut = async () => {
+        clearBackendTokens();
+        await signOut({ callbackUrl: "/login" });
+    };
 
     const userInitials =
         session?.user?.name
@@ -193,7 +189,7 @@ export default function DashboardPage() {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>{session?.user?.name}</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>Sign out</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>

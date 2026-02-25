@@ -3,22 +3,22 @@
 import { useEffect } from "react";
 import { useSession, SessionProvider } from "next-auth/react";
 
-import { clearCachedBackendUserId, syncBackendUserId } from "@/lib/backend-user";
+import { clearBackendTokens, ensureBackendTokens } from "@/lib/backend-auth";
 
 function BackendUserSync() {
   const { data: session, status } = useSession();
 
   useEffect(() => {
     if (status !== "authenticated") {
-      clearCachedBackendUserId();
+      clearBackendTokens();
       return;
     }
 
     const sync = async () => {
       try {
-        await syncBackendUserId(session);
+        await ensureBackendTokens(session);
       } catch (error) {
-        console.error("Error syncing backend user ID:", error);
+        console.error("Error syncing backend auth tokens:", error);
       }
     };
 

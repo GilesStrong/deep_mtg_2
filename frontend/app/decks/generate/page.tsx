@@ -19,7 +19,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { syncBackendUserId } from "@/lib/backend-user";
+import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
 
 function GenerateDeckPageContent() {
     const { data: session } = useSession();
@@ -45,7 +45,7 @@ function GenerateDeckPageContent() {
     const pollBuildStatus = useCallback((newTaskId: string) => {
         const interval = setInterval(async () => {
             try {
-                const statusResponse = await fetch(`/api/app/ai/deck/build_status/${newTaskId}/`);
+                const statusResponse = await backendFetch(session, `/api/app/ai/deck/build_status/${newTaskId}/`);
                 if (!statusResponse.ok) {
                     throw new Error("Failed to fetch build status");
                 }
@@ -72,12 +72,12 @@ function GenerateDeckPageContent() {
         }, 2500);
 
         return interval;
-    }, [router]);
+    }, [router, session]);
 
     useEffect(() => {
         const loadSetCodes = async () => {
             try {
-                const response = await fetch("/api/app/cards/card/set_codes/");
+                const response = await backendFetch(session, "/api/app/cards/card/set_codes/");
                 if (!response.ok) {
                     throw new Error("Failed to fetch set codes");
                 }
@@ -95,8 +95,12 @@ function GenerateDeckPageContent() {
             }
         };
 
+        if (!session) {
+            return;
+        }
+
         void loadSetCodes();
-    }, []);
+    }, [session]);
 
     useEffect(() => {
         if (!taskId) {
@@ -130,13 +134,7 @@ function GenerateDeckPageContent() {
         setStatus("PENDING");
 
         try {
-            const userId = await syncBackendUserId(session);
-            if (!userId) {
-                throw new Error("Missing backend user ID");
-            }
-
-            const payload: { user_id: string; prompt: string; set_codes: string[]; deck_id?: string } = {
-                user_id: userId,
+            const payload: { prompt: string; set_codes: string[]; deck_id?: string } = {
                 prompt,
                 set_codes: selectedSetCodes,
             };
@@ -145,7 +143,7 @@ function GenerateDeckPageContent() {
                 payload.deck_id = deckId;
             }
 
-            const response = await fetch("/api/app/ai/deck/", {
+            const response = await backendFetch(session, "/api/app/ai/deck/", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -161,6 +159,11 @@ function GenerateDeckPageContent() {
             console.error("Error generating deck:", error);
             setIsGenerating(false);
         }
+    };
+
+    const handleSignOut = async () => {
+        clearBackendTokens();
+        await signOut({ callbackUrl: "/login" });
     };
 
     return (
@@ -182,7 +185,7 @@ function GenerateDeckPageContent() {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>{session?.user?.name}</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>Sign out</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
