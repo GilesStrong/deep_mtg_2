@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "appsearch",
     'appuser',
     "appauth",
+    "appcore",
 ]
 
 MIDDLEWARE = [

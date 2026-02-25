@@ -12,6 +12,11 @@ type ENV = Literal['development', 'staging', 'production']
 class EnvSettings(BaseSettings):
     DEBUG: bool
     ENVIRONMENT: ENV
+    LOCALITY: str
+
+
+class RedisSettings(BaseSettings):
+    REDIS_URL: str
 
 
 class DjangoSettings(BaseSettings):
@@ -75,6 +80,10 @@ class AuthSettings(BaseSettings):
     REFRESH_TOKEN_TTL_SECONDS: int
 
 
+class LimitSettings(BaseSettings):
+    DECK_BUILDS_PER_DAY: int
+
+
 class AppSettings(
     GoogleAuthSettings,
     EnvSettings,
@@ -85,6 +94,8 @@ class AppSettings(
     QdrantSettings,
     LogfireSettings,
     AuthSettings,
+    LimitSettings,
+    RedisSettings,
 ):
     model_config = SettingsConfigDict(env_file_encoding='utf-8')
 
