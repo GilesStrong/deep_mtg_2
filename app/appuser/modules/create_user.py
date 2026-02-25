@@ -1,5 +1,6 @@
+from appauth.modules.google_auth import verify_google_token
+
 from appuser.models.user import User
-from appuser.modules.google_auth import verify_google_token
 
 
 def create_user(token: str) -> None:

@@ -67,6 +67,14 @@ class GoogleAuthSettings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str
 
 
+class AuthSettings(BaseSettings):
+    JWT_ISSUER: str
+    JWT_AUDIENCE: str
+    JWT_SIGNING_KEY: str
+    ACCESS_TOKEN_TTL_SECONDS: int
+    REFRESH_TOKEN_TTL_SECONDS: int
+
+
 class AppSettings(
     GoogleAuthSettings,
     EnvSettings,
@@ -76,6 +84,7 @@ class AppSettings(
     AISettings,
     QdrantSettings,
     LogfireSettings,
+    AuthSettings,
 ):
     model_config = SettingsConfigDict(env_file_encoding='utf-8')
 

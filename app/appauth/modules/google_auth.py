@@ -1,10 +1,11 @@
 from app.app_settings import APP_SETTINGS
 from google.auth.transport import requests
 from google.oauth2 import id_token
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class GoogleTokenVerificationResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
     verified: bool = Field(..., description="Indicates whether the Google token is valid and verified.")
     google_id: str = Field(..., description="The unique identifier of the user from Google if the token is valid.")
 
