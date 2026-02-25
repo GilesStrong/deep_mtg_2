@@ -20,7 +20,7 @@ class GetDeckIn(Schema):
     def deck(self) -> Deck:
         if not hasattr(self, '_deck_cache'):
             try:
-                object.__setattr__(self, '_deck_cache', Deck.objects.get(id=self.deck_id))
+                object.__setattr__(self, '_deck_cache', Deck.objects.select_related('user').get(id=self.deck_id))
             except Deck.DoesNotExist:
                 raise HttpError(404, f"Deck with ID {self.deck_id} not found")
         return self._deck_cache

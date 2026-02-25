@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
+import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 interface DeckCard {
   id: string;
@@ -62,7 +64,8 @@ export default function DeckPage() {
 
   const fetchDeck = useCallback(async () => {
     try {
-      const response = await fetch(`/api/app/cards/deck/${deckId}/full/`);
+      const response = await backendFetch(session, `/api/app/cards/deck/${deckId}/full/`);
+
       if (!response.ok) throw new Error("Failed to fetch deck");
 
       const data = (await response.json()) as {
@@ -139,7 +142,7 @@ export default function DeckPage() {
     } finally {
       setLoading(false);
     }
-  }, [deckId]);
+  }, [deckId, session]);
 
   useEffect(() => {
     if (deckId) {
@@ -189,7 +192,7 @@ export default function DeckPage() {
     setIsSaving(true);
 
     try {
-      const response = await fetch(`/api/app/cards/deck/${deck.id}/`, {
+      const response = await backendFetch(session, `/api/app/cards/deck/${deck.id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatePayload),
@@ -220,7 +223,7 @@ export default function DeckPage() {
     setIsDeleting(true);
 
     try {
-      const response = await fetch(`/api/app/cards/deck/${deck.id}/`, {
+      const response = await backendFetch(session, `/api/app/cards/deck/${deck.id}/`, {
         method: "DELETE",
       });
 
@@ -235,11 +238,17 @@ export default function DeckPage() {
     }
   };
 
+  const handleSignOut = async () => {
+    clearBackendTokens();
+    await signOut({ callbackUrl: "/login" });
+  };
+
   const userInitials = session?.user?.name
     ?.split(" ")
     .map((n) => n[0])
     .join("")
     .toUpperCase() || "U";
+  const avatarUrl = getAvatarUrlFromSession(session);
 
   const totalCards = deck?.cards.reduce((sum, card) => sum + card.qty, 0) || 0;
   const isDeckBuilding = deck?.creation_status === "PENDING" || deck?.creation_status === "IN_PROGRESS";
@@ -289,7 +298,7 @@ export default function DeckPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar>
-                    <AvatarImage src={session?.user?.image || ""} />
+                    <AvatarImage src={avatarUrl} />
                     <AvatarFallback>{userInitials}</AvatarFallback>
                   </Avatar>
                 </Button>
@@ -297,7 +306,7 @@ export default function DeckPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{session?.user?.name}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+                <DropdownMenuItem onClick={handleSignOut}>
                   Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>

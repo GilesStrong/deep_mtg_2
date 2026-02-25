@@ -1,6 +1,8 @@
 from typing import Any, cast
 
 import logfire
+from appauth.modules.auth import get_user_from_request
+from appauth.modules.token import AccessTokenAuth
 from appcards.models.deck import Deck
 from celery.result import AsyncResult
 from django.http import HttpRequest
@@ -11,7 +13,7 @@ from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
 from appai.serializers.build_deck import BuildDeckPostIn, BuildDeckPostOut, BuildDeckStatusIn, BuildDeckStatusOut
 from appai.tasks.construct_deck import construct_deck
 
-router = Router(tags=['decks'])
+router = Router(tags=['decks'], auth=AccessTokenAuth())
 
 
 @router.post(
@@ -30,11 +32,13 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
 
     The task will be processed asynchronously, and you will receive a task ID that can be used to check the status of the deck building process.
     """
-
+    user = get_user_from_request(request)
     if payload.deck_id is not None:
         deck_id = payload.deck_id
+        if not Deck.objects.filter(id=deck_id, user_id=user.id).exists():
+            raise HttpError(403, "You do not have permission to access this deck")
     else:
-        deck = Deck.objects.create(name="New Deck")
+        deck = Deck.objects.create(name="New Deck", user_id=user.id)
         deck_id = deck.id
 
     # Enqueue the task to build the deck
@@ -76,6 +80,9 @@ def check_deck_build_status(request: HttpRequest, path_params: Path[BuildDeckSta
 
     try:
         build = DeckBuildTask.objects.get(id=path_params.task_id)
+        user = get_user_from_request(request)
+        if not Deck.objects.filter(id=build.deck_id, user_id=user.id).exists():
+            raise HttpError(403, "You do not have permission to access this deck")
     except DeckBuildTask.DoesNotExist:
         raise HttpError(404, 'Deck build task not found')
 

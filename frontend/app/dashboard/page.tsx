@@ -16,6 +16,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Loader2 } from "lucide-react";
+import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
+import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 type DeckSummary = {
     id: string;
@@ -30,7 +32,7 @@ type DeckSummary = {
 const POLLABLE_STATUSES = new Set(["PENDING", "IN_PROGRESS"]);
 
 export default function DashboardPage() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const router = useRouter();
     const [decks, setDecks] = useState<DeckSummary[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -39,19 +41,20 @@ export default function DashboardPage() {
     const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
 
     const fetchDecks = useCallback(async () => {
-        const response = await fetch("/api/app/cards/deck/");
+        const response = await backendFetch(session, "/api/app/cards/deck/");
+
         if (!response.ok) {
             throw new Error("Failed to fetch deck summaries");
         }
 
         const data = (await response.json()) as DeckSummary[];
         setDecks(data);
-    }, []);
+    }, [session]);
 
     useEffect(() => {
         const loadSetCodes = async () => {
             try {
-                const response = await fetch("/api/app/cards/card/set_codes/");
+                const response = await backendFetch(session, "/api/app/cards/card/set_codes/");
                 if (!response.ok) {
                     throw new Error("Failed to fetch set codes");
                 }
@@ -67,10 +70,18 @@ export default function DashboardPage() {
             }
         };
 
+        if (status !== "authenticated") {
+            return;
+        }
+
         void loadSetCodes();
-    }, []);
+    }, [session, status]);
 
     useEffect(() => {
+        if (status !== "authenticated") {
+            return;
+        }
+
         const load = async () => {
             try {
                 await fetchDecks();
@@ -82,7 +93,7 @@ export default function DashboardPage() {
         };
 
         void load();
-    }, [fetchDecks]);
+    }, [fetchDecks, status]);
 
     const activeDecks = useMemo(
         () =>
@@ -108,7 +119,10 @@ export default function DashboardPage() {
                             return;
                         }
 
-                        const statusResponse = await fetch(`/api/app/ai/deck/build_status/${deck.generation_task_id}/`);
+                        const statusResponse = await backendFetch(
+                            session,
+                            `/api/app/ai/deck/build_status/${deck.generation_task_id}/`
+                        );
                         if (!statusResponse.ok) {
                             return;
                         }
@@ -129,7 +143,12 @@ export default function DashboardPage() {
         }, 2500);
 
         return () => clearInterval(interval);
-    }, [activeDecks, fetchDecks]);
+    }, [activeDecks, fetchDecks, session]);
+
+    const handleSignOut = async () => {
+        clearBackendTokens();
+        await signOut({ callbackUrl: "/login" });
+    };
 
     const userInitials =
         session?.user?.name
@@ -137,6 +156,7 @@ export default function DashboardPage() {
             .map((n) => n[0])
             .join("")
             .toUpperCase() || "U";
+    const avatarUrl = getAvatarUrlFromSession(session);
 
     const toggleSetCode = (code: string) => {
         setSelectedSetCodes((current) =>
@@ -163,7 +183,7 @@ export default function DashboardPage() {
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                                     <Avatar>
-                                        <AvatarImage src={session?.user?.image || ""} />
+                                        <AvatarImage src={avatarUrl} />
                                         <AvatarFallback>{userInitials}</AvatarFallback>
                                     </Avatar>
                                 </Button>
@@ -171,7 +191,7 @@ export default function DashboardPage() {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>{session?.user?.name}</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>Sign out</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>

@@ -104,6 +104,7 @@ croniter==6.0.0
     # via pydocket
 cryptography==46.0.5
     # via
+    #   app
     #   authlib
     #   google-auth
     #   pyjwt
@@ -179,8 +180,12 @@ genai-prices==0.0.52
     # via pydantic-ai-slim
 google-auth==2.48.0
     # via
+    #   app
+    #   google-auth-oauthlib
     #   google-genai
     #   pydantic-ai-slim
+google-auth-oauthlib==1.2.4
+    # via app
 google-genai==1.62.0
     # via pydantic-ai-slim
 googleapis-common-protos==1.72.0
@@ -364,6 +369,8 @@ numpy==2.4.1
     # via
     #   langchain-community
     #   qdrant-client
+oauthlib==3.3.1
+    # via requests-oauthlib
 openai==2.20.0
     # via pydantic-ai-slim
 openapi-pydantic==0.5.1
@@ -518,7 +525,9 @@ pydocket==0.17.6
 pygments==2.19.2
     # via rich
 pyjwt==2.11.0
-    # via mcp
+    # via
+    #   app
+    #   mcp
 pyperclip==1.11.0
     # via
     #   fastmcp
@@ -597,9 +606,12 @@ requests==2.32.5
     #   langsmith
     #   opentelemetry-exporter-otlp-proto-http
     #   pydantic-ai-slim
+    #   requests-oauthlib
     #   requests-toolbelt
     #   tiktoken
     #   xai-sdk
+requests-oauthlib==2.0.0
+    # via google-auth-oauthlib
 requests-toolbelt==1.0.0
     # via langsmith
 rich==14.3.2

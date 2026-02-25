@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
+from appuser.models.user import User
 from beartype import beartype
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -51,6 +52,11 @@ class Deck(models.Model):
     llm_summary = models.TextField(blank=True, null=True, max_length=SUMMARY_LENGTH_LIMIT[1])
     generation_history = models.JSONField(default=list, blank=True, validators=[_validate_list_str])
     valid = models.BooleanField(default=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="user_decks",
+    )
 
     def __str__(self) -> str:
         return self.name

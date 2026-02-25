@@ -19,6 +19,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
+import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 function GenerateDeckPageContent() {
     const { data: session } = useSession();
@@ -40,11 +42,12 @@ function GenerateDeckPageContent() {
             .map((n) => n[0])
             .join("")
             .toUpperCase() || "U";
+    const avatarUrl = getAvatarUrlFromSession(session);
 
     const pollBuildStatus = useCallback((newTaskId: string) => {
         const interval = setInterval(async () => {
             try {
-                const statusResponse = await fetch(`/api/app/ai/deck/build_status/${newTaskId}/`);
+                const statusResponse = await backendFetch(session, `/api/app/ai/deck/build_status/${newTaskId}/`);
                 if (!statusResponse.ok) {
                     throw new Error("Failed to fetch build status");
                 }
@@ -71,12 +74,12 @@ function GenerateDeckPageContent() {
         }, 2500);
 
         return interval;
-    }, [router]);
+    }, [router, session]);
 
     useEffect(() => {
         const loadSetCodes = async () => {
             try {
-                const response = await fetch("/api/app/cards/card/set_codes/");
+                const response = await backendFetch(session, "/api/app/cards/card/set_codes/");
                 if (!response.ok) {
                     throw new Error("Failed to fetch set codes");
                 }
@@ -94,8 +97,12 @@ function GenerateDeckPageContent() {
             }
         };
 
+        if (!session) {
+            return;
+        }
+
         void loadSetCodes();
-    }, []);
+    }, [session]);
 
     useEffect(() => {
         if (!taskId) {
@@ -138,7 +145,7 @@ function GenerateDeckPageContent() {
                 payload.deck_id = deckId;
             }
 
-            const response = await fetch("/api/app/ai/deck/", {
+            const response = await backendFetch(session, "/api/app/ai/deck/", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -156,6 +163,11 @@ function GenerateDeckPageContent() {
         }
     };
 
+    const handleSignOut = async () => {
+        clearBackendTokens();
+        await signOut({ callbackUrl: "/login" });
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
             <header className="border-b bg-white/80 backdrop-blur-sm">
@@ -167,7 +179,7 @@ function GenerateDeckPageContent() {
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                                     <Avatar>
-                                        <AvatarImage src={session?.user?.image || ""} />
+                                        <AvatarImage src={avatarUrl} />
                                         <AvatarFallback>{userInitials}</AvatarFallback>
                                     </Avatar>
                                 </Button>
@@ -175,7 +187,7 @@ function GenerateDeckPageContent() {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>{session?.user?.name}</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>Sign out</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
