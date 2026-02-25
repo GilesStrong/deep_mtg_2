@@ -2,7 +2,6 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import jwt
-import jwt as pyjwt
 from app.app_settings import APP_SETTINGS
 from appuser.models import User
 from beartype import beartype
@@ -100,5 +99,5 @@ class AccessTokenAuth(HttpBearer):
                 return None
             user_id = UUID(payload["sub"])
             return User.objects.get(id=user_id)
-        except (pyjwt.PyJWTError, ValueError, User.DoesNotExist):
+        except (jwt.PyJWTError, ValueError, User.DoesNotExist):
             return None

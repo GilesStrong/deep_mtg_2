@@ -1,6 +1,7 @@
 from appuser.models import User
 from django.http import HttpRequest
 from ninja import Router
+from ninja.errors import HttpError
 
 from appauth.models.token import RefreshToken
 from appauth.modules.google_auth import verify_google_token
@@ -21,7 +22,7 @@ def exchange(request: HttpRequest, payload: ExchangeIn) -> ExchangeOut:
     ident = verify_google_token(payload.google_id_token)
 
     if not ident.verified:
-        raise ValueError("Email not verified")
+        raise HttpError(401, "Email not verified")
 
     user, _created = User.objects.get_or_create(
         google_id=ident.google_id,
@@ -48,10 +49,10 @@ def refresh(request: HttpRequest, payload: RefreshIn) -> ExchangeOut:
     try:
         rt = RefreshToken.objects.select_related("user").get(token=payload.refresh_token)
     except RefreshToken.DoesNotExist:
-        raise ValueError("Invalid refresh token")
+        raise HttpError(401, "Invalid refresh token")
 
     if not rt.is_valid():
-        raise ValueError("Refresh token expired or revoked")
+        raise HttpError(401, "Refresh token expired or revoked")
 
     # Rotate the refresh token by revoking the old one and minting a new one
     rt.revoked_at = __import__("django.utils.timezone").utils.timezone.now()

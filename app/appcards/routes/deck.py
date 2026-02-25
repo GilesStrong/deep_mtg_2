@@ -93,7 +93,6 @@ def get_summary_deck(
     Args:
         request (HttpRequest): The incoming HTTP request object.
         path_params (Path[GetDeckIn]): The path parameters containing the deck ID to retrieve.
-        query_params (UserIDIn): The query parameters containing the user ID for authorization.
 
     Returns:
         GetSummaryDeckOut: An object containing the summary details of the requested deck.
@@ -193,7 +192,6 @@ def delete_deck(
     deck = path_params.deck
     if deck.user.id != user.id:
         raise HttpError(403, "You do not have permission to access this deck")
-    deck = path_params.deck
     deck.delete()
     return None
 

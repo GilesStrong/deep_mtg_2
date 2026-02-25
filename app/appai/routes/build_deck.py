@@ -80,6 +80,9 @@ def check_deck_build_status(request: HttpRequest, path_params: Path[BuildDeckSta
 
     try:
         build = DeckBuildTask.objects.get(id=path_params.task_id)
+        user = get_user_from_request(request)
+        if not Deck.objects.filter(id=build.deck_id, user_id=user.id).exists():
+            raise HttpError(403, "You do not have permission to access this deck")
     except DeckBuildTask.DoesNotExist:
         raise HttpError(404, 'Deck build task not found')
 
