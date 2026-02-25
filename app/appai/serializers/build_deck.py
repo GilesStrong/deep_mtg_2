@@ -8,6 +8,10 @@ from pydantic import field_validator
 from appai.models.deck_build import DeckBuildTask
 
 
+class CheckQuotaOut(Schema):
+    remaining: int = Field(..., description="The number of remaining deck builds the user can perform today.")
+
+
 class BuildDeckPostIn(Schema):
     prompt: str = Field(
         ...,

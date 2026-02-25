@@ -24,6 +24,7 @@ from appai.modules.construct_deck import construct_deck as _construct_deck
 def construct_deck(
     self: Task,
     deck_description: str,
+    user_id: str,
     deck_id: Optional[str] = None,
     available_set_codes: Optional[list[str]] = None,
 ) -> None:
@@ -41,6 +42,7 @@ def construct_deck(
             _construct_deck(
                 deck_description=deck_description,
                 deck_id=deck_uuid,
+                user_id=UUID(user_id),
                 available_set_codes=set(available_set_codes) if available_set_codes else None,
             )
         )

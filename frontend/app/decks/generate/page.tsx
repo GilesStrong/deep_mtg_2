@@ -35,6 +35,8 @@ function GenerateDeckPageContent() {
     const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
     const [taskId, setTaskId] = useState<string | null>(null);
     const [status, setStatus] = useState<string | null>(null);
+    const [remainingQuota, setRemainingQuota] = useState<number | null>(null);
+    const [isLoadingQuota, setIsLoadingQuota] = useState(true);
 
     const userInitials =
         session?.user?.name
@@ -104,6 +106,42 @@ function GenerateDeckPageContent() {
         void loadSetCodes();
     }, [session]);
 
+    const loadRemainingQuota = useCallback(async () => {
+        if (!session) {
+            return;
+        }
+
+        try {
+            const response = await backendFetch(session, "/api/app/ai/deck/remaining_quota/");
+            if (!response.ok) {
+                throw new Error("Failed to fetch remaining quota");
+            }
+
+            const data = (await response.json()) as { remaining: number };
+            setRemainingQuota(Math.max(0, data.remaining));
+        } catch (error) {
+            console.error("Error loading remaining quota:", error);
+            setRemainingQuota(null);
+        } finally {
+            setIsLoadingQuota(false);
+        }
+    }, [session]);
+
+    useEffect(() => {
+        if (!session) {
+            return;
+        }
+
+        setIsLoadingQuota(true);
+        void loadRemainingQuota();
+
+        const interval = setInterval(() => {
+            void loadRemainingQuota();
+        }, 60000);
+
+        return () => clearInterval(interval);
+    }, [loadRemainingQuota, session]);
+
     useEffect(() => {
         if (!taskId) {
             return;
@@ -128,7 +166,7 @@ function GenerateDeckPageContent() {
     };
 
     const handleGenerateDeck = async () => {
-        if (!prompt.trim() || selectedSetCodes.length === 0) {
+        if (!prompt.trim() || selectedSetCodes.length === 0 || remainingQuota === 0) {
             return;
         }
 
@@ -157,11 +195,22 @@ function GenerateDeckPageContent() {
 
             const data = (await response.json()) as { task_id: string };
             setTaskId(data.task_id);
+            setRemainingQuota((current) => {
+                if (current === null) {
+                    return current;
+                }
+
+                return Math.max(0, current - 1);
+            });
         } catch (error) {
             console.error("Error generating deck:", error);
             setIsGenerating(false);
+            void loadRemainingQuota();
         }
     };
+
+    const isQuotaExceeded = remainingQuota === 0;
+    const isSubmitDisabled = !prompt.trim() || isGenerating || isLoadingSetCodes || selectedSetCodes.length === 0 || isQuotaExceeded;
 
     const handleSignOut = async () => {
         clearBackendTokens();
@@ -258,7 +307,7 @@ function GenerateDeckPageContent() {
                             </div>
                             <Button
                                 onClick={handleGenerateDeck}
-                                disabled={!prompt.trim() || isGenerating || isLoadingSetCodes || selectedSetCodes.length === 0}
+                                disabled={isSubmitDisabled}
                                 className="w-full"
                                 size="lg"
                             >
@@ -271,6 +320,18 @@ function GenerateDeckPageContent() {
                                     "Submit Generation Task"
                                 )}
                             </Button>
+                            <p className="text-sm text-muted-foreground">
+                                {isLoadingQuota
+                                    ? "Checking remaining builds..."
+                                    : remainingQuota === null
+                                        ? "Unable to load remaining builds right now."
+                                        : `Remaining builds today: ${remainingQuota}`}
+                            </p>
+                            {isQuotaExceeded ? (
+                                <p className="text-sm text-muted-foreground">
+                                    You have no remaining builds for today. Generation will be available again after midnight.
+                                </p>
+                            ) : null}
                             {status ? <p className="text-sm text-muted-foreground">Current status: {status}</p> : null}
                             {taskId ? <p className="text-xs text-muted-foreground">Task ID: {taskId}</p> : null}
                         </CardContent>

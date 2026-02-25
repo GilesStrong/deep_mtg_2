@@ -4,16 +4,48 @@ import logfire
 from appauth.modules.auth import get_user_from_request
 from appauth.modules.token import AccessTokenAuth
 from appcards.models.deck import Deck
+from appcore.modules.redis_client import get_redis
 from celery.result import AsyncResult
 from django.http import HttpRequest
 from ninja import Path, Router
 from ninja.errors import HttpError
 
 from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
-from appai.serializers.build_deck import BuildDeckPostIn, BuildDeckPostOut, BuildDeckStatusIn, BuildDeckStatusOut
+from appai.modules.build_rate_limit import check_remaining_daily_quota, withdraw_from_daily_quota
+from appai.serializers.build_deck import (
+    BuildDeckPostIn,
+    BuildDeckPostOut,
+    BuildDeckStatusIn,
+    BuildDeckStatusOut,
+    CheckQuotaOut,
+)
 from appai.tasks.construct_deck import construct_deck
 
 router = Router(tags=['decks'], auth=AccessTokenAuth())
+
+
+@router.get(
+    '/remaining_quota/',
+    summary='Check remaining daily deck build quota',
+    description='Check the remaining daily quota for building decks. This endpoint returns the number of decks you can still build today based on your daily limit.',
+    response={200: CheckQuotaOut},
+    operation_id='check_remaining_daily_quota',
+)
+def check_quota(request: HttpRequest) -> CheckQuotaOut:
+    """
+    Check the remaining daily quota for building decks.
+
+    This endpoint allows you to check how many decks you can still build today based on your daily limit. The response will return the number of remaining deck builds you have for the current day. If you have exceeded your quota, it will return 0.
+
+    Args:
+        request (HttpRequest): The incoming HTTP request object, used to identify the user making the request.
+
+    Returns:
+        CheckQuotaOut: An object containing the number of remaining deck builds you can perform today.
+    """
+    user = get_user_from_request(request)
+    response = check_remaining_daily_quota(get_redis(), user.id)
+    return CheckQuotaOut(remaining=response.remaining)
 
 
 @router.post(
@@ -31,15 +63,41 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
     The prompt should include the desired theme, strategy, or specific cards you want in the deck. Optionally, you can also provide a list of set codes to restrict the card selection to specific sets.
 
     The task will be processed asynchronously, and you will receive a task ID that can be used to check the status of the deck building process.
+    The deck will be created or updated based on the provided deck ID. If no deck ID is provided, a new deck will be created for the user.
+    Building decks is subject to a daily quota, so please ensure you have remaining quota before initiating the process. You can check your remaining quota using the appropriate endpoint.
+
+    Args:
+        request (HttpRequest): The incoming HTTP request object, used to identify the user making the request.
+        payload (BuildDeckPostIn): The input data containing the deck description and optional set codes.
+
+    Returns:
+        BuildDeckPostOut: An object containing the task ID, status URL, and deck ID associated with the deck building task.
     """
+
+    # Check reminaing quota before proceeding
     user = get_user_from_request(request)
+    redis_client = get_redis()
+    response = check_remaining_daily_quota(redis_client, user.id)
+    if not response.allowed:
+        raise HttpError(429, "Daily deck build quota exceeded")
+
+    # Check is user can update the deck if deck_id is provided
     if payload.deck_id is not None:
         deck_id = payload.deck_id
         if not Deck.objects.filter(id=deck_id, user_id=user.id).exists():
             raise HttpError(403, "You do not have permission to access this deck")
-    else:
+
+    # Withdraw from quota
+    response = withdraw_from_daily_quota(redis_client, user.id)
+    if not response.allowed:
+        raise HttpError(429, "Daily deck build quota exceeded")
+
+    # If deck_id is not provided, create a new deck for the user
+    if payload.deck_id is None:
         deck = Deck.objects.create(name="New Deck", user_id=user.id)
         deck_id = deck.id
+    else:
+        deck_id = payload.deck_id
 
     # Enqueue the task to build the deck
     build = DeckBuildTask.objects.create(deck_id=deck_id, status=DeckBuildStatus.PENDING)
@@ -48,6 +106,7 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
         kwargs={
             "deck_description": payload.prompt,
             "deck_id": str(deck_id),
+            "user_id": str(user.id),
             "available_set_codes": payload.set_codes,
         },
         task_id=str(build.id),

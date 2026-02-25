@@ -2,12 +2,17 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import favicon from "./favicon.png";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Deep MTG",
   description: "AI-powered Magic: The Gathering deck builder",
+  icons: {
+    icon: [{ url: favicon.src, type: "image/png" }],
+    shortcut: [{ url: favicon.src, type: "image/png" }],
+  },
 };
 
 export default function RootLayout({

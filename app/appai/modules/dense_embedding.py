@@ -11,6 +11,23 @@ from celery.result import AsyncResult
 @lru_cache(maxsize=128)
 @beartype
 def _dense_embed(text: str) -> list[float]:
+    """
+    Generate a dense vector embedding for the given text using the Ollama embeddings API.
+    Do not call this function directly; use the `dense_embed` function instead, which handles asynchronous execution when called within a Celery task.
+
+    Args:
+        text (str): The input text to be embedded.
+
+    Returns:
+        list[float]: A list of floating-point numbers representing the dense vector
+            embedding of the input text.
+
+    Raises:
+        requests.exceptions.HTTPError: If the API request fails or returns an error
+            status code.
+        requests.exceptions.Timeout: If the API request exceeds the 60-second timeout.
+        KeyError: If the response JSON does not contain the expected 'embedding' key.
+    """
     response = requests.post(
         f"{APP_SETTINGS.OLLAMA_BASE_URL}/api/embeddings",
         json={"model": APP_SETTINGS.EMBEDDING_MODEL, "prompt": text},
@@ -22,6 +39,26 @@ def _dense_embed(text: str) -> list[float]:
 
 @beartype
 def dense_embed(text: str) -> list[float]:
+    """
+    Generates a dense embedding vector for the given text.
+
+    This function handles two execution contexts:
+    - When running inside a Celery task, it delegates the embedding generation
+        to a Celery worker task asynchronously, waiting up to 60 seconds for the result.
+    - When running outside a Celery task, it directly calls the underlying
+        embedding function.
+
+    Args:
+            text (str): The input text to be embedded.
+
+    Returns:
+            list[float]: A list of floating point numbers representing the dense
+                    embedding vector of the input text.
+
+    Raises:
+            celery.exceptions.TimeoutError: If the Celery task does not complete
+                    within the 60-second timeout window.
+    """
     if in_celery_task():
         from appai.tasks.dense_embedding import dense_embed as _dense_embed_task
 
