@@ -3,9 +3,9 @@ from uuid import UUID
 
 import jwt
 import jwt as pyjwt
+from app.app_settings import APP_SETTINGS
 from appuser.models import User
 from beartype import beartype
-from django.conf import settings
 from django.http import HttpRequest
 from ninja.security import HttpBearer
 
@@ -33,14 +33,14 @@ def mint_access_token(*, user_id: UUID) -> str:
     """
     now = datetime.now(timezone.utc)
     payload = {
-        "iss": settings.JWT_ISSUER,
-        "aud": settings.JWT_AUDIENCE,
+        "iss": APP_SETTINGS.JWT_ISSUER,
+        "aud": APP_SETTINGS.JWT_AUDIENCE,
         "sub": str(user_id),
         "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(seconds=settings.ACCESS_TOKEN_TTL_SECONDS)).timestamp()),
+        "exp": int((now + timedelta(seconds=APP_SETTINGS.ACCESS_TOKEN_TTL_SECONDS)).timestamp()),
         "typ": "access",
     }
-    return jwt.encode(payload, settings.JWT_SIGNING_KEY, algorithm="HS256")
+    return jwt.encode(payload, APP_SETTINGS.JWT_SIGNING_KEY, algorithm="HS256")
 
 
 def decode_access_token(token: str) -> dict:
@@ -66,10 +66,10 @@ def decode_access_token(token: str) -> dict:
     """
     return jwt.decode(
         token,
-        settings.JWT_SIGNING_KEY,
+        APP_SETTINGS.JWT_SIGNING_KEY,
         algorithms=["HS256"],
-        audience=settings.JWT_AUDIENCE,
-        issuer=settings.JWT_ISSUER,
+        audience=APP_SETTINGS.JWT_AUDIENCE,
+        issuer=APP_SETTINGS.JWT_ISSUER,
         options={"require": ["exp", "iat", "sub", "aud", "iss"]},
     )
 
@@ -98,7 +98,7 @@ class AccessTokenAuth(HttpBearer):
             payload = decode_access_token(token)
             if payload.get("typ") != "access":
                 return None
-            user_id = int(payload["sub"])
+            user_id = UUID(payload["sub"])
             return User.objects.get(id=user_id)
         except (pyjwt.PyJWTError, ValueError, User.DoesNotExist):
             return None

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
+import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 function GenerateDeckPageContent() {
     const { data: session } = useSession();
@@ -41,6 +42,7 @@ function GenerateDeckPageContent() {
             .map((n) => n[0])
             .join("")
             .toUpperCase() || "U";
+    const avatarUrl = getAvatarUrlFromSession(session);
 
     const pollBuildStatus = useCallback((newTaskId: string) => {
         const interval = setInterval(async () => {
@@ -177,7 +179,7 @@ function GenerateDeckPageContent() {
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                                     <Avatar>
-                                        <AvatarImage src={session?.user?.image || ""} />
+                                        <AvatarImage src={avatarUrl} />
                                         <AvatarFallback>{userInitials}</AvatarFallback>
                                     </Avatar>
                                 </Button>

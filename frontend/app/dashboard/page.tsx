@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Loader2 } from "lucide-react";
 import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
+import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 type DeckSummary = {
     id: string;
@@ -155,6 +156,7 @@ export default function DashboardPage() {
             .map((n) => n[0])
             .join("")
             .toUpperCase() || "U";
+    const avatarUrl = getAvatarUrlFromSession(session);
 
     const toggleSetCode = (code: string) => {
         setSelectedSetCodes((current) =>
@@ -181,7 +183,7 @@ export default function DashboardPage() {
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                                     <Avatar>
-                                        <AvatarImage src={session?.user?.image || ""} />
+                                        <AvatarImage src={avatarUrl} />
                                         <AvatarFallback>{userInitials}</AvatarFallback>
                                     </Avatar>
                                 </Button>

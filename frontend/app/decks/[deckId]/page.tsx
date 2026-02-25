@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
+import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 interface DeckCard {
   id: string;
@@ -247,6 +248,7 @@ export default function DeckPage() {
     .map((n) => n[0])
     .join("")
     .toUpperCase() || "U";
+  const avatarUrl = getAvatarUrlFromSession(session);
 
   const totalCards = deck?.cards.reduce((sum, card) => sum + card.qty, 0) || 0;
   const isDeckBuilding = deck?.creation_status === "PENDING" || deck?.creation_status === "IN_PROGRESS";
@@ -296,7 +298,7 @@ export default function DeckPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar>
-                    <AvatarImage src={session?.user?.image || ""} />
+                    <AvatarImage src={avatarUrl} />
                     <AvatarFallback>{userInitials}</AvatarFallback>
                   </Avatar>
                 </Button>

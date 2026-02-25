@@ -1,8 +1,8 @@
 import secrets
 from datetime import timedelta
 
+from app.app_settings import APP_SETTINGS
 from appuser.models import User
-from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -22,7 +22,7 @@ class RefreshToken(models.Model):
         return cls.objects.create(
             user=user,
             token=secrets.token_urlsafe(48),
-            expires_at=now + timedelta(seconds=settings.REFRESH_TOKEN_TTL_SECONDS),
+            expires_at=now + timedelta(seconds=APP_SETTINGS.REFRESH_TOKEN_TTL_SECONDS),
             user_agent=user_agent[:1000],
             ip=ip,
         )
