@@ -19,6 +19,7 @@ from appai.serializers.build_deck import (
     BuildDeckStatusOut,
     CheckQuotaOut,
 )
+from appai.services.agents.guardrails import is_request_relevant
 from appai.tasks.construct_deck import construct_deck
 
 router = Router(tags=['decks'], auth=AccessTokenAuth())
@@ -91,6 +92,10 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
     response = withdraw_from_daily_quota(redis_client, user.id)
     if not response.allowed:
         raise HttpError(429, "Daily deck build quota exceeded")
+
+    # Check user can proceed with the request based on guardrails
+    if not is_request_relevant(payload.prompt, user):
+        raise HttpError(400, "Your request is not relevant to Magic: The Gathering and cannot be processed")
 
     # If deck_id is not provided, create a new deck for the user
     if payload.deck_id is None:
