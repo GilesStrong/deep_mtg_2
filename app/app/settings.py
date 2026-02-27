@@ -160,8 +160,9 @@ if TESTING:
     CELERY_TASK_ALWAYS_EAGER = True
     CELERY_TASK_EAGER_PROPAGATES = True
 
-logfire.configure(environment=APP_SETTINGS.LOGFIRE_ENVIRONMENT, token=APP_SETTINGS.LOGFIRE_TOKEN)
-logfire.instrument_pydantic_ai()
+if not TESTING:
+    logfire.configure(environment=APP_SETTINGS.LOGFIRE_ENVIRONMENT, token=APP_SETTINGS.LOGFIRE_TOKEN)
+    logfire.instrument_pydantic_ai()
 
 os.environ["GOOGLE_API_KEY"] = APP_SETTINGS.GOOGLE_API_KEY
 os.environ["DEEPSEEK_API_KEY"] = APP_SETTINGS.DEEPSEEK_API_KEY
