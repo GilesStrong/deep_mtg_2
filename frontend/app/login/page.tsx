@@ -1,10 +1,15 @@
 "use client";
 
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const authError = useMemo(() => searchParams.get("error"), [searchParams]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
       <Card className="w-full max-w-md">
@@ -15,6 +20,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {authError ? <p className="text-sm text-center">{authError}</p> : null}
           <Button
             onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
             className="w-full"

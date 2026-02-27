@@ -13,6 +13,8 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
 import { getAvatarUrlFromSession } from "@/lib/avatar";
 
+const REGENERATE_NAV_MARKER_KEY = "deep-mtg.regenerate-nav";
+
 interface DeckCard {
   id: string;
   name: string;
@@ -285,6 +287,14 @@ export default function DeckPage() {
     });
   };
 
+  const handleRegenerate = () => {
+    sessionStorage.setItem(
+      REGENERATE_NAV_MARKER_KEY,
+      JSON.stringify({ deckId: deck?.id ?? null, createdAt: Date.now() })
+    );
+    router.push(`/decks/generate?deckId=${deck?.id ?? deckId}`);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <header className="border-b bg-white/80 backdrop-blur-sm">
@@ -340,7 +350,7 @@ export default function DeckPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
-                      onClick={() => router.push(`/decks/generate?deckId=${deck.id}`)}
+                      onClick={handleRegenerate}
                       disabled={isDeckBuilding || isDeleting || isSaving}
                     >
                       Regenerate

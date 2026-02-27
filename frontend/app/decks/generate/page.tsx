@@ -22,13 +22,17 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
 import { getAvatarUrlFromSession } from "@/lib/avatar";
 
+const REGENERATE_NAV_MARKER_KEY = "deep-mtg.regenerate-nav";
+const REGENERATE_NAV_MARKER_MAX_AGE_MS = 60_000;
+
 function GenerateDeckPageContent() {
     const { data: session } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const deckId = searchParams.get("deckId");
+    const rawDeckId = searchParams.get("deckId");
 
     const [prompt, setPrompt] = useState("");
+    const [regenerationDeckId, setRegenerationDeckId] = useState<string | null>(null);
     const [availableSetCodes, setAvailableSetCodes] = useState<string[]>([]);
     const [selectedSetCodes, setSelectedSetCodes] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -45,6 +49,41 @@ function GenerateDeckPageContent() {
             .join("")
             .toUpperCase() || "U";
     const avatarUrl = getAvatarUrlFromSession(session);
+
+    useEffect(() => {
+        if (!rawDeckId) {
+            sessionStorage.removeItem(REGENERATE_NAV_MARKER_KEY);
+            setRegenerationDeckId(null);
+            return;
+        }
+
+        const markerRaw = sessionStorage.getItem(REGENERATE_NAV_MARKER_KEY);
+        sessionStorage.removeItem(REGENERATE_NAV_MARKER_KEY);
+
+        if (!markerRaw) {
+            setRegenerationDeckId(null);
+            router.replace("/decks/generate");
+            return;
+        }
+
+        try {
+            const marker = JSON.parse(markerRaw) as { deckId?: string | null; createdAt?: number };
+            const markerDeckId = marker.deckId ?? null;
+            const markerCreatedAt = marker.createdAt ?? 0;
+            const isFresh = Date.now() - markerCreatedAt <= REGENERATE_NAV_MARKER_MAX_AGE_MS;
+
+            if (!isFresh || !markerDeckId || markerDeckId !== rawDeckId) {
+                setRegenerationDeckId(null);
+                router.replace("/decks/generate");
+                return;
+            }
+
+            setRegenerationDeckId(rawDeckId);
+        } catch {
+            setRegenerationDeckId(null);
+            router.replace("/decks/generate");
+        }
+    }, [rawDeckId, router]);
 
     const pollBuildStatus = useCallback((newTaskId: string) => {
         const interval = setInterval(async () => {
@@ -179,8 +218,8 @@ function GenerateDeckPageContent() {
                 set_codes: selectedSetCodes,
             };
 
-            if (deckId) {
-                payload.deck_id = deckId;
+            if (regenerationDeckId) {
+                payload.deck_id = regenerationDeckId;
             }
 
             const response = await backendFetch(session, "/api/app/ai/deck/", {
@@ -252,16 +291,16 @@ function GenerateDeckPageContent() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>{deckId ? "Regenerate Deck" : "Generate Deck"}</CardTitle>
+                            <CardTitle>{regenerationDeckId ? "Regenerate Deck" : "Generate Deck"}</CardTitle>
                             <CardDescription>
-                                {deckId
+                                {regenerationDeckId
                                     ? "Submit a new prompt to rebuild this existing deck."
                                     : "Describe the deck you want and start a generation task."}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {deckId ? (
-                                <p className="text-sm text-muted-foreground">Target deck: {deckId}</p>
+                            {regenerationDeckId ? (
+                                <p className="text-sm text-muted-foreground">Target deck: {regenerationDeckId}</p>
                             ) : null}
                             <div className="space-y-2">
                                 <Label htmlFor="prompt">Prompt</Label>
