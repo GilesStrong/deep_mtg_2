@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Literal, Self
+from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -86,13 +86,7 @@ class LimitSettings(BaseSettings):
 
 
 class GuardrailSettings(BaseSettings):
-    WARNING_THRESHOLD: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="A value between 0.0 and 1.0 indicating the relevance threshold below which a user's request will receive a warning.",
-    )
-    BLOCKING_THRESHOLD: float = Field(
+    RELEVANCY_THRESHOLD: float = Field(
         ...,
         ge=0.0,
         le=1.0,
@@ -103,16 +97,6 @@ class GuardrailSettings(BaseSettings):
         ge=1,
         description="The number of warnings a user can receive before their request is blocked.",
     )
-
-    @model_validator(mode='after')
-    def validate_thresholds(self) -> Self:
-        warning_threshold = self.WARNING_THRESHOLD
-        blocking_threshold = self.BLOCKING_THRESHOLD
-
-        if warning_threshold > blocking_threshold:
-            raise ValueError("WARNING_THRESHOLD must be less or equal to BLOCKING_THRESHOLD")
-
-        return self
 
 
 class AppSettings(
