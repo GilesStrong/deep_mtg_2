@@ -1,10 +1,10 @@
-from functools import lru_cache
-
 import logfire
+from aiocache import cached
 from app.app_settings import APP_SETTINGS
 from appuser.models.user import User
 from asgiref.sync import sync_to_async
 from beartype import beartype
+from django.db.models import F
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
@@ -42,7 +42,7 @@ class RelevancyScore(BaseModel):
     )
 
 
-@lru_cache(maxsize=1024)
+@cached(ttl=3600)  # Cache for 1 hour
 @beartype
 async def guardrail_agent(user_request: str) -> RelevancyScore:
     """
@@ -52,7 +52,7 @@ async def guardrail_agent(user_request: str) -> RelevancyScore:
         user_request (str): The user's request in natural language.
 
     Returns:
-        float: A value between 0.0 and 1.0 indicating the relevance of the user's request to Magic: The Gathering.
+        RelevancyScore: A value between 0.0 and 1.0 indicating the relevance of the user's request to Magic: The Gathering.
     """
 
     agent = Agent(
@@ -88,8 +88,9 @@ async def is_request_relevant(user_request: str, user: User) -> bool:
 
     score = await guardrail_agent(user_request)
     if score.score < APP_SETTINGS.WARNING_THRESHOLD:
-        user.warning_count += 1
+        user.warning_count = F("warning_count") + 1
         await sync_to_async(user.save)()
+        user.refresh_from_db()
         return False
 
     elif score.score < APP_SETTINGS.BLOCKING_THRESHOLD:

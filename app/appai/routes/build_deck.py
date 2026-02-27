@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, cast
 
 import logfire
@@ -94,7 +95,8 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
         raise HttpError(429, "Daily deck build quota exceeded")
 
     # Check user can proceed with the request based on guardrails
-    if not is_request_relevant(payload.prompt, user):
+    relevant = asyncio.run(is_request_relevant(payload.prompt, user))
+    if not relevant:
         raise HttpError(400, "Your request is not relevant to Magic: The Gathering and cannot be processed")
 
     # If deck_id is not provided, create a new deck for the user
