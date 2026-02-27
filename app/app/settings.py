@@ -156,6 +156,10 @@ CELERY_TASK_QUEUES = (
     Queue("llm", Exchange("llm"), routing_key="llm"),
 )
 
+if TESTING:
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+
 logfire.configure(environment=APP_SETTINGS.LOGFIRE_ENVIRONMENT, token=APP_SETTINGS.LOGFIRE_TOKEN)
 logfire.instrument_pydantic_ai()
 
