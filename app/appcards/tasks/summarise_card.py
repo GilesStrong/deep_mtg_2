@@ -1,6 +1,6 @@
 from typing import Any
 
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from celery import Task, shared_task
 
 from appcards.modules.card_info import CardInfo

@@ -4,8 +4,8 @@ from uuid import UUID
 from app.app_settings import APP_SETTINGS
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
 from appcards.models.deck import MAX_DECK_NAME_LENGTH, SHORT_SUMMARY_LENGTH_LIMIT, SUMMARY_LENGTH_LIMIT, Deck
+from appcore.modules.beartype import beartype
 from asgiref.sync import sync_to_async
-from beartype import beartype
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, UsageLimits
 

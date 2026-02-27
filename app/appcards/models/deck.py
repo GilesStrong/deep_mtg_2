@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
+from appcore.modules.beartype import beartype
 from appuser.models.user import User
-from beartype import beartype
 from django.core.exceptions import ValidationError
 from django.db import models
 from pydantic import BaseModel, Field

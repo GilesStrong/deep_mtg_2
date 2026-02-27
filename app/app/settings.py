@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 import logfire
@@ -33,6 +34,9 @@ DEBUG = APP_SETTINGS.DEBUG
 
 ALLOWED_HOSTS: list[str] = APP_SETTINGS.ALLOWED_HOSTS
 
+# Disable runtime type checks during testing to allow for mocking
+TESTING = "pytest" in sys.modules or "test" in sys.argv
+DISABLE_RUNTIME_TYPECHECKS = TESTING
 
 # Application definition
 

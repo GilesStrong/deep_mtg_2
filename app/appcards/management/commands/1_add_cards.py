@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from langchain_community.document_loaders import JSONLoader

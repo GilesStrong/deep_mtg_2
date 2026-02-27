@@ -4,7 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 import logfire
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from celery import Task, shared_task
 
 from appai.models.deck_build import DeckBuildStatus, DeckBuildTask

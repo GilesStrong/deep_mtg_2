@@ -4,10 +4,10 @@ from appcards.constants.storage import CARD_COLLECTION_NAME
 from appcards.models import Card
 from appcards.models.deck import DeckCard
 from appcards.modules.card_info import CardInfo, card_to_info
+from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.search import run_query_from_dsl
 from appsearch.services.qdrant.search_dsl import Filter, MatchAnyCondition, Query
 from asgiref.sync import sync_to_async
-from beartype import beartype
 from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 

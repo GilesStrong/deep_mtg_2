@@ -1,5 +1,5 @@
 from appai.modules.dense_embedding import dense_embed
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from qdrant_client.http import models as qm
 
 from appcards.models import Card

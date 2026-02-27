@@ -2,8 +2,8 @@ from uuid import UUID
 
 from appcards.models.card import Card
 from appcards.models.deck import Deck, DeckCard, DeckValidationResult, validate_deck_basic
+from appcore.modules.beartype import beartype
 from asgiref.sync import sync_to_async
-from beartype import beartype
 from django.db.models import Sum
 from pydantic_ai import RunContext
 

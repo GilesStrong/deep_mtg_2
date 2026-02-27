@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Semaphore
 from typing import Any, Optional
 
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from django.core.management.base import BaseCommand
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 

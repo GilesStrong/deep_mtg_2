@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from django.forms.models import model_to_dict
 from pydantic import BaseModel, Field
 

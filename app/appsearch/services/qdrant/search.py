@@ -3,7 +3,7 @@ from typing import Optional
 import logfire
 from app.app_settings import APP_SETTINGS
 from appai.modules.dense_embedding import dense_embed
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from qdrant_client.http import models as qm
 
 from appsearch.services.qdrant.client import QDRANT_CLIENT

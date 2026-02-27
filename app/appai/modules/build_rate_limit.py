@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 import redis
 from app.app_settings import APP_SETTINGS
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from pydantic import BaseModel, ConfigDict
 
 LOCAL_TIMEZONE = ZoneInfo(APP_SETTINGS.LOCALITY)
