@@ -10,6 +10,7 @@ from django.http import HttpRequest
 from ninja import Path, Router
 from ninja.errors import HttpError
 
+from appai.constants.guardrail_contexts import BUILD_DECK_CONTEXT
 from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
 from appai.modules.build_rate_limit import check_remaining_daily_quota, withdraw_from_daily_quota
 from appai.serializers.build_deck import (
@@ -19,6 +20,7 @@ from appai.serializers.build_deck import (
     BuildDeckStatusOut,
     CheckQuotaOut,
 )
+from appai.services.agents.guardrails import is_request_relevant
 from appai.tasks.construct_deck import construct_deck
 
 router = Router(tags=['decks'], auth=AccessTokenAuth())
@@ -92,11 +94,18 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
     if not response.allowed:
         raise HttpError(429, "Daily deck build quota exceeded")
 
+    # Check user can proceed with the request based on guardrails
+    relevant = is_request_relevant(payload.prompt, context=BUILD_DECK_CONTEXT, user=user)
+    if not relevant:
+        raise HttpError(400, "Your request is not relevant to Magic: The Gathering and cannot be processed")
+
     # If deck_id is not provided, create a new deck for the user
     if payload.deck_id is None:
+        logfire.info(f"Creating new deck for user {user.id} as no deck_id was provided")
         deck = Deck.objects.create(name="New Deck", user_id=user.id)
         deck_id = deck.id
     else:
+        logfire.info(f"Using provided deck_id {payload.deck_id} for user {user.id}")
         deck_id = payload.deck_id
 
     # Enqueue the task to build the deck

@@ -22,13 +22,18 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
 import { getAvatarUrlFromSession } from "@/lib/avatar";
 
+const REGENERATE_NAV_MARKER_KEY = "deep-mtg.regenerate-nav";
+const REGENERATE_NAV_MARKER_MAX_AGE_MS = 60_000;
+const BUILD_STATUS_TIMEOUT_MS = 120_000;
+
 function GenerateDeckPageContent() {
     const { data: session } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const deckId = searchParams.get("deckId");
+    const rawDeckId = searchParams.get("deckId");
 
     const [prompt, setPrompt] = useState("");
+    const [regenerationDeckId, setRegenerationDeckId] = useState<string | null>(null);
     const [availableSetCodes, setAvailableSetCodes] = useState<string[]>([]);
     const [selectedSetCodes, setSelectedSetCodes] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -37,6 +42,42 @@ function GenerateDeckPageContent() {
     const [status, setStatus] = useState<string | null>(null);
     const [remainingQuota, setRemainingQuota] = useState<number | null>(null);
     const [isLoadingQuota, setIsLoadingQuota] = useState(true);
+    const [generationError, setGenerationError] = useState<string | null>(null);
+    const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
+
+    const parseApiError = async (response: Response, fallbackMessage: string): Promise<string> => {
+        const responseText = await response.text();
+        if (!responseText) {
+            return fallbackMessage;
+        }
+
+        try {
+            const data = JSON.parse(responseText) as {
+                detail?:
+                | string
+                | Array<{
+                    msg?: string;
+                }>;
+                message?: string;
+                error?: string;
+            };
+
+            if (typeof data.detail === "string") {
+                return data.detail;
+            }
+
+            if (Array.isArray(data.detail)) {
+                const firstMessage = data.detail.find((item) => item?.msg)?.msg;
+                if (firstMessage) {
+                    return firstMessage;
+                }
+            }
+
+            return data.message ?? data.error ?? fallbackMessage;
+        } catch {
+            return responseText.trim() || fallbackMessage;
+        }
+    };
 
     const userInitials =
         session?.user?.name
@@ -46,8 +87,50 @@ function GenerateDeckPageContent() {
             .toUpperCase() || "U";
     const avatarUrl = getAvatarUrlFromSession(session);
 
+    useEffect(() => {
+        if (!rawDeckId) {
+            sessionStorage.removeItem(REGENERATE_NAV_MARKER_KEY);
+            setRegenerationDeckId(null);
+            return;
+        }
+
+        const markerRaw = sessionStorage.getItem(REGENERATE_NAV_MARKER_KEY);
+        sessionStorage.removeItem(REGENERATE_NAV_MARKER_KEY);
+
+        if (!markerRaw) {
+            setRegenerationDeckId(null);
+            router.replace("/decks/generate");
+            return;
+        }
+
+        try {
+            const marker = JSON.parse(markerRaw) as { deckId?: string | null; createdAt?: number };
+            const markerDeckId = marker.deckId ?? null;
+            const markerCreatedAt = marker.createdAt ?? 0;
+            const isFresh = Date.now() - markerCreatedAt <= REGENERATE_NAV_MARKER_MAX_AGE_MS;
+
+            if (!isFresh || !markerDeckId || markerDeckId !== rawDeckId) {
+                setRegenerationDeckId(null);
+                router.replace("/decks/generate");
+                return;
+            }
+
+            setRegenerationDeckId(rawDeckId);
+        } catch {
+            setRegenerationDeckId(null);
+            router.replace("/decks/generate");
+        }
+    }, [rawDeckId, router]);
+
     const pollBuildStatus = useCallback((newTaskId: string) => {
         const interval = setInterval(async () => {
+            if (generationStartedAt && Date.now() - generationStartedAt > BUILD_STATUS_TIMEOUT_MS) {
+                clearInterval(interval);
+                setIsGenerating(false);
+                setGenerationError("Generation is taking longer than expected. Please try again in a moment.");
+                return;
+            }
+
             try {
                 const statusResponse = await backendFetch(session, `/api/app/ai/deck/build_status/${newTaskId}/`);
                 if (!statusResponse.ok) {
@@ -60,6 +143,7 @@ function GenerateDeckPageContent() {
                 if (statusData.status === "COMPLETED") {
                     clearInterval(interval);
                     setIsGenerating(false);
+                    setGenerationStartedAt(null);
                     router.push(`/decks/${statusData.deck_id}`);
                     return;
                 }
@@ -67,16 +151,20 @@ function GenerateDeckPageContent() {
                 if (statusData.status === "FAILED") {
                     clearInterval(interval);
                     setIsGenerating(false);
+                    setGenerationStartedAt(null);
+                    setGenerationError("Deck generation failed. Please revise your prompt and try again.");
                 }
             } catch (error) {
                 console.error("Error polling build status:", error);
                 clearInterval(interval);
                 setIsGenerating(false);
+                setGenerationStartedAt(null);
+                setGenerationError("Could not fetch generation status. Please try again.");
             }
         }, 2500);
 
         return interval;
-    }, [router, session]);
+    }, [generationStartedAt, router, session]);
 
     useEffect(() => {
         const loadSetCodes = async () => {
@@ -170,8 +258,10 @@ function GenerateDeckPageContent() {
             return;
         }
 
+        setGenerationError(null);
         setIsGenerating(true);
         setStatus("PENDING");
+        setGenerationStartedAt(Date.now());
 
         try {
             const payload: { prompt: string; set_codes: string[]; deck_id?: string } = {
@@ -179,8 +269,8 @@ function GenerateDeckPageContent() {
                 set_codes: selectedSetCodes,
             };
 
-            if (deckId) {
-                payload.deck_id = deckId;
+            if (regenerationDeckId) {
+                payload.deck_id = regenerationDeckId;
             }
 
             const response = await backendFetch(session, "/api/app/ai/deck/", {
@@ -190,7 +280,7 @@ function GenerateDeckPageContent() {
             });
 
             if (!response.ok) {
-                throw new Error("Failed to start deck generation");
+                throw new Error(await parseApiError(response, "Failed to start deck generation"));
             }
 
             const data = (await response.json()) as { task_id: string };
@@ -205,6 +295,8 @@ function GenerateDeckPageContent() {
         } catch (error) {
             console.error("Error generating deck:", error);
             setIsGenerating(false);
+            setGenerationStartedAt(null);
+            setGenerationError(error instanceof Error ? error.message : "Failed to start deck generation");
             void loadRemainingQuota();
         }
     };
@@ -252,16 +344,16 @@ function GenerateDeckPageContent() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>{deckId ? "Regenerate Deck" : "Generate Deck"}</CardTitle>
+                            <CardTitle>{regenerationDeckId ? "Regenerate Deck" : "Generate Deck"}</CardTitle>
                             <CardDescription>
-                                {deckId
+                                {regenerationDeckId
                                     ? "Submit a new prompt to rebuild this existing deck."
                                     : "Describe the deck you want and start a generation task."}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {deckId ? (
-                                <p className="text-sm text-muted-foreground">Target deck: {deckId}</p>
+                            {regenerationDeckId ? (
+                                <p className="text-sm text-muted-foreground">Target deck: {regenerationDeckId}</p>
                             ) : null}
                             <div className="space-y-2">
                                 <Label htmlFor="prompt">Prompt</Label>
@@ -333,6 +425,7 @@ function GenerateDeckPageContent() {
                                 </p>
                             ) : null}
                             {status ? <p className="text-sm text-muted-foreground">Current status: {status}</p> : null}
+                            {generationError ? <p className="text-sm">{generationError}</p> : null}
                             {taskId ? <p className="text-xs text-muted-foreground">Task ID: {taskId}</p> : null}
                         </CardContent>
                     </Card>

@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -84,6 +85,20 @@ class LimitSettings(BaseSettings):
     DECK_BUILDS_PER_DAY: int
 
 
+class GuardrailSettings(BaseSettings):
+    RELEVANCY_THRESHOLD: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="A value between 0.0 and 1.0 indicating the relevance threshold below which a user's request will be blocked.",
+    )
+    N_WARNINGS_BEFORE_BLOCK: int = Field(
+        ...,
+        ge=1,
+        description="The number of warnings a user can receive before their request is blocked.",
+    )
+
+
 class AppSettings(
     GoogleAuthSettings,
     EnvSettings,
@@ -96,6 +111,7 @@ class AppSettings(
     AuthSettings,
     LimitSettings,
     RedisSettings,
+    GuardrailSettings,
 ):
     model_config = SettingsConfigDict(env_file_encoding='utf-8')
 

@@ -1,3 +1,4 @@
+from app.app_settings import APP_SETTINGS
 from appuser.models import User
 from django.http import HttpRequest
 from ninja import Router
@@ -28,6 +29,11 @@ def exchange(request: HttpRequest, payload: ExchangeIn) -> ExchangeOut:
         google_id=ident.google_id,
         defaults={"verified": ident.verified},
     )
+    if user.warning_count >= APP_SETTINGS.N_WARNINGS_BEFORE_BLOCK:
+        raise HttpError(
+            403,
+            "Your account has been blocked due to multiple policy violations. Please contact support for assistance.",
+        )
 
     access = mint_access_token(user_id=user.id)
     rt = RefreshToken.mint(
