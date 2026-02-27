@@ -62,6 +62,8 @@ export default function DeckPage() {
   const [fullSummary, setFullSummary] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isArenaImportExpanded, setIsArenaImportExpanded] = useState(false);
+  const [arenaImportCopied, setArenaImportCopied] = useState(false);
   const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
 
   const fetchDeck = useCallback(async () => {
@@ -186,6 +188,22 @@ export default function DeckPage() {
     );
   }, [updatePayload]);
 
+  const arenaImportText = useMemo(() => {
+    if (!deck) {
+      return "";
+    }
+
+    const lines = [
+      "About",
+      `Name ${deck.name}`,
+      "",
+      "Deck",
+      ...deck.cards.map((card) => `${card.qty} ${card.name}`),
+    ];
+
+    return lines.join("\n");
+  }, [deck]);
+
   const handleSave = async () => {
     if (!deck || !updatePayload || isDeckBuilding) {
       return;
@@ -293,6 +311,20 @@ export default function DeckPage() {
       JSON.stringify({ deckId: deck?.id ?? null, createdAt: Date.now() })
     );
     router.push(`/decks/generate?deckId=${deck?.id ?? deckId}`);
+  };
+
+  const handleCopyArenaImport = async () => {
+    if (!arenaImportText) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(arenaImportText);
+      setArenaImportCopied(true);
+      window.setTimeout(() => setArenaImportCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy arena import text:", error);
+    }
   };
 
   return (
@@ -411,6 +443,43 @@ export default function DeckPage() {
                     <p className="text-xs text-muted-foreground">
                       Sets: {deck.set_codes.length > 0 ? deck.set_codes.join(", ") : "None"}
                     </p>
+                  </div>
+
+                  <div className="rounded border">
+                    <div className="w-full flex items-center justify-between py-2 px-3 hover:bg-secondary/50 transition-colors">
+                      <button
+                        type="button"
+                        className="flex-1 text-left"
+                        onClick={() => setIsArenaImportExpanded((current) => !current)}
+                      >
+                        <span className="font-medium">MTG Arena Import Format</span>
+                        <span className="ml-3 text-sm text-muted-foreground">
+                          {isArenaImportExpanded ? "Hide" : "Show"}
+                        </span>
+                      </button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleCopyArenaImport();
+                        }}
+                      >
+                        {arenaImportCopied ? "Copied" : "Copy"}
+                      </Button>
+                    </div>
+
+                    {isArenaImportExpanded ? (
+                      <div className="border-t px-3 py-3">
+                        <Textarea
+                          value={arenaImportText}
+                          readOnly
+                          rows={Math.max(8, Math.min(24, deck.cards.length + 6))}
+                          className="font-mono text-sm"
+                        />
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="space-y-1">
