@@ -4,8 +4,8 @@ import logfire
 from aiocache import cached
 from appcards.models import Card
 from appcards.modules.card_info import CardInfo, card_to_info
+from appcore.modules.beartype import beartype
 from asgiref.sync import sync_to_async
-from beartype import beartype
 
 
 @cached(ttl=3600)  # Cache for 1 hour

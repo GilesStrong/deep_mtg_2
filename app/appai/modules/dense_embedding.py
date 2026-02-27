@@ -4,7 +4,7 @@ from typing import Any, cast
 import requests
 from app.app_settings import APP_SETTINGS
 from app.utils import in_celery_task
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from celery.result import AsyncResult
 
 

@@ -1,3 +1,5 @@
+import os
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -116,22 +118,56 @@ class AppSettings(
     model_config = SettingsConfigDict(env_file_encoding='utf-8')
 
 
-def find_env_file() -> Path | None:
+def _find_named_env_file(filename: str) -> Path | None:
     current_dir = BASE_DIR
     for _ in range(5):
-        env_file_path = current_dir / '.env'
+        env_file_path = current_dir / filename
         if env_file_path.is_file():
             return env_file_path
         current_dir = current_dir.parent
     return None
 
 
+def find_env_file() -> Path | None:
+    return _find_named_env_file('.env')
+
+
+def find_tests_env_file() -> Path | None:
+    return _find_named_env_file('.env.tests')
+
+
+def _resolve_custom_env_file(path_value: str) -> Path | None:
+    candidate = Path(path_value)
+    if candidate.is_absolute() and candidate.is_file():
+        return candidate
+
+    candidates = [
+        Path.cwd() / candidate,
+        BASE_DIR / candidate,
+        BASE_DIR.parent / candidate,
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
+    return None
+
+
 def get_app_settings() -> AppSettings:
-    env_file_path = find_env_file()
+    custom_env_file = os.getenv("APP_ENV_FILE")
+    if custom_env_file:
+        env_file_path = _resolve_custom_env_file(custom_env_file)
+        if env_file_path:
+            return AppSettings(_env_file=env_file_path)  # type: ignore[call-arg]
+
+    is_testing = "pytest" in sys.modules or "test" in sys.argv
+    env_file_path = find_tests_env_file() if is_testing else find_env_file()
+    if env_file_path is None:
+        env_file_path = find_env_file()
+
     if env_file_path:
         return AppSettings(_env_file=env_file_path)  # type: ignore[call-arg]
     else:
-        print("Warning: .env file not found. Using default environment variables.")
+        print("Warning: no env file found (.env.tests/.env). Using default environment variables.")
         return AppSettings()  # type: ignore[call-arg]
 
 

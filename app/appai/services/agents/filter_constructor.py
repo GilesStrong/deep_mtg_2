@@ -2,13 +2,13 @@ from aiocache import cached
 from appcards.constants.cards import EVERGREEN_KEYWORDS
 from appcards.models.card import ManaColorEnum, Rarity, TypeEnum
 from appcards.modules.card_info import CardInfo
+from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.search_dsl import (
     Condition,
     Filter,
     MatchAnyCondition,
     MatchValueCondition,
 )
-from beartype import beartype
 from pydantic_ai import Agent, ModelRetry
 
 from appai.constants.llm_models import TOOL_MODEL

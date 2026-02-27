@@ -1,5 +1,5 @@
 from app.app_settings import APP_SETTINGS
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from qdrant_client.http import models as qm
 
 from appsearch.services.qdrant.client import QDRANT_CLIENT

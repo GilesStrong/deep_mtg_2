@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 import logfire
@@ -33,6 +34,9 @@ DEBUG = APP_SETTINGS.DEBUG
 
 ALLOWED_HOSTS: list[str] = APP_SETTINGS.ALLOWED_HOSTS
 
+# Disable runtime type checks during testing to allow for mocking
+TESTING = "pytest" in sys.modules or "test" in sys.argv
+DISABLE_RUNTIME_TYPECHECKS = TESTING
 
 # Application definition
 
@@ -152,8 +156,13 @@ CELERY_TASK_QUEUES = (
     Queue("llm", Exchange("llm"), routing_key="llm"),
 )
 
-logfire.configure(environment=APP_SETTINGS.LOGFIRE_ENVIRONMENT, token=APP_SETTINGS.LOGFIRE_TOKEN)
-logfire.instrument_pydantic_ai()
+if TESTING:
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+
+if not TESTING:
+    logfire.configure(environment=APP_SETTINGS.LOGFIRE_ENVIRONMENT, token=APP_SETTINGS.LOGFIRE_TOKEN)
+    logfire.instrument_pydantic_ai()
 
 os.environ["GOOGLE_API_KEY"] = APP_SETTINGS.GOOGLE_API_KEY
 os.environ["DEEPSEEK_API_KEY"] = APP_SETTINGS.DEEPSEEK_API_KEY

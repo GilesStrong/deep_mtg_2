@@ -1,4 +1,4 @@
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from celery import Task, shared_task
 
 from appai.modules.dense_embedding import _dense_embed

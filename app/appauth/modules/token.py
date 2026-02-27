@@ -3,8 +3,8 @@ from uuid import UUID
 
 import jwt
 from app.app_settings import APP_SETTINGS
+from appcore.modules.beartype import beartype
 from appuser.models import User
-from beartype import beartype
 from django.http import HttpRequest
 from ninja.security import HttpBearer
 

@@ -2,7 +2,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from beartype import beartype
+from appcore.modules.beartype import beartype
 from django.core.exceptions import ValidationError
 from django.db import models
 

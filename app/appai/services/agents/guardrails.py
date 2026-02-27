@@ -2,8 +2,8 @@ from functools import lru_cache
 
 import logfire
 from app.app_settings import APP_SETTINGS
+from appcore.modules.beartype import beartype
 from appuser.models.user import User
-from beartype import beartype
 from django.db.models import F
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
