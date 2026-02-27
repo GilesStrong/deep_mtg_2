@@ -55,6 +55,20 @@ jobs:
 
   tests:
     runs-on: ubuntu-24.04
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_DB: tests_deepmtg
+          POSTGRES_USER: tests_deepmtg_user
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tests_deepmtg_user -d tests_deepmtg"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -82,4 +96,8 @@ jobs:
         run: uv sync --frozen
 
       - name: Run tests
+        env:
+          APP_ENV_FILE: ${{ github.workspace }}/.env.tests
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: 5432
         run: cd app && uv run python manage.py test --failfast
