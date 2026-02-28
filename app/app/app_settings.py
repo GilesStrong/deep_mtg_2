@@ -26,6 +26,7 @@ class DjangoSettings(BaseSettings):
     SECRET_KEY: str
     DEBUG: bool
     ALLOWED_HOSTS: list[str]
+    CSRF_TRUSTED_ORIGINS: list[str]
 
 
 class CelerySettings(BaseSettings):

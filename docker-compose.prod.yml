@@ -1,0 +1,174 @@
+services:
+  db:
+    image: postgres:16
+    restart: always
+    env_file: .env.prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - deepmtg_postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - deepmtg_network_prod
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    restart: always
+    networks:
+      - deepmtg_network_prod
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: always
+    volumes:
+      - deepmtg_qdrant_data_prod:/qdrant/storage
+    networks: 
+      - deepmtg_network_prod
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: deepmtg-app:prod
+    container_name: django_app
+    env_file: .env.prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -lc "python manage.py migrate --noinput &&
+          python manage.py collectstatic --noinput &&
+          exec hypercorn app.asgi:application -b 0.0.0.0:8000 -w 2 --keep-alive 15"
+    networks:
+      - deepmtg_network_prod
+      - llm_net
+    volumes:
+      - django_static_prod:/app/staticfiles
+      - django_media_prod:/app/media
+
+  celery_worker:
+    image: deepmtg-app:prod
+    env_file: .env.prod
+    container_name: celery_worker
+    command: celery -A app worker -Q default --loglevel=info --concurrency=8 -n worker_default@%h
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - deepmtg_network_prod
+      - llm_net
+
+  celery_llm_worker:
+    image: deepmtg-app:prod
+    env_file: .env.prod
+    container_name: celery_llm_worker
+    command: celery -A app worker -Q llm --loglevel=info --concurrency=1 --pool=prefork --max-tasks-per-child=50 -n worker_llm@%h
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - deepmtg_network_prod
+      - llm_net
+
+  celery_beat:
+    image: deepmtg-app:prod
+    env_file: .env.prod
+    container_name: celery_beat
+    command: celery -A app beat --loglevel=info
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - deepmtg_network_prod
+      - llm_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    image: deepmtg-frontend:prod
+    container_name: frontend
+    env_file: ./frontend/.env.prod
+    restart: unless-stopped
+    networks:
+      - deepmtg_network_prod
+    expose:
+      - "3001"
+
+  proxy:
+    image: caddy:2-alpine
+    container_name: caddy_proxy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data_prod:/data
+      - caddy_config_prod:/config
+      - django_static_prod:/srv/static:ro
+      - django_media_prod:/srv/media:ro
+    env_file:
+      - ./frontend/.env.prod
+    environment:
+      - BACKEND_UPSTREAM=web:8000
+      - FRONTEND_UPSTREAM=frontend:3001
+      - PUBLIC_URL=${PUBLIC_URL}
+    depends_on:
+      - frontend
+      - web: 
+        condition: service_healthy
+    networks:
+      - deepmtg_network_prod
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: deepmtg_cloudflared
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    networks:
+      - deepmtg_network_prod
+    depends_on:
+      - proxy
+
+volumes:
+  deepmtg_postgres_data_prod:
+  deepmtg_qdrant_data_prod:
+  django_static_prod:
+  django_media_prod:
+  caddy_data_prod:
+  caddy_config_prod:
+
+networks:
+  deepmtg_network_prod:
+  llm_net:
+    external: true

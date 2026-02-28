@@ -1,22 +1,60 @@
-:3000 {
+{$PUBLIC_URL}:3000 {
 
-  # 1) NextAuth must be handled by the Next frontend (it's /api/auth/*)
-  @nextauth path /api/auth/*
-  handle @nextauth {
-    reverse_proxy {$FRONTEND_UPSTREAM:frontend:3001}
+  header {
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "interest-cohort=()"
   }
 
-  # 2) Backend (exclude /api/auth/* so it doesn't steal NextAuth)
+  encode zstd gzip
+
+  log {
+    output stdout
+    format console
+  }
+
+  @nextauth path /api/auth/*
+  handle @nextauth {
+    reverse_proxy {$FRONTEND_UPSTREAM} {
+      header_up Host {host}
+      header_up X-Forwarded-Host {host}
+      header_up X-Forwarded-Proto {scheme}
+      header_up X-Forwarded-For {remote_host}
+    }
+  }
+
+  handle_path /static/* {
+    root * /srv/static
+    file_server
+  }
+
+  handle_path /media/* {
+    root * /srv/media
+    file_server
+  }
+
   @backend {
-    path /api/* /admin* /static/* /media/*
+    path /api/* /admin/*
     not path /api/auth/*
   }
   handle @backend {
-    reverse_proxy {$BACKEND_UPSTREAM:web:8000}
+    reverse_proxy {$BACKEND_UPSTREAM} {
+      header_up Host {host}
+      header_up X-Forwarded-Host {host}
+      header_up X-Forwarded-Proto {scheme}
+      header_up X-Forwarded-For {remote_host}
+    }
   }
 
-  # 3) Everything else -> frontend
   handle {
-    reverse_proxy {$FRONTEND_UPSTREAM:frontend:3001}
+    reverse_proxy {$FRONTEND_UPSTREAM} {
+      header_up Host {host}
+      header_up X-Forwarded-Host {host}
+      header_up X-Forwarded-Proto {scheme}
+      header_up X-Forwarded-For {remote_host}
+    }
   }
 }
+
+

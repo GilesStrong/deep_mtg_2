@@ -43,4 +43,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["python", "app/manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["hypercorn", "app.asgi:application", "-b", "0.0.0.0:8000", "-w", "2", "--keep-alive", "15"]
