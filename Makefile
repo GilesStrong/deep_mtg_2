@@ -9,3 +9,6 @@ fe_tests:
 	
 fe_lint:
 	@cd frontend && bun run lint
+
+fe_e2e_tests:
+	@docker compose exec frontend bun run e2e

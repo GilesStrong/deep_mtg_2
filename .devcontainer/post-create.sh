@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- APT (optional; safe) ---
-if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-  sudo apt-get update
-  # sudo apt-get install -y <packages>
-else
-  echo "Skipping apt-get: no passwordless sudo."
-fi
-
 # --- bun install (user-local) ---
 if [ ! -x "$HOME/.bun/bin/bun" ]; then
   curl -fsSL https://bun.com/install | bash
