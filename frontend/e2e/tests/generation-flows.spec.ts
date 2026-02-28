@@ -118,7 +118,7 @@ test("deck detail -> regenerate -> submit includes inspected deck_id", async ({ 
     await expect(page.getByRole("heading", { name: "Deck Details" })).toBeVisible();
 
     await page.getByRole("button", { name: "Regenerate" }).click();
-    await expect(page).toHaveURL(new RegExp(`/decks/generate\?deckId=${DECK_ID}$`));
+    await expect(page).toHaveURL(new RegExp(`/decks/generate\\?deckId=${DECK_ID}$`));
 
     await page.getByLabel("Prompt").fill("Regenerate with more instant-speed interaction.");
     const generationRequest = captureGenerationRequest(page);
@@ -140,7 +140,7 @@ test("deck detail -> regenerate -> dashboard -> generate -> submit excludes deck
     await expect(page.getByRole("heading", { name: "Deck Details" })).toBeVisible();
 
     await page.getByRole("button", { name: "Regenerate" }).click();
-    await expect(page).toHaveURL(new RegExp(`/decks/generate\?deckId=${DECK_ID}$`));
+    await expect(page).toHaveURL(new RegExp(`/decks/generate\\?deckId=${DECK_ID}$`));
 
     await page.getByRole("button", { name: "Back to Decks" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);

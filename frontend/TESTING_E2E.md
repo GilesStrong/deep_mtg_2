@@ -78,3 +78,5 @@ This avoids Google OAuth and backend auth dependencies.
 - Deck detail -> Regenerate -> submit (assert `deck_id` present and equals inspected deck)
 - Deck detail -> Regenerate -> Dashboard -> Generate -> submit (assert `deck_id` absent)
 - Unauthenticated protected-route redirect to `/login`
+
+Regenerate scenarios are exercised through normal app navigation and marker handling, without test-only sessionStorage overrides.

@@ -94,8 +94,11 @@ function GenerateDeckPageContent() {
             return;
         }
 
+        if (regenerationDeckId === rawDeckId) {
+            return;
+        }
+
         const markerRaw = sessionStorage.getItem(REGENERATE_NAV_MARKER_KEY);
-        sessionStorage.removeItem(REGENERATE_NAV_MARKER_KEY);
 
         if (!markerRaw) {
             setRegenerationDeckId(null);
@@ -111,6 +114,7 @@ function GenerateDeckPageContent() {
 
             if (!isFresh || !markerDeckId || markerDeckId !== rawDeckId) {
                 setRegenerationDeckId(null);
+                sessionStorage.removeItem(REGENERATE_NAV_MARKER_KEY);
                 router.replace("/decks/generate");
                 return;
             }
@@ -118,9 +122,10 @@ function GenerateDeckPageContent() {
             setRegenerationDeckId(rawDeckId);
         } catch {
             setRegenerationDeckId(null);
+            sessionStorage.removeItem(REGENERATE_NAV_MARKER_KEY);
             router.replace("/decks/generate");
         }
-    }, [rawDeckId, router]);
+    }, [rawDeckId, regenerationDeckId, router]);
 
     const pollBuildStatus = useCallback((newTaskId: string) => {
         const interval = setInterval(async () => {
