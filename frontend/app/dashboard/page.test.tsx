@@ -2,16 +2,25 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockUseSession, mockUseRouter, mockBackendFetch, mockGetAvatarUrlFromSession } = vi.hoisted(() => ({
+const {
+    mockUseSession,
+    mockUseRouter,
+    mockBackendFetch,
+    mockGetAvatarUrlFromSession,
+    mockSignOut,
+    mockClearBackendTokens,
+} = vi.hoisted(() => ({
     mockUseSession: vi.fn(),
     mockUseRouter: vi.fn(),
     mockBackendFetch: vi.fn(),
     mockGetAvatarUrlFromSession: vi.fn(),
+    mockSignOut: vi.fn(),
+    mockClearBackendTokens: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({
     useSession: mockUseSession,
-    signOut: vi.fn(),
+    signOut: mockSignOut,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -20,7 +29,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/backend-auth", () => ({
     backendFetch: mockBackendFetch,
-    clearBackendTokens: vi.fn(),
+    clearBackendTokens: mockClearBackendTokens,
 }));
 
 vi.mock("@/lib/avatar", () => ({
@@ -34,6 +43,13 @@ const mockJsonResponse = (data: unknown): Response =>
     ok: true,
     status: 200,
     json: vi.fn().mockResolvedValue(data),
+} as unknown as Response);
+
+const mockErrorResponse = (): Response =>
+({
+    ok: false,
+    status: 500,
+    json: vi.fn().mockResolvedValue({}),
 } as unknown as Response);
 
 describe("DashboardPage", () => {
@@ -113,5 +129,37 @@ describe("DashboardPage", () => {
         expect(screen.getByText("Mono White")).toBeInTheDocument();
         expect(screen.queryByText("Izzet Spells")).not.toBeInTheDocument();
         expect(screen.getByText("Filter active: 1 set code selected.")).toBeInTheDocument();
+    });
+
+    it("shows empty states when deck and set code requests fail", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/card/set_codes/" || url === "/api/app/cards/deck/") {
+                return mockErrorResponse();
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<DashboardPage />);
+
+        expect(await screen.findByText("No set codes available.")).toBeInTheDocument();
+        expect(await screen.findByText("No decks found")).toBeInTheDocument();
+        expect(screen.getByText("Create your first deck to get started.")).toBeInTheDocument();
+    });
+
+    it("clears tokens and signs out from the user menu", async () => {
+        const user = userEvent.setup();
+
+        render(<DashboardPage />);
+        expect(await screen.findByText("Izzet Spells")).toBeInTheDocument();
+
+        const avatarButton = document.querySelector("button.relative.h-10.w-10.rounded-full");
+        expect(avatarButton).toBeTruthy();
+        await user.click(avatarButton as HTMLElement);
+
+        await user.click(await screen.findByText("Sign out"));
+
+        expect(mockClearBackendTokens).toHaveBeenCalledTimes(1);
+        expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/login" });
     });
 });

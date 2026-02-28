@@ -38,6 +38,13 @@ const mockJsonResponse = (data: unknown): Response =>
     json: vi.fn().mockResolvedValue(data),
 } as unknown as Response);
 
+const mockErrorResponse = (): Response =>
+({
+    ok: false,
+    status: 500,
+    json: vi.fn().mockResolvedValue({}),
+} as unknown as Response);
+
 describe("DeckPage", () => {
     const push = vi.fn();
 
@@ -149,5 +156,36 @@ describe("DeckPage", () => {
         expect(marker.deckId).toBe("deck-1");
         expect(typeof marker.createdAt).toBe("number");
         expect(push).toHaveBeenCalledWith("/decks/generate?deckId=deck-1");
+    });
+
+    it("shows not found state when deck fetch fails", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/deck/deck-1/full/") {
+                return mockErrorResponse();
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<DeckPage />);
+
+        expect(await screen.findByText("Deck not found")).toBeInTheDocument();
+    });
+
+    it("does not delete when confirmation is cancelled", async () => {
+        const user = userEvent.setup();
+        const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+        render(<DeckPage />);
+        expect(await screen.findByText("Deck Details")).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Delete Deck" }));
+
+        const deleteCall = mockBackendFetch.mock.calls.find(
+            (call) => call[1] === "/api/app/cards/deck/deck-1/" && call[2]?.method === "DELETE",
+        );
+        expect(confirmSpy).toHaveBeenCalledTimes(1);
+        expect(deleteCall).toBeUndefined();
+        expect(push).not.toHaveBeenCalledWith("/dashboard");
     });
 });
