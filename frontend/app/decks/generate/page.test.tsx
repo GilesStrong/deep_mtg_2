@@ -1,0 +1,196 @@
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockUseSession, mockUseRouter, mockUseSearchParams, mockBackendFetch, mockGetAvatarUrlFromSession } = vi.hoisted(() => ({
+    mockUseSession: vi.fn(),
+    mockUseRouter: vi.fn(),
+    mockUseSearchParams: vi.fn(),
+    mockBackendFetch: vi.fn(),
+    mockGetAvatarUrlFromSession: vi.fn(),
+}));
+
+vi.mock("next-auth/react", () => ({
+    useSession: mockUseSession,
+    signOut: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+    useRouter: mockUseRouter,
+    useSearchParams: mockUseSearchParams,
+}));
+
+vi.mock("@/lib/backend-auth", () => ({
+    backendFetch: mockBackendFetch,
+    clearBackendTokens: vi.fn(),
+}));
+
+vi.mock("@/lib/avatar", () => ({
+    getAvatarUrlFromSession: mockGetAvatarUrlFromSession,
+}));
+
+import GenerateDeckPage from "@/app/decks/generate/page";
+
+const mockJsonResponse = (data: unknown): Response =>
+({
+    ok: true,
+    status: 200,
+    json: vi.fn().mockResolvedValue(data),
+    text: vi.fn().mockResolvedValue(JSON.stringify(data)),
+} as unknown as Response);
+
+const mockFailedResponse = (errorBody: unknown): Response =>
+({
+    ok: false,
+    status: 400,
+    json: vi.fn().mockResolvedValue(errorBody),
+    text: vi.fn().mockResolvedValue(JSON.stringify(errorBody)),
+} as unknown as Response);
+
+describe("GenerateDeckPage", () => {
+    const push = vi.fn();
+    const replace = vi.fn();
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+
+        mockUseSession.mockReturnValue({
+            data: {
+                user: {
+                    name: "Deck Builder",
+                    email: "builder@test.dev",
+                    googleAuthToken: "google-token",
+                },
+            },
+        });
+        mockUseRouter.mockReturnValue({ push, replace });
+        mockUseSearchParams.mockReturnValue({
+            get: () => null,
+        });
+        mockGetAvatarUrlFromSession.mockReturnValue("https://images.test/avatar.png");
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    it("submits generation payload with prompt and selected set codes", async () => {
+        const user = userEvent.setup();
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["BRO", "ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 3 });
+            }
+
+            if (url === "/api/app/ai/deck/" && init?.method === "POST") {
+                return mockJsonResponse({ task_id: "task-1" });
+            }
+
+            if (url === "/api/app/ai/deck/build_status/task-1/") {
+                return mockJsonResponse({ status: "IN_PROGRESS", deck_id: "deck-1" });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+
+        expect(await screen.findByText("Remaining builds today: 3")).toBeInTheDocument();
+
+        const promptInput = screen.getByLabelText("Prompt");
+        await user.type(promptInput, "Blue red spells with cheap interaction");
+        await user.click(screen.getByRole("button", { name: "Submit Generation Task" }));
+
+        await waitFor(() => {
+            const postCall = mockBackendFetch.mock.calls.find(
+                (call) => call[1] === "/api/app/ai/deck/" && call[2]?.method === "POST",
+            );
+            expect(postCall).toBeTruthy();
+
+            const payload = JSON.parse(String(postCall?.[2]?.body)) as { prompt: string; set_codes: string[] };
+            expect(payload.prompt).toBe("Blue red spells with cheap interaction");
+            expect(payload.set_codes).toEqual(["BRO", "ONE"]);
+        });
+    });
+
+    it("disables submit when remaining quota is zero", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 0 });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+
+        expect(await screen.findByText("Remaining builds today: 0")).toBeInTheDocument();
+        expect(
+            screen.getByText("You have no remaining builds for today. Generation will be available again after midnight."),
+        ).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Submit Generation Task" })).toBeDisabled();
+    });
+
+    it("redirects to clean generate route when deckId marker is missing", async () => {
+        mockUseSearchParams.mockReturnValue({
+            get: (key: string) => (key === "deckId" ? "deck-1" : null),
+        });
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 1 });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        sessionStorage.removeItem("deep-mtg.regenerate-nav");
+
+        render(<GenerateDeckPage />);
+
+        await waitFor(() => {
+            expect(replace).toHaveBeenCalledWith("/decks/generate");
+        });
+    });
+
+    it("shows API error message when generation request fails", async () => {
+        const user = userEvent.setup();
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["BRO"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 2 });
+            }
+
+            if (url === "/api/app/ai/deck/" && init?.method === "POST") {
+                return mockFailedResponse({ detail: "Prompt failed safety checks" });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+
+        expect(await screen.findByText("Remaining builds today: 2")).toBeInTheDocument();
+
+        await user.type(screen.getByLabelText("Prompt"), "bad prompt");
+        await user.click(screen.getByRole("button", { name: "Submit Generation Task" }));
+
+        expect(await screen.findByText("Prompt failed safety checks")).toBeInTheDocument();
+    });
+});
