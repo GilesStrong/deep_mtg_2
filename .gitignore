@@ -17,8 +17,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -156,6 +156,15 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Frontend (Next.js / Bun)
+frontend/node_modules/
+frontend/.next/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
