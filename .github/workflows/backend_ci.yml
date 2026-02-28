@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
     paths:
-      - ".github/workflows/ci.yml"
+      - ".github/workflows/backend_ci.yml"
       - "pyproject.toml"
       - "uv.lock"
       - "app/**"
@@ -53,7 +53,7 @@ jobs:
       - name: MyPy
         run: uv run mypy .
 
-  tests:
+  backend-tests:
     runs-on: ubuntu-24.04
     services:
       db:
