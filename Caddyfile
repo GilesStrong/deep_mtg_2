@@ -1,4 +1,13 @@
+{
+  auto_https off
+}
+
 {$PUBLIC_URL}:3000 {
+
+  @http {
+    header X-Forwarded-Proto http
+  }
+  redir @http https://{host}{uri} 308
 
   header {
     X-Content-Type-Options "nosniff"
@@ -16,12 +25,7 @@
 
   @nextauth path /api/auth/*
   handle @nextauth {
-    reverse_proxy {$FRONTEND_UPSTREAM} {
-      header_up Host {host}
-      header_up X-Forwarded-Host {host}
-      header_up X-Forwarded-Proto {scheme}
-      header_up X-Forwarded-For {remote_host}
-    }
+    reverse_proxy {$FRONTEND_UPSTREAM}
   }
 
   handle_path /static/* {
@@ -39,21 +43,11 @@
     not path /api/auth/*
   }
   handle @backend {
-    reverse_proxy {$BACKEND_UPSTREAM} {
-      header_up Host {host}
-      header_up X-Forwarded-Host {host}
-      header_up X-Forwarded-Proto {scheme}
-      header_up X-Forwarded-For {remote_host}
-    }
+    reverse_proxy {$BACKEND_UPSTREAM}
   }
 
   handle {
-    reverse_proxy {$FRONTEND_UPSTREAM} {
-      header_up Host {host}
-      header_up X-Forwarded-Host {host}
-      header_up X-Forwarded-Proto {scheme}
-      header_up X-Forwarded-For {remote_host}
-    }
+    reverse_proxy {$FRONTEND_UPSTREAM}
   }
 }
 

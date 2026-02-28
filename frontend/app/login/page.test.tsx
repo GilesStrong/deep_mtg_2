@@ -34,6 +34,29 @@ describe("LoginPage", () => {
         render(<LoginPage />);
 
         expect(screen.getByText("OAuthAccountNotLinked")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Sign in with Google" })).toBeInTheDocument();
+    });
+
+    it("shows access denied screen without sign in button", () => {
+        mockUseSearchParams.mockReturnValue({
+            get: (key: string) => (key === "error" ? "AccessDenied" : null),
+        });
+
+        render(<LoginPage />);
+
+        expect(screen.getByText("Access denied")).toBeInTheDocument();
+        expect(screen.getByText("Your Google account is not authorized for this app.")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Sign in with Google" })).not.toBeInTheDocument();
+    });
+
+    it("shows access denied screen for normalized error variants", () => {
+        mockUseSearchParams.mockReturnValue({
+            get: (key: string) => (key === "error" ? "access_denied" : null),
+        });
+
+        render(<LoginPage />);
+
+        expect(screen.queryByRole("button", { name: "Sign in with Google" })).not.toBeInTheDocument();
     });
 
     it("calls signIn with Google provider when button is clicked", async () => {

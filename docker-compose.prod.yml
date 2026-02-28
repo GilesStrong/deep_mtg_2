@@ -41,21 +41,22 @@ services:
       context: .
       dockerfile: Dockerfile
     image: deepmtg-app:prod
-    container_name: django_app
     env_file: .env.prod
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/healthz || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=2)\""]
       interval: 10s
       timeout: 3s
       retries: 10
+      start_period: 60s
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     command: >
-      sh -lc "python manage.py migrate --noinput &&
+      sh -lc "cd /app/app &&
+          python manage.py migrate --noinput &&
           python manage.py collectstatic --noinput &&
           exec hypercorn app.asgi:application -b 0.0.0.0:8000 -w 2 --keep-alive 15"
     networks:
@@ -68,8 +69,7 @@ services:
   celery_worker:
     image: deepmtg-app:prod
     env_file: .env.prod
-    container_name: celery_worker
-    command: celery -A app worker -Q default --loglevel=info --concurrency=8 -n worker_default@%h
+    command: "sh -lc 'cd /app/app && celery -A app worker -Q default --loglevel=info --concurrency=8 -n worker_default@%h'"
     restart: unless-stopped
     depends_on:
       db:
@@ -83,8 +83,7 @@ services:
   celery_llm_worker:
     image: deepmtg-app:prod
     env_file: .env.prod
-    container_name: celery_llm_worker
-    command: celery -A app worker -Q llm --loglevel=info --concurrency=1 --pool=prefork --max-tasks-per-child=50 -n worker_llm@%h
+    command: "sh -lc 'cd /app/app && celery -A app worker -Q llm --loglevel=info --concurrency=1 --pool=prefork --max-tasks-per-child=50 -n worker_llm@%h'"
     restart: unless-stopped
     depends_on:
       db:
@@ -98,8 +97,7 @@ services:
   celery_beat:
     image: deepmtg-app:prod
     env_file: .env.prod
-    container_name: celery_beat
-    command: celery -A app beat --loglevel=info
+    command: "sh -lc 'cd /app/app && celery -A app beat --loglevel=info'"
     restart: unless-stopped
     depends_on:
       db:
@@ -115,9 +113,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
     image: deepmtg-frontend:prod
-    container_name: frontend
     env_file: ./frontend/.env.prod
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3001/healthz').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
     networks:
       - deepmtg_network_prod
     expose:
@@ -125,7 +128,6 @@ services:
 
   proxy:
     image: caddy:2-alpine
-    container_name: caddy_proxy
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -142,15 +144,15 @@ services:
       - FRONTEND_UPSTREAM=frontend:3001
       - PUBLIC_URL=${PUBLIC_URL}
     depends_on:
-      - frontend
-      - web: 
+      frontend:
+        condition: service_healthy
+      web:
         condition: service_healthy
     networks:
       - deepmtg_network_prod
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: deepmtg_cloudflared
     restart: unless-stopped
     command: tunnel --config /etc/cloudflared/config.yml run
     volumes:

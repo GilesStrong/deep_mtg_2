@@ -16,6 +16,8 @@ cp frontend/.env.example frontend/.env
 2. Edit `frontend/.env` and add your credentials:
 - `GOOGLE_CLIENT_ID`: Your Google OAuth Client ID
 - `GOOGLE_CLIENT_SECRET`: Your Google OAuth Client Secret
+- `GOOGLE_ENFORCE_ALLOWED_EMAILS`: `true` to enforce allowlist, `false` to allow all Google users
+- `GOOGLE_ALLOWED_EMAILS`: Comma-separated list of emails allowed to sign in via Google
 - `NEXTAUTH_SECRET`: A random secret string (at least 32 characters)
 - `NEXTAUTH_URL`: Should be `http://localhost:3000` for local dev
 

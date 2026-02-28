@@ -16,9 +16,12 @@ FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# If you use Next "standalone" output, we can make this even smaller.
-# For now, keep the simple approach:
-COPY --from=builder /app ./
+# Standalone server output
+COPY --from=builder /app/.next/standalone ./
+# Static assets must be present at runtime
+COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3001
-CMD ["node", "node_modules/next/dist/bin/next", "start", "-H", "0.0.0.0", "-p", "3001"]
+ENV PORT=3001
+ENV HOSTNAME=0.0.0.0
+CMD ["node", "server.js"]
