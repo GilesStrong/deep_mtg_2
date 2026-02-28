@@ -7,3 +7,5 @@ be_tests:
 fe_tests:
 	@cd frontend && bun run test --run
 	
+fe_lint:
+	@cd frontend && bun run lint
