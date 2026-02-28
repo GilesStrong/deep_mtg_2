@@ -43,4 +43,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["hypercorn", "app.app.asgi:application", "-b", "0.0.0.0:8000", "-w", "2", "--keep-alive", "15"]
+CMD ["hypercorn", "app.asgi:application", "-b", "0.0.0.0:8000", "-w", "2", "--keep-alive", "15"]

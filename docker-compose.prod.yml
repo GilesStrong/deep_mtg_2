@@ -137,8 +137,7 @@ services:
       - caddy_config_prod:/config
       - django_static_prod:/srv/static:ro
       - django_media_prod:/srv/media:ro
-    env_file:
-      - ./frontend/.env.prod
+    env_file: ./frontend/.env.prod
     environment:
       - BACKEND_UPSTREAM=web:8000
       - FRONTEND_UPSTREAM=frontend:3001
