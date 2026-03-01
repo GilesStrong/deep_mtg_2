@@ -142,7 +142,11 @@ def validate_card_filter(card_filter: Filter) -> None:
                 if condition.value not in CARD_TAGS:
                     raise ModelRetry(f"Invalid tag filter: {condition.value} is not a valid tag")
 
-    for condition in card_filter.should + card_filter.must + card_filter.must_not:
+    for condition in card_filter.should:
+        _validate_condition(condition)
+    for condition in card_filter.must:
+        _validate_condition(condition)
+    for condition in card_filter.must_not:
         _validate_condition(condition)
 
 

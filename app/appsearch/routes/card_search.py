@@ -1,0 +1,87 @@
+from appauth.modules.auth_rate_limit import check_auth_rate_limit
+from appcards.constants.storage import CARD_COLLECTION_NAME
+from appcards.models.card import Card
+from appcards.modules.card_info import CardInfo, card_to_info
+from django.http import HttpRequest
+from ninja import Router
+from ninja.errors import HttpError
+
+from appsearch.serializers.card_search import SearchCardsIn
+from appsearch.services.qdrant.search import run_query_from_dsl
+from appsearch.services.qdrant.search_dsl import Filter, MatchAnyCondition, Query
+
+router = Router(tags=['cards'])
+
+SEARCH_LIMIT_PER_HOUR = 100
+SEARCH_WINDOW_SECONDS = 3600
+CARD_SEARCH_TOP_K = 25
+
+
+def _check_search_rate_limit(request: HttpRequest) -> None:
+    """
+    Enforce the card search rate limit for the requesting client.
+
+    Args:
+        request: The incoming request used to derive the rate-limit key.
+
+    Raises:
+        HttpError: If card search requests exceed the configured hourly limit.
+    """
+    rate_limit = check_auth_rate_limit(
+        request,
+        action='card-search',
+        limit=SEARCH_LIMIT_PER_HOUR,
+        window_seconds=SEARCH_WINDOW_SECONDS,
+    )
+    if not rate_limit.allowed:
+        raise HttpError(429, f'Too many card search attempts. Retry in {rate_limit.retry_after_seconds}s')
+
+
+@router.post(
+    '/search/',
+    summary='Search for cards',
+    description='Search for cards based on a query string.',
+    response={200: list[CardInfo]},
+    operation_id='search_cards',
+)
+def search_cards(request: HttpRequest, payload: SearchCardsIn) -> list[CardInfo]:
+    """
+    Search for cards based on a query string and filters.
+    Searches are limited to a certain number per hour to prevent abuse.
+
+    Args:
+        request (HttpRequest): The incoming HTTP request object, used to identify the user making the request.
+        payload (SearchCardsIn): An object containing the search query string and filters such as tags, set codes, and colors.
+
+    Returns:
+        list[CardInfo]: A list of card information objects that match the search criteria.
+    """
+    _check_search_rate_limit(request)
+    query = payload.query
+    set_codes = payload.set_codes
+    colors = [color.value for color in payload.colors]
+    tags = payload.tags
+
+    # Build filter
+    card_filter = Filter(
+        must=[
+            MatchAnyCondition(key="set_codes", any=set_codes),
+            MatchAnyCondition(key="colors", any=colors),
+            MatchAnyCondition(key="tags", any=tags),
+        ],
+    )
+
+    # Run search
+    found_cards = run_query_from_dsl(
+        Query(collection_name=CARD_COLLECTION_NAME, query_string=query, filter=card_filter, limit=CARD_SEARCH_TOP_K),
+    )
+
+    # Convert results to CardInfo
+    card_infos = []
+    for point in found_cards:
+        try:
+            card = Card.objects.get(id=point.id)
+            card_infos.append(card_to_info(card))
+        except Card.DoesNotExist:
+            continue
+    return card_infos

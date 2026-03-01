@@ -1,4 +1,4 @@
-from typing import Self
+from typing import MutableSequence, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from qdrant_client.http import models as qm
@@ -107,14 +107,14 @@ class Filter(BaseModel):
         default=1,
         description="Minimum number of the 'should' conditions that must be satisfied (if any 'should' conditions are provided)",
     )
-    should: list[Condition] = Field(
+    should: MutableSequence[Condition] = Field(
         default_factory=list,
         description="List of conditions where at least `min_should` must be satisfied (logical OR)",
     )
-    must: list[Condition] = Field(
+    must: MutableSequence[Condition] = Field(
         default_factory=list, description="List of conditions that must all be satisfied (logical AND)"
     )
-    must_not: list[Condition] = Field(
+    must_not: MutableSequence[Condition] = Field(
         default_factory=list, description="List of conditions that must not be satisfied (logical NAND)"
     )
 

@@ -17,9 +17,6 @@ router = Router(tags=['cards'])
 )
 def list_set_codes(request: HttpRequest) -> SetCodesOut:
     """
-    try:
-    -zNTA8iJe-WuzI0XrRESC
-
     Retrieve a list of all available set codes.
 
     This endpoint allows you to fetch the set codes that are currently available for deck construction.
@@ -37,8 +34,6 @@ def list_set_codes(request: HttpRequest) -> SetCodesOut:
 )
 def get_card(request: HttpRequest, path_params: Path[GetCardIn]) -> CardInfo:
     """
-    PVn4yqXeYxd4O1rHEiOPp
-
     Retrieve the details of a card by its ID.
 
     This endpoint allows you to fetch the details of a specific card using its unique identifier.

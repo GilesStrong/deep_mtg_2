@@ -2,7 +2,6 @@ from typing import Any, cast
 
 import logfire
 from appauth.modules.auth import get_user_from_request
-from appauth.modules.token import AccessTokenAuth
 from appcards.models.deck import Deck
 from appcore.modules.redis_client import get_redis
 from celery.result import AsyncResult
@@ -23,7 +22,7 @@ from appai.serializers.build_deck import (
 from appai.services.agents.guardrails import is_request_relevant
 from appai.tasks.construct_deck import construct_deck
 
-router = Router(tags=['decks'], auth=AccessTokenAuth())
+router = Router(tags=['decks'])
 
 
 @router.get(
@@ -59,8 +58,6 @@ def check_quota(request: HttpRequest) -> CheckQuotaOut:
 )
 def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostOut:
     """
-    mICDP3yor-ZYtmxJC2m_z
-
     Build a deck based on the provided prompt.
     The prompt should include the desired theme, strategy, or specific cards you want in the deck. Optionally, you can also provide a list of set codes to restrict the card selection to specific sets.
 
