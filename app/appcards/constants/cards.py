@@ -35,7 +35,7 @@ CURRENT_STANDARD_SET_CODES = {
 }
 
 CARD_TAGS = {
-    "Aggro": "Cards that are design to be aggressive and apply early pressure to opponents, often at the cost of long-term value or resilience.",
+    "Aggro": "Cards that are designed to be aggressive and apply early pressure to opponents, often at the cost of long-term value or resilience.",
     "Weenie": "Low-cost, efficiently statted creatures intended to apply early combat pressure.",
     "GoWide": "Cards that generate or support multiple small creatures to overwhelm opponents through board presence.",
     "Burn": "Direct damage effects primarily aimed at reducing an opponent’s life total.",

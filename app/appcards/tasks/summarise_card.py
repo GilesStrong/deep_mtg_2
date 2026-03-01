@@ -7,7 +7,7 @@ from celery import Task, shared_task
 from appcards.modules.card_info import CardInfo
 from appcards.modules.summarise_card import _summarise_card
 
-queue_name = "llm" if "ollama:" in APP_SETTINGS.TEXT_MODEL else "default"
+queue_name = "llm" if APP_SETTINGS.TEXT_MODEL.startswith("ollama:") else "default"
 routing_key = queue_name
 
 

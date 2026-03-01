@@ -24,7 +24,10 @@ class CardSummary(BaseModel):
     )
 
     @field_validator("tags", mode="before")
+    @classmethod
     def validate_tags(cls, value: list[str]) -> list[str]:
+        if not isinstance(value, list):
+            raise ValueError("Tags must be a list of strings.")
         invalid_tags = [tag for tag in value if tag not in CARD_TAGS]
         if invalid_tags:
             raise ValueError(f"Invalid tags: {', '.join(invalid_tags)}. Valid tags are: {', '.join(CARD_TAGS.keys())}")
@@ -55,6 +58,9 @@ Make sure to check that your summary accurately reflects the card.
 The input will be a collection of details about the card in the form of a JSON dump.
 
 # Output
+The output model has two fields:
+
+## Summary
 A concise summary of the card, written in natural language, that captures the key details and overall impression of the card, without going into excessive detail.
 Do not include additional statements or explanations outside of the summary.
 
@@ -65,9 +71,10 @@ The summary should cover:
 - The weaknesses of the card
 - Potential synergies with other cards or strategies (do not name specific cards)
 
+## Tags
 Additionally, you should also include a list of tags that categorise the card based on its attributes and potential roles in a deck.
 The list of available tags are as follows, along with their meanings:
-{json.dumps(list(CARD_TAGS.keys()), indent=2, ensure_ascii=False)}
+{json.dumps(CARD_TAGS, indent=2, ensure_ascii=False)}
 A card can have multiple tags, but try to limit the number of tags to the most relevant ones that capture the essence of the card.
 Tags may have overlap with each other, e.g. a card that is tagged as 'Aggro' may also be tagged as 'Weenie', so use these more general tags in addition to more specific tags, too.
 """
