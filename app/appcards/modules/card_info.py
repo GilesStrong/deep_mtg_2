@@ -45,6 +45,20 @@ class CardInfo(BaseModel):
 
 @beartype
 def card_to_info(card: Card) -> CardInfo:
+    """
+    Converts a Card model instance to a CardInfo object.
+
+    This function takes a Card object and transforms it into a CardInfo data transfer
+    object by extracting all model fields and associated set codes from the card's
+    printings.
+
+    Args:
+        card (Card): The Card model instance to be converted.
+
+    Returns:
+        CardInfo: A CardInfo object populated with the card's field data,
+                  including a list of set codes from all associated printings.
+    """
     card_dict = model_to_dict(card, fields=[f.name for f in card._meta.fields])
     card_dict['set_codes'] = [p.set_code for p in card.printings.all()]
     return CardInfo(id=card.id, name=card.name, **card_dict)

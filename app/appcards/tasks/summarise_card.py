@@ -22,4 +22,19 @@ routing_key = queue_name
 )
 @beartype
 def summarise_card(self: Task, card_details: dict[str, Any]) -> dict[str, str | list[str]]:
+    """
+    Summarise a Magic: The Gathering card's details into a structured format.
+
+    This task function takes a dictionary of card details, validates them against
+    the CardInfo model, and returns a summarised representation of the card.
+
+    Args:
+        self (Task): The Celery task instance (not directly accessed).
+        card_details (dict[str, Any]): A dictionary containing the raw card details
+            to be validated and summarised.
+
+    Returns:
+        dict[str, str | list[str]]: A dictionary containing the summarised card
+            information, where values are either strings or lists of strings.
+    """
     return _summarise_card(CardInfo.model_validate(card_details)).model_dump()

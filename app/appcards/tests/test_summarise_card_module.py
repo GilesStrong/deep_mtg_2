@@ -7,7 +7,7 @@ from django.test import TestCase
 
 from appcards.models.card import ManaColorEnum, Rarity, TypeEnum
 from appcards.modules.card_info import CardInfo
-from appcards.modules.summarise_card import _summarise_card, summarise_card
+from appcards.modules.summarise_card import CardSummary, _summarise_card, summarise_card
 from appcards.tasks.summarise_card import summarise_card as summarise_card_task
 
 _MODULE = "appcards.modules.summarise_card"
@@ -47,15 +47,17 @@ class SummariseCardModuleTests(TestCase):
         """
         GIVEN card details and a mocked LLM agent response
         WHEN _summarise_card is called
-        THEN it returns the agent output text
+        THEN it returns the typed CardSummary output
         """
         mock_agent = MagicMock()
-        mock_agent.run_sync.return_value = SimpleNamespace(output="A strong cheap burn spell.")
+        mock_agent.run_sync.return_value = SimpleNamespace(
+            output=CardSummary(summary="A strong cheap burn spell.", tags=["Aggro", "Burn"])
+        )
         mock_agent_cls.return_value = mock_agent
 
         result = _summarise_card(_card_info())
 
-        self.assertEqual(result, "A strong cheap burn spell.")
+        self.assertEqual(result, CardSummary(summary="A strong cheap burn spell.", tags=["Aggro", "Burn"]))
         mock_agent.run_sync.assert_called_once()
 
     @patch(f"{_MODULE}.in_celery_task", return_value=False)
@@ -66,11 +68,11 @@ class SummariseCardModuleTests(TestCase):
         WHEN summarise_card is called
         THEN it calls the private local summariser directly
         """
-        mock_private.return_value = "direct summary"
+        mock_private.return_value = CardSummary(summary="direct summary", tags=["Aggro"])
 
         result = summarise_card(_card_info())
 
-        self.assertEqual(result, "direct summary")
+        self.assertEqual(result, CardSummary(summary="direct summary", tags=["Aggro"]))
         mock_private.assert_called_once()
 
     @patch(f"{_MODULE}.in_celery_task", return_value=True)
@@ -83,12 +85,15 @@ class SummariseCardModuleTests(TestCase):
         details = _card_info()
         with patch("appcards.tasks.summarise_card.summarise_card") as mock_task:
             mock_async_result = MagicMock()
-            mock_async_result.get.return_value = "queued summary"
+            mock_async_result.get.return_value = {
+                "summary": "queued summary",
+                "tags": ["Aggro", "Burn"],
+            }
             mock_task.delay.return_value = mock_async_result
 
             result = summarise_card(details)
 
-        self.assertEqual(result, "queued summary")
+        self.assertEqual(result, CardSummary(summary="queued summary", tags=["Aggro", "Burn"]))
         mock_task.delay.assert_called_once()
 
 
@@ -102,9 +107,9 @@ class SummariseCardTaskTests(TestCase):
         WHEN summarise_card task is called
         THEN it validates payload into CardInfo and delegates to _summarise_card
         """
-        mock_private.return_value = "task summary"
+        mock_private.return_value = CardSummary(summary="task summary", tags=["Aggro"])
 
         result = summarise_card_task.run(card_details=_card_info().model_dump(mode="python"))
 
-        self.assertEqual(result, "task summary")
+        self.assertEqual(result, {"summary": "task summary", "tags": ["Aggro"]})
         mock_private.assert_called_once()
