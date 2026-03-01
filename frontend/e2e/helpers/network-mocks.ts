@@ -273,7 +273,10 @@ export const mockSetCodes = async (page: Page, setCodes: string[]): Promise<void
     });
 };
 
-export const mockCardTags = async (page: Page, tags: string[]): Promise<void> => {
+export const mockCardTags = async (
+    page: Page,
+    tags: Record<string, Record<string, string>>
+): Promise<void> => {
     await page.route("**/api/app/cards/card/tags/", async (route) => {
         await route.fulfill({
             status: 200,

@@ -1,6 +1,7 @@
 from django.http import HttpRequest
 from ninja import Path, Router
 
+from appcards.constants.cards import HIERACHICAL_TAGS
 from appcards.models.card import Card
 from appcards.models.printing import Printing
 from appcards.modules.card_info import CardInfo, card_to_info
@@ -40,7 +41,11 @@ def list_tags(request: HttpRequest) -> SetTagsOut:
     This endpoint allows you to fetch the tags that are currently available for deck construction.
     """
     tag_lists = Card.objects.values_list('tags', flat=True)
-    tags = sorted({tag for tag_list in tag_lists for tag in (tag_list or [])})
+    used_tags = sorted({tag for tag_list in tag_lists for tag in (tag_list or [])})
+    tags = {
+        primary_tag: {subtag: description for subtag, description in subtags.items() if subtag in used_tags}
+        for primary_tag, subtags in HIERACHICAL_TAGS.items()
+    }
     return SetTagsOut(tags=tags)
 
 

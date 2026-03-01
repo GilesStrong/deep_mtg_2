@@ -80,7 +80,14 @@ describe("CardSearchPage", () => {
             }
 
             if (url === "/api/app/cards/card/tags/") {
-                return mockJsonResponse({ tags: ["Control", "Ramp"] });
+                return mockJsonResponse({
+                    tags: {
+                        Strategy: {
+                            Control: "Cards that are designed to manage the game state.",
+                            Ramp: "Cards that accelerate mana production.",
+                        },
+                    },
+                });
             }
 
             if (url === "/api/app/search/search/" && init?.method === "POST") {
@@ -163,6 +170,11 @@ describe("CardSearchPage", () => {
         await user.click(screen.getByRole("button", { name: "ONE" }));
         await user.click(screen.getByRole("button", { name: "Control" }));
 
+        expect(screen.getByRole("button", { name: "Control" })).toHaveAttribute(
+            "title",
+            "Cards that are designed to manage the game state."
+        );
+
         await user.click(screen.getByRole("button", { name: "Search Cards" }));
 
         expect(await screen.findByText("Sunfall")).toBeInTheDocument();
@@ -219,7 +231,13 @@ describe("CardSearchPage", () => {
             }
 
             if (url === "/api/app/cards/card/tags/") {
-                return mockJsonResponse({ tags: ["Control"] });
+                return mockJsonResponse({
+                    tags: {
+                        Strategy: {
+                            Control: "Cards that are designed to manage the game state.",
+                        },
+                    },
+                });
             }
 
             if (url === "/api/app/search/search/" && init?.method === "POST") {
@@ -250,7 +268,14 @@ describe("CardSearchPage", () => {
             }
 
             if (url === "/api/app/cards/card/tags/") {
-                return mockJsonResponse({ tags: ["Control", "Ramp"] });
+                return mockJsonResponse({
+                    tags: {
+                        Strategy: {
+                            Control: "Cards that are designed to manage the game state.",
+                            Ramp: "Cards that accelerate mana production.",
+                        },
+                    },
+                });
             }
 
             if (url === "/api/app/cards/deck/deck-1/full/") {
@@ -284,7 +309,14 @@ describe("CardSearchPage", () => {
             }
 
             if (url === "/api/app/cards/card/tags/") {
-                return mockJsonResponse({ tags: ["Control", "Ramp"] });
+                return mockJsonResponse({
+                    tags: {
+                        Strategy: {
+                            Control: "Cards that are designed to manage the game state.",
+                            Ramp: "Cards that accelerate mana production.",
+                        },
+                    },
+                });
             }
 
             if (url === "/api/app/cards/deck/deck-1/full/") {

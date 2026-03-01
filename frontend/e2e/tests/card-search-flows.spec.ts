@@ -149,7 +149,16 @@ const setupSearchMocks = async (page: Page) => {
     await mockDeckListing(page, deckListing);
     await mockDeckDetail(page, deckDetail);
     await mockSetCodes(page, ["ONE", "DMU", "LCI"]);
-    await mockCardTags(page, ["Control", "BoardWipe", "SpotRemoval", "Ramp"]);
+    await mockCardTags(page, {
+        Strategy: {
+            Control: "Cards that are designed to manage the game state.",
+            Ramp: "Cards that accelerate mana production.",
+        },
+        Interaction: {
+            BoardWipe: "Effects that remove multiple permanents at once.",
+            SpotRemoval: "Single-target answers to opposing threats.",
+        },
+    });
     await mockCardSearchResponse(page, searchResults);
 };
 

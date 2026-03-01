@@ -60,6 +60,68 @@ type SearchResult = {
     relevance_score: number;
 };
 
+type HierarchicalTags = Record<string, Record<string, string>>;
+
+type TagEndpointPayload = {
+    tags?: string[] | HierarchicalTags;
+} & Record<string, unknown>;
+
+const normalizeHierarchicalTags = (input: unknown): HierarchicalTags => {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+        return {};
+    }
+
+    const normalized: HierarchicalTags = {};
+
+    for (const [primaryTag, rawSubtags] of Object.entries(input as Record<string, unknown>)) {
+        if (typeof primaryTag !== "string" || primaryTag.trim().length === 0) {
+            continue;
+        }
+
+        if (!rawSubtags || typeof rawSubtags !== "object" || Array.isArray(rawSubtags)) {
+            continue;
+        }
+
+        const subtags: Record<string, string> = {};
+        for (const [subtag, description] of Object.entries(rawSubtags as Record<string, unknown>)) {
+            if (typeof subtag !== "string" || subtag.trim().length === 0) {
+                continue;
+            }
+
+            subtags[subtag] = typeof description === "string" ? description : "";
+        }
+
+        normalized[primaryTag] = subtags;
+    }
+
+    return normalized;
+};
+
+const parseTagPayload = (rawPayload: unknown): HierarchicalTags => {
+    if (!rawPayload || typeof rawPayload !== "object") {
+        return {};
+    }
+
+    const payload = rawPayload as TagEndpointPayload;
+
+    if (Array.isArray(payload.tags)) {
+        const flatTags = [...new Set(payload.tags.filter((tag) => tag.trim().length > 0))].sort((a, b) =>
+            a.localeCompare(b)
+        );
+
+        return flatTags.reduce<HierarchicalTags>((acc, tag) => {
+            acc[tag] = {};
+            return acc;
+        }, {});
+    }
+
+    if (payload.tags && typeof payload.tags === "object" && !Array.isArray(payload.tags)) {
+        return normalizeHierarchicalTags(payload.tags);
+    }
+
+    return normalizeHierarchicalTags(payload);
+};
+
 const parseApiError = async (response: Response, fallbackMessage: string): Promise<string> => {
     const responseText = await response.text();
     if (!responseText) {
@@ -99,7 +161,7 @@ export default function CardSearchPage() {
     const [query, setQuery] = useState("");
     const [availableSetCodes, setAvailableSetCodes] = useState<string[]>([]);
     const [selectedSetCodes, setSelectedSetCodes] = useState<string[]>([]);
-    const [availableTags, setAvailableTags] = useState<string[]>([]);
+    const [availableTagsByPrimary, setAvailableTagsByPrimary] = useState<HierarchicalTags>({});
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [selectedColors, setSelectedColors] = useState<string[]>([]);
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -117,6 +179,23 @@ export default function CardSearchPage() {
             .toUpperCase() || "U";
     const avatarUrl = getAvatarUrlFromSession(session);
 
+    const availablePrimaryTags = useMemo(
+        () => Object.keys(availableTagsByPrimary).sort((a, b) => a.localeCompare(b)),
+        [availableTagsByPrimary]
+    );
+
+    const availableSubtags = useMemo(() => {
+        const subtags = new Set<string>();
+
+        for (const primaryTag of availablePrimaryTags) {
+            for (const subtag of Object.keys(availableTagsByPrimary[primaryTag] ?? {})) {
+                subtags.add(subtag);
+            }
+        }
+
+        return subtags;
+    }, [availablePrimaryTags, availableTagsByPrimary]);
+
     useEffect(() => {
         const loadFilters = async () => {
             try {
@@ -130,18 +209,14 @@ export default function CardSearchPage() {
                 }
 
                 const setCodesData = (await setCodesResponse.json()) as { set_codes: string[] };
-                const tagsData = (await tagsResponse.json()) as { tags: string[] };
+                const tagsData = (await tagsResponse.json()) as unknown;
 
                 setAvailableSetCodes([...setCodesData.set_codes].sort((a, b) => a.localeCompare(b)));
-                setAvailableTags(
-                    [...new Set(tagsData.tags.filter((tag) => tag.trim().length > 0))].sort((a, b) =>
-                        a.localeCompare(b)
-                    )
-                );
+                setAvailableTagsByPrimary(parseTagPayload(tagsData));
             } catch (error) {
                 console.error("Error loading card search filters:", error);
                 setAvailableSetCodes([]);
-                setAvailableTags([]);
+                setAvailableTagsByPrimary({});
             } finally {
                 setIsLoadingFilters(false);
             }
@@ -221,12 +296,12 @@ export default function CardSearchPage() {
     }, [availableSetCodes]);
 
     useEffect(() => {
-        if (availableTags.length === 0) {
+        if (availableSubtags.size === 0) {
             return;
         }
 
-        setSelectedTags((current) => current.filter((tag) => availableTags.includes(tag)));
-    }, [availableTags]);
+        setSelectedTags((current) => current.filter((tag) => availableSubtags.has(tag)));
+    }, [availableSubtags]);
 
     const toggleSetCode = (setCode: string) => {
         setSelectedSetCodes((current) =>
@@ -448,22 +523,44 @@ export default function CardSearchPage() {
 
                             <div className="space-y-2">
                                 <Label>Tags</Label>
-                                {isLoadingFilters ? null : availableTags.length === 0 ? (
+                                {isLoadingFilters ? null : availablePrimaryTags.length === 0 ? (
                                     <p className="text-sm text-muted-foreground">No tags available.</p>
                                 ) : (
-                                    <div className="flex flex-wrap gap-2">
-                                        {availableTags.map((tag) => {
-                                            const isSelected = selectedTags.includes(tag);
+                                    <div className="space-y-3">
+                                        {availablePrimaryTags.map((primaryTag) => {
+                                            const subtags = availableTagsByPrimary[primaryTag] ?? {};
+                                            const sortedSubtags = Object.keys(subtags).sort((a, b) => a.localeCompare(b));
+
                                             return (
-                                                <Button
-                                                    key={tag}
-                                                    type="button"
-                                                    size="sm"
-                                                    variant={isSelected ? "default" : "outline"}
-                                                    onClick={() => toggleTag(tag)}
-                                                >
-                                                    {tag}
-                                                </Button>
+                                                <div key={primaryTag} className="space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-sm font-semibold">{primaryTag}</p>
+                                                    </div>
+
+                                                    {sortedSubtags.length > 0 ? (
+                                                        <div className="flex flex-row flex-wrap items-center gap-2">
+                                                            {sortedSubtags.map((subtag) => {
+                                                                const isSubtagSelected = selectedTags.includes(subtag);
+                                                                const description = subtags[subtag] ?? "";
+
+                                                                return (
+                                                                    <Button
+                                                                        key={`${primaryTag}-${subtag}`}
+                                                                        type="button"
+                                                                        size="sm"
+                                                                        variant={isSubtagSelected ? "default" : "outline"}
+                                                                        onClick={() => toggleTag(subtag)}
+                                                                        title={description || subtag}
+                                                                        aria-pressed={isSubtagSelected}
+                                                                        className="h-8"
+                                                                    >
+                                                                        {subtag}
+                                                                    </Button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : null}
+                                                </div>
                                             );
                                         })}
                                     </div>
