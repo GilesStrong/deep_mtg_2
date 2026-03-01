@@ -12,3 +12,15 @@ fe_lint:
 
 fe_e2e_tests:
 	@docker compose exec frontend bun run e2e
+
+start_prod:
+	@docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml up -d --build
+
+stop_prod:
+	@docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml down
+
+recreate_prod_service ${service}:
+	@docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate ${service}
+
+check_logs_prod ${service}:
+	@docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml logs --tail=200 ${service}
