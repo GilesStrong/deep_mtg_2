@@ -28,6 +28,7 @@ class CardSummary(BaseModel):
         invalid_tags = [tag for tag in value if tag not in CARD_TAGS]
         if invalid_tags:
             raise ValueError(f"Invalid tags: {', '.join(invalid_tags)}. Valid tags are: {', '.join(CARD_TAGS.keys())}")
+        value = list(set(value))
         return value
 
 

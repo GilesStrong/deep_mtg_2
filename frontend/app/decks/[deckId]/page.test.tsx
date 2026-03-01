@@ -95,6 +95,7 @@ describe("DeckPage", () => {
                             toughness: null,
                             colors: ["W"],
                             keywords: [],
+                            tags: ["Control", "Removal"],
                         }],
                     ],
                 });
@@ -187,5 +188,19 @@ describe("DeckPage", () => {
         expect(confirmSpy).toHaveBeenCalledTimes(1);
         expect(deleteCall).toBeUndefined();
         expect(push).not.toHaveBeenCalledWith("/dashboard");
+    });
+
+    it("shows card tags as a list when card info is expanded", async () => {
+        const user = userEvent.setup();
+
+        render(<DeckPage />);
+        expect(await screen.findByText("Deck Details")).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: /Sunfall/i }));
+
+        expect(screen.getByText("Tags:")).toBeInTheDocument();
+        expect(screen.getByRole("list")).toBeInTheDocument();
+        expect(screen.getByText("Control")).toBeInTheDocument();
+        expect(screen.getByText("Removal")).toBeInTheDocument();
     });
 });

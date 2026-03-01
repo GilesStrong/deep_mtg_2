@@ -37,6 +37,7 @@ interface DeckCard {
   toughness: string | null;
   colors: string[];
   keywords: string[];
+  tags: string[];
 }
 
 interface Deck {
@@ -101,6 +102,7 @@ export default function DeckPage() {
           toughness: string | null;
           colors: string[];
           keywords: string[];
+          tags?: string[];
         }][];
       };
 
@@ -134,6 +136,7 @@ export default function DeckPage() {
           toughness: cardInfo.toughness,
           colors: cardInfo.colors,
           keywords: cardInfo.keywords,
+          tags: cardInfo.tags ?? [],
         })),
       };
 
@@ -520,6 +523,18 @@ export default function DeckPage() {
                               <p>
                                 <span className="font-medium">Keywords:</span> {card.keywords.length > 0 ? card.keywords.join(", ") : "None"}
                               </p>
+                              <div>
+                                <span className="font-medium">Tags:</span>
+                                {card.tags.length > 0 ? (
+                                  <ul className="list-disc list-inside mt-1">
+                                    {card.tags.map((tag) => (
+                                      <li key={tag}>{tag}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p>None</p>
+                                )}
+                              </div>
                               <p>
                                 <span className="font-medium">Set Codes:</span> {card.set_codes.length > 0 ? card.set_codes.join(", ") : "None"}
                               </p>
