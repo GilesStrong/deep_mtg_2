@@ -57,6 +57,8 @@ class AISettings(BaseSettings):
     GOOGLE_API_KEY: str
     DEEPSEEK_API_KEY: str
     MAX_AGENT_CALLS_PER_TASK: int
+    MAX_AGENT_INPUT_TOKENS: int
+    MAX_AGENT_OUTPUT_TOKENS: int
 
 
 class QdrantSettings(BaseSettings):
