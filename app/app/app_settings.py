@@ -84,6 +84,8 @@ class AuthSettings(BaseSettings):
     JWT_SIGNING_KEY: str
     ACCESS_TOKEN_TTL_SECONDS: int
     REFRESH_TOKEN_TTL_SECONDS: int
+    AUTH_EXCHANGE_PER_MINUTE: int = 20
+    AUTH_REFRESH_PER_MINUTE: int = 60
 
 
 class LimitSettings(BaseSettings):

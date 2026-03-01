@@ -3,6 +3,7 @@ import type { Session } from "next-auth";
 const BACKEND_AUTH_EXCHANGE_PATH = "/backend-auth/exchange";
 const BACKEND_AUTH_REFRESH_PATH = "/backend-auth/refresh";
 const BACKEND_AUTH_CLEAR_PATH = "/backend-auth/clear";
+const BACKEND_CSRF_COOKIE_NAME = "backend_csrf_token";
 
 const parseBackendErrorMessage = async (response: Response, fallbackMessage: string): Promise<string> => {
     try {
@@ -41,6 +42,27 @@ const refreshBackendTokens = async (): Promise<void> => {
     }
 };
 
+const getCookieValue = (name: string): string | null => {
+    if (typeof document === "undefined") {
+        return null;
+    }
+
+    const encodedName = encodeURIComponent(name);
+    const target = `${encodedName}=`;
+    const parts = document.cookie.split(";");
+    for (const part of parts) {
+        const trimmed = part.trim();
+        if (trimmed.startsWith(target)) {
+            return decodeURIComponent(trimmed.slice(target.length));
+        }
+    }
+    return null;
+};
+
+const isUnsafeMethod = (method: string): boolean => {
+    return ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase());
+};
+
 export const ensureBackendTokens = async (session: Session | null): Promise<void> => {
     const googleIdToken = session?.user?.googleAuthToken;
 
@@ -63,13 +85,23 @@ export const backendFetch = async (
     input: RequestInfo | URL,
     init?: RequestInit
 ): Promise<Response> => {
-    const runRequest = async (): Promise<Response> =>
-        fetch(input, {
+    const runRequest = async (): Promise<Response> => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        const headers = new Headers(init?.headers);
+        if (isUnsafeMethod(method)) {
+            const csrfToken = getCookieValue(BACKEND_CSRF_COOKIE_NAME);
+            if (csrfToken) {
+                headers.set("X-Backend-CSRF", csrfToken);
+            }
+        }
+
+        return fetch(input, {
             ...init,
+            method,
+            headers,
             credentials: "same-origin",
         });
-
-    await ensureBackendTokens(session);
+    };
 
     let response = await runRequest();
     if (response.status !== 401) {

@@ -24,12 +24,14 @@ class ExchangeRouteTests(TestCase):
         THEN it raises HttpError 401
         """
         mock_verify.return_value = SimpleNamespace(verified=False, google_id="gid-1")
+        with patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit:
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
 
-        request = SimpleNamespace(headers={}, META={})
-        payload = SimpleNamespace(google_id_token="google-token")
+            request = SimpleNamespace(headers={}, META={})
+            payload = SimpleNamespace(google_id_token="google-token")
 
-        with self.assertRaises(HttpError) as ctx:
-            exchange(request, payload)
+            with self.assertRaises(HttpError) as ctx:
+                exchange(request, payload)
 
         self.assertEqual(ctx.exception.status_code, 401)
 
@@ -42,14 +44,17 @@ class ExchangeRouteTests(TestCase):
         THEN it raises HttpError 403
         """
         mock_settings.N_WARNINGS_BEFORE_BLOCK = 3
+        mock_settings.AUTH_EXCHANGE_PER_MINUTE = 20
         mock_verify.return_value = SimpleNamespace(verified=True, google_id="gid-blocked")
         User.objects.create(google_id="gid-blocked", verified=True, warning_count=3)
 
-        request = SimpleNamespace(headers={}, META={})
-        payload = SimpleNamespace(google_id_token="google-token")
+        with patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit:
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
+            request = SimpleNamespace(headers={}, META={})
+            payload = SimpleNamespace(google_id_token="google-token")
 
-        with self.assertRaises(HttpError) as ctx:
-            exchange(request, payload)
+            with self.assertRaises(HttpError) as ctx:
+                exchange(request, payload)
 
         self.assertEqual(ctx.exception.status_code, 403)
 
@@ -64,14 +69,17 @@ class ExchangeRouteTests(TestCase):
         THEN it returns an access token and a newly minted refresh token
         """
         mock_settings.N_WARNINGS_BEFORE_BLOCK = 3
+        mock_settings.AUTH_EXCHANGE_PER_MINUTE = 20
         mock_verify.return_value = SimpleNamespace(verified=True, google_id="gid-ok")
         mock_mint.return_value = "access-token"
-        mock_refresh_token.mint.return_value = SimpleNamespace(token="refresh-token")
+        mock_refresh_token.mint.return_value = (SimpleNamespace(token="hashed-refresh-token"), "refresh-token")
 
-        request = SimpleNamespace(headers={"User-Agent": "pytest"}, META={"REMOTE_ADDR": "127.0.0.1"})
-        payload = SimpleNamespace(google_id_token="google-token")
+        with patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit:
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
+            request = SimpleNamespace(headers={"User-Agent": "pytest"}, META={"REMOTE_ADDR": "127.0.0.1"})
+            payload = SimpleNamespace(google_id_token="google-token")
 
-        result = exchange(request, payload)
+            result = exchange(request, payload)
 
         self.assertEqual(result.access_token, "access-token")
         self.assertEqual(result.refresh_token, "refresh-token")
@@ -86,11 +94,13 @@ class RefreshRouteTests(TestCase):
         WHEN refresh is called
         THEN it raises HttpError 401
         """
-        request = SimpleNamespace(headers={}, META={})
-        payload = SimpleNamespace(refresh_token="missing-token")
+        with patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit:
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
+            request = SimpleNamespace(headers={}, META={})
+            payload = SimpleNamespace(refresh_token="missing-token")
 
-        with self.assertRaises(HttpError) as ctx:
-            refresh(request, payload)
+            with self.assertRaises(HttpError) as ctx:
+                refresh(request, payload)
 
         self.assertEqual(ctx.exception.status_code, 401)
 
@@ -101,17 +111,19 @@ class RefreshRouteTests(TestCase):
         THEN it raises HttpError 401 and does not mint new tokens
         """
         user = User.objects.create(google_id="gid-refresh-invalid", verified=True, warning_count=0)
-        rt = RefreshToken.mint(user, user_agent="ua", ip="127.0.0.1")
+        rt, raw_token = RefreshToken.mint(user, user_agent="ua", ip="127.0.0.1")
         rt.revoked_at = __import__("django.utils.timezone").utils.timezone.now()
         rt.save(update_fields=["revoked_at"])
 
         request = SimpleNamespace(headers={}, META={})
-        payload = SimpleNamespace(refresh_token=rt.token)
+        payload = SimpleNamespace(refresh_token=raw_token)
 
         with (
+            patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit,
             patch(f"{_MODULE}.mint_access_token") as mock_mint_access,
             patch(f"{_MODULE}.RefreshToken.mint") as mock_mint_refresh,
         ):
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
             with self.assertRaises(HttpError) as ctx:
                 refresh(request, payload)
 
@@ -126,17 +138,19 @@ class RefreshRouteTests(TestCase):
         THEN it revokes the old token, mints a new refresh token, and returns new access and refresh tokens
         """
         user = User.objects.create(google_id="gid-refresh-ok", verified=True, warning_count=0)
-        old_rt = RefreshToken.mint(user, user_agent="ua", ip="127.0.0.1")
+        old_rt, old_raw_token = RefreshToken.mint(user, user_agent="ua", ip="127.0.0.1")
 
         request = SimpleNamespace(headers={"User-Agent": "pytest"}, META={"REMOTE_ADDR": "127.0.0.1"})
-        payload = SimpleNamespace(refresh_token=old_rt.token)
+        payload = SimpleNamespace(refresh_token=old_raw_token)
 
         with (
+            patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit,
             patch(f"{_MODULE}.mint_access_token") as mock_mint_access,
             patch(f"{_MODULE}.RefreshToken.mint") as mock_mint_refresh,
         ):
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
             mock_mint_access.return_value = "new-access-token"
-            mock_mint_refresh.return_value = SimpleNamespace(token="new-refresh-token")
+            mock_mint_refresh.return_value = (SimpleNamespace(token="hashed-new-refresh-token"), "new-refresh-token")
 
             result = refresh(request, payload)
 

@@ -55,10 +55,6 @@ describe("backend-auth", () => {
         let protectedRequestCount = 0;
         const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
             const url = String(input);
-            if (url === "/backend-auth/exchange") {
-                return mockResponse({ ok: true, status: 200, json: { ok: true } });
-            }
-
             if (url === "/api/protected") {
                 protectedRequestCount += 1;
                 if (protectedRequestCount === 1) {
@@ -70,6 +66,10 @@ describe("backend-auth", () => {
             }
 
             if (url === "/backend-auth/refresh") {
+                return mockResponse({ ok: true, status: 200, json: { ok: true } });
+            }
+
+            if (url === "/backend-auth/exchange") {
                 return mockResponse({ ok: true, status: 200, json: { ok: true } });
             }
 
@@ -87,6 +87,10 @@ describe("backend-auth", () => {
             "/backend-auth/refresh",
             expect.objectContaining({ method: "POST", credentials: "same-origin" }),
         );
+        expect(fetchMock).not.toHaveBeenCalledWith(
+            "/backend-auth/exchange",
+            expect.anything(),
+        );
     });
 
     it("clearBackendTokens clears cookie-backed tokens via API route", () => {
@@ -103,5 +107,27 @@ describe("backend-auth", () => {
                 credentials: "same-origin",
             }),
         );
+    });
+
+    it("backendFetch sends X-Backend-CSRF for unsafe requests when csrf cookie is present", async () => {
+        document.cookie = "backend_csrf_token=test-csrf-token";
+
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+            const headers = new Headers(init?.headers);
+            if (String(_input) === "/api/protected") {
+                expect(headers.get("X-Backend-CSRF")).toBe("test-csrf-token");
+            }
+
+            return mockResponse({ ok: true, status: 200, json: { ok: true } });
+        });
+
+        const response = await backendFetch(null, "/api/protected", {
+            method: "POST",
+            body: JSON.stringify({ prompt: "test" }),
+            headers: { "Content-Type": "application/json" },
+        });
+
+        expect(response.status).toBe(200);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 });

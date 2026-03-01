@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 const ACCESS_TOKEN_COOKIE = "backend_access_token";
 const REFRESH_TOKEN_COOKIE = "backend_refresh_token";
+const CSRF_COOKIE = "backend_csrf_token";
 
 const getCookieSecurity = () => ({
     httpOnly: true,
@@ -16,6 +17,7 @@ export async function POST(): Promise<NextResponse> {
 
     nextResponse.cookies.set(ACCESS_TOKEN_COOKIE, "", { ...security, maxAge: 0 });
     nextResponse.cookies.set(REFRESH_TOKEN_COOKIE, "", { ...security, maxAge: 0 });
+    nextResponse.cookies.set(CSRF_COOKIE, "", { ...security, httpOnly: false, maxAge: 0 });
 
     return nextResponse;
 }

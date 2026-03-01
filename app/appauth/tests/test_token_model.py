@@ -27,9 +27,10 @@ class RefreshTokenModelTests(TestCase):
         mock_token_urlsafe.return_value = "refresh-token-value"
         user = User.objects.create(google_id="gid-model-1", verified=True, warning_count=0)
 
-        token = RefreshToken.mint(user, user_agent="x" * 1200, ip="127.0.0.1")
+        token, raw_token = RefreshToken.mint(user, user_agent="x" * 1200, ip="127.0.0.1")
 
-        self.assertEqual(token.token, "refresh-token-value")
+        self.assertEqual(raw_token, "refresh-token-value")
+        self.assertEqual(token.token, RefreshToken.hash_token("refresh-token-value"))
         self.assertEqual(token.user_id, user.id)
         self.assertEqual(token.user_agent, "x" * 1000)
         self.assertEqual(token.ip, "127.0.0.1")
@@ -42,7 +43,7 @@ class RefreshTokenModelTests(TestCase):
         THEN it returns False
         """
         user = User.objects.create(google_id="gid-model-2", verified=True, warning_count=0)
-        token = RefreshToken.mint(user)
+        token, _raw_token = RefreshToken.mint(user)
         token.revoked_at = timezone.now()
         token.save(update_fields=["revoked_at"])
 
@@ -55,7 +56,7 @@ class RefreshTokenModelTests(TestCase):
         THEN it returns False
         """
         user = User.objects.create(google_id="gid-model-3", verified=True, warning_count=0)
-        token = RefreshToken.mint(user)
+        token, _raw_token = RefreshToken.mint(user)
         token.expires_at = timezone.now() - timedelta(seconds=1)
         token.save(update_fields=["expires_at"])
 
@@ -68,6 +69,6 @@ class RefreshTokenModelTests(TestCase):
         THEN it returns True
         """
         user = User.objects.create(google_id="gid-model-4", verified=True, warning_count=0)
-        token = RefreshToken.mint(user)
+        token, _raw_token = RefreshToken.mint(user)
 
         self.assertTrue(token.is_valid())

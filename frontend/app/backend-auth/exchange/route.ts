@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 
 const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL ?? "http://web:8000";
 const ACCESS_TOKEN_COOKIE = "backend_access_token";
 const REFRESH_TOKEN_COOKIE = "backend_refresh_token";
+const CSRF_COOKIE = "backend_csrf_token";
 
 const getCookieSecurity = () => ({
     httpOnly: true,
@@ -49,6 +51,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     nextResponse.cookies.set(ACCESS_TOKEN_COOKIE, data.access_token, security);
     nextResponse.cookies.set(REFRESH_TOKEN_COOKIE, data.refresh_token, security);
+    nextResponse.cookies.set(CSRF_COOKIE, randomUUID(), {
+        ...security,
+        httpOnly: false,
+    });
 
     return nextResponse;
 }
