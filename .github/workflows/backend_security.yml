@@ -34,8 +34,17 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
           grype version
 
-      - name: Scan repo directory with Grype (SARIF)
+      - name: Grype scan (print table + save SARIF)
         run: |
+          set -euo pipefail
+
+          # Human-readable output for the Actions log
+          grype dir:. \
+            --only-fixed=false \
+            --fail-on high \
+            -o table
+
+          # SARIF for artifacts
           grype dir:. \
             --only-fixed=false \
             --fail-on high \
