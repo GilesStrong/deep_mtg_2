@@ -12,8 +12,9 @@ from appsearch.services.qdrant.search_dsl import Filter, MatchAnyCondition, Quer
 
 router = Router(tags=['cards'])
 
+SEARCH_LIMIT_PER_FIVE_SECONDS = 1
+SEARCH_LIMIT_PER_MINUTE = 10
 SEARCH_LIMIT_PER_HOUR = 100
-SEARCH_WINDOW_SECONDS = 3600
 CARD_SEARCH_TOP_K = 25
 
 
@@ -25,16 +26,37 @@ def _check_search_rate_limit(request: HttpRequest) -> None:
         request: The incoming request used to derive the rate-limit key.
 
     Raises:
-        HttpError: If card search requests exceed the configured hourly limit.
+        HttpError: If card search requests exceed the configured limits.
     """
-    rate_limit = check_auth_rate_limit(
+
+    # Ensure all rate limits are checked and the most restrictive one is enforced
+    short_rate_limit = check_auth_rate_limit(
+        request,
+        action='card-search',
+        limit=SEARCH_LIMIT_PER_FIVE_SECONDS,
+        window_seconds=5,
+    )
+    medium_rate_limit = check_auth_rate_limit(
+        request,
+        action='card-search',
+        limit=SEARCH_LIMIT_PER_MINUTE,
+        window_seconds=60,
+    )
+    long_rate_limit = check_auth_rate_limit(
         request,
         action='card-search',
         limit=SEARCH_LIMIT_PER_HOUR,
-        window_seconds=SEARCH_WINDOW_SECONDS,
+        window_seconds=3600,
     )
-    if not rate_limit.allowed:
-        raise HttpError(429, f'Too many card search attempts. Retry in {rate_limit.retry_after_seconds}s')
+
+    if not short_rate_limit.allowed:
+        raise HttpError(429, f'Too many card search attempts. Retry in {short_rate_limit.retry_after_seconds}s')
+
+    if not medium_rate_limit.allowed:
+        raise HttpError(429, f'Too many card search attempts. Retry in {medium_rate_limit.retry_after_seconds}s')
+
+    if not long_rate_limit.allowed:
+        raise HttpError(429, f'Too many card search attempts. Retry in {long_rate_limit.retry_after_seconds}s')
 
 
 @router.post(
