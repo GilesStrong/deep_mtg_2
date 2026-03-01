@@ -137,10 +137,8 @@ class SearchCardsRouteTests(TestCase):
             SimpleNamespace(id=_CARD_ID_1, score=0.14),
             SimpleNamespace(id=_CARD_ID_2, score=0.77),
         ]
-        does_not_exist = type("DoesNotExist", (Exception,), {})
-        mock_card.DoesNotExist = does_not_exist
         existing_card = SimpleNamespace(id=_CARD_ID_2)
-        mock_card.objects.get.side_effect = [does_not_exist(), existing_card]
+        mock_card.objects.in_bulk.return_value = {_CARD_ID_2: existing_card}
         kept_info = _make_card_info(_CARD_ID_2, "Kept")
         mock_card_to_info.return_value = kept_info
 
@@ -151,3 +149,4 @@ class SearchCardsRouteTests(TestCase):
         self.assertEqual(result.cards[0].card_info, kept_info)
         self.assertEqual(result.cards[0].relevance_score, 0.77)
         mock_card_to_info.assert_called_once_with(existing_card)
+        mock_card.objects.in_bulk.assert_called_once_with([_CARD_ID_1, _CARD_ID_2])

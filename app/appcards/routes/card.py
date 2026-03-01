@@ -1,7 +1,7 @@
 from django.http import HttpRequest
 from ninja import Path, Router
 
-from appcards.constants.cards import HIERACHICAL_TAGS
+from appcards.constants.cards import HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
 from appcards.models.card import Card
 from appcards.models.printing import Printing
 from appcards.modules.card_info import CardInfo, card_to_info
@@ -42,10 +42,16 @@ def list_tags(request: HttpRequest) -> SetTagsOut:
     """
     tag_lists = Card.objects.values_list('tags', flat=True)
     used_tags = sorted({tag for tag_list in tag_lists for tag in (tag_list or [])})
-    tags = {
-        primary_tag: {subtag: description for subtag, description in subtags.items() if subtag in used_tags}
-        for primary_tag, subtags in HIERACHICAL_TAGS.items()
-    }
+
+    tags: dict[str, dict[str, str]] = {}
+    for primary_tag, subtags in HIERARCHICAL_TAGS.items():
+        bucket: dict[str, str] = {}
+        if primary_tag in used_tags:
+            bucket[primary_tag] = PRIMARY_TAG_DESCRIPTIONS.get(primary_tag, "No description available")
+        for subtag, description in subtags.items():
+            if subtag in used_tags:
+                bucket[subtag] = description
+        tags[primary_tag] = bucket
     return SetTagsOut(tags=tags)
 
 

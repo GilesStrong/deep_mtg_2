@@ -16,7 +16,7 @@ class SetCodesOut(Schema):
 class SetTagsOut(Schema):
     tags: dict[str, dict[str, str]] = Field(
         ...,
-        description="A hierachical dictionary of all available tags that can be used for deck construction, where the keys are primary tags and the values are dictionaries of subtags and their descriptions",
+        description="A hierarchical dictionary of all available tags that can be used for deck construction, where the keys are primary tags and the values are dictionaries of subtags and their descriptions",
     )
 
 

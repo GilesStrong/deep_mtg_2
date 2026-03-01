@@ -103,10 +103,11 @@ def search_cards(request: HttpRequest, payload: SearchCardsIn) -> SearchCardsOut
 
     # Convert results to CardInfo
     card_infos = []
+    card_ids = [point.id for point in found_cards]
+    cards_by_id = Card.objects.in_bulk(card_ids)
     for point in found_cards:
-        try:
-            card = Card.objects.get(id=point.id)
-            card_infos.append(FoundCard(card_info=card_to_info(card), relevance_score=point.score))
-        except Card.DoesNotExist:
+        card = cards_by_id.get(point.id)
+        if card is None:
             continue
+        card_infos.append(FoundCard(card_info=card_to_info(card), relevance_score=point.score))
     return SearchCardsOut(cards=card_infos)

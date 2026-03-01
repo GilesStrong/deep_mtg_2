@@ -36,7 +36,7 @@ CURRENT_STANDARD_SET_CODES = {
     "SPM",
 }
 
-HIERACHICAL_TAGS = {
+HIERARCHICAL_TAGS = {
     "Aggro": {
         "Weenie": "Low-cost, efficiently statted creatures intended to apply early combat pressure.",
         "GoWide": "Cards that generate or support multiple small creatures to overwhelm opponents through board presence.",
@@ -126,7 +126,7 @@ PRIMARY_TAG_DESCRIPTIONS = {
 @lru_cache(maxsize=1)
 def _get_flat_card_tags() -> dict[str, str]:
     flat_tags = {}
-    for primary_tag, subtags in HIERACHICAL_TAGS.items():
+    for primary_tag, subtags in HIERARCHICAL_TAGS.items():
         flat_tags[primary_tag] = PRIMARY_TAG_DESCRIPTIONS[primary_tag]
         for subtag, description in subtags.items():
             flat_tags[subtag] = description

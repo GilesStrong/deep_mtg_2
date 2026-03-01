@@ -7,7 +7,7 @@ from appuser.models import User
 from django.test import TestCase
 from ninja.errors import HttpError
 
-from appcards.constants.cards import HIERACHICAL_TAGS
+from appcards.constants.cards import HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
 from appcards.models.card import Card, Rarity
 from appcards.models.deck import Deck
 from appcards.models.printing import Printing
@@ -20,11 +20,11 @@ _CARD_MODULE = "appcards.routes.card"
 class CardRoutesTests(TestCase):
     """Tests for appcards card routes."""
 
-    def test_list_tags_returns_hierarchical_mapping_with_used_subtags_only(self):
+    def test_list_tags_returns_hierarchical_mapping_with_used_tags(self):
         """
         GIVEN cards with overlapping tag lists
         WHEN list_tags is called
-        THEN it returns all primary tags with only used subtags populated
+        THEN it returns all primary tags with only used tags populated
         """
         Card.objects.create(name="Opt", text="Scry 1.", rarity=Rarity.COMMON, tags=["Control", "Cantrip"])
         Card.objects.create(name="Shock", text="Deal 2 damage.", rarity=Rarity.COMMON, tags=["Aggro", "Control"])
@@ -32,12 +32,23 @@ class CardRoutesTests(TestCase):
 
         result = list_tags(SimpleNamespace())
 
-        self.assertEqual(result.tags["CardAdvantage"], {"Cantrip": HIERACHICAL_TAGS["CardAdvantage"]["Cantrip"]})
+        self.assertEqual(result.tags["CardAdvantage"], {"Cantrip": HIERARCHICAL_TAGS["CardAdvantage"]["Cantrip"]})
         self.assertEqual(
             result.tags,
             {
-                primary_tag: {subtag: description for subtag, description in subtags.items() if subtag == "Cantrip"}
-                for primary_tag, subtags in HIERACHICAL_TAGS.items()
+                primary_tag: {
+                    **(
+                        {primary_tag: PRIMARY_TAG_DESCRIPTIONS[primary_tag]}
+                        if primary_tag in {"Aggro", "Control", "Ramp"}
+                        else {}
+                    ),
+                    **(
+                        {"Cantrip": HIERARCHICAL_TAGS["CardAdvantage"]["Cantrip"]}
+                        if primary_tag == "CardAdvantage"
+                        else {}
+                    ),
+                }
+                for primary_tag in HIERARCHICAL_TAGS
             },
         )
 
