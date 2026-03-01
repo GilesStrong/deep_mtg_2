@@ -2,10 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { backendFetch, clearBackendTokens, ensureBackendTokens } from "@/lib/backend-auth";
 
-const ACCESS_TOKEN_KEY = "deep_mtg_backend_access_token";
-const REFRESH_TOKEN_KEY = "deep_mtg_backend_refresh_token";
-const USER_EMAIL_KEY = "deep_mtg_backend_user_email";
-
 const mockResponse = ({
     ok,
     status,
@@ -24,67 +20,57 @@ const mockResponse = ({
 describe("backend-auth", () => {
     beforeEach(() => {
         vi.restoreAllMocks();
-        window.localStorage.clear();
     });
 
-    it("ensureBackendTokens exchanges and stores tokens when cache is empty", async () => {
+    it("ensureBackendTokens exchanges backend tokens via secure cookie route", async () => {
         const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
             mockResponse({
                 ok: true,
                 status: 200,
-                json: { access_token: "access-1", refresh_token: "refresh-1" },
+                json: { ok: true },
             }),
         );
 
-        const tokens = await ensureBackendTokens({
+        await ensureBackendTokens({
             user: { email: "user@test.dev", googleAuthToken: "google-id-token" },
         } as never);
 
-        expect(tokens).toEqual({ accessToken: "access-1", refreshToken: "refresh-1" });
         expect(fetchMock).toHaveBeenCalledTimes(1);
-        expect(window.localStorage.getItem(ACCESS_TOKEN_KEY)).toBe("access-1");
-        expect(window.localStorage.getItem(REFRESH_TOKEN_KEY)).toBe("refresh-1");
-        expect(window.localStorage.getItem(USER_EMAIL_KEY)).toBe("user@test.dev");
+        expect(fetchMock).toHaveBeenCalledWith(
+            "/backend-auth/exchange",
+            expect.objectContaining({
+                method: "POST",
+                credentials: "same-origin",
+            }),
+        );
     });
 
-    it("ensureBackendTokens returns stored tokens without network call", async () => {
-        window.localStorage.setItem(ACCESS_TOKEN_KEY, "cached-access");
-        window.localStorage.setItem(REFRESH_TOKEN_KEY, "cached-refresh");
-        window.localStorage.setItem(USER_EMAIL_KEY, "user@test.dev");
-
-        const fetchMock = vi.spyOn(globalThis, "fetch");
-
-        const tokens = await ensureBackendTokens({
-            user: { email: "user@test.dev", googleAuthToken: "google-id-token" },
-        } as never);
-
-        expect(tokens).toEqual({ accessToken: "cached-access", refreshToken: "cached-refresh" });
-        expect(fetchMock).not.toHaveBeenCalled();
+    it("ensureBackendTokens throws when session is missing Google ID token", async () => {
+        await expect(ensureBackendTokens({ user: { email: "user@test.dev" } } as never)).rejects.toThrow(
+            "Missing Google ID token in session",
+        );
     });
 
-    it("backendFetch refreshes access token after 401 and retries", async () => {
-        window.localStorage.setItem(ACCESS_TOKEN_KEY, "stale-access");
-        window.localStorage.setItem(REFRESH_TOKEN_KEY, "stale-refresh");
-        window.localStorage.setItem(USER_EMAIL_KEY, "user@test.dev");
-
+    it("backendFetch refreshes cookie-backed token after 401 and retries", async () => {
+        let protectedRequestCount = 0;
         const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
             const url = String(input);
             if (url === "/api/protected") {
-                const authHeader = (init?.headers as Headers).get("Authorization");
-                if (authHeader === "Bearer stale-access") {
+                protectedRequestCount += 1;
+                if (protectedRequestCount === 1) {
                     return mockResponse({ ok: false, status: 401 });
                 }
-                if (authHeader === "Bearer refreshed-access") {
+                if (protectedRequestCount === 2) {
                     return mockResponse({ ok: true, status: 200 });
                 }
             }
 
-            if (url === "/api/app/token/refresh") {
-                return mockResponse({
-                    ok: true,
-                    status: 200,
-                    json: { access_token: "refreshed-access", refresh_token: "refreshed-refresh" },
-                });
+            if (url === "/backend-auth/refresh") {
+                return mockResponse({ ok: true, status: 200, json: { ok: true } });
+            }
+
+            if (url === "/backend-auth/exchange") {
+                return mockResponse({ ok: true, status: 200, json: { ok: true } });
             }
 
             return mockResponse({ ok: false, status: 500 });
@@ -96,20 +82,53 @@ describe("backend-auth", () => {
         );
 
         expect(response.status).toBe(200);
-        expect(fetchMock).toHaveBeenCalledTimes(3);
-        expect(window.localStorage.getItem(ACCESS_TOKEN_KEY)).toBe("refreshed-access");
-        expect(window.localStorage.getItem(REFRESH_TOKEN_KEY)).toBe("refreshed-refresh");
+        expect(protectedRequestCount).toBe(2);
+        expect(fetchMock).toHaveBeenCalledWith(
+            "/backend-auth/refresh",
+            expect.objectContaining({ method: "POST", credentials: "same-origin" }),
+        );
+        expect(fetchMock).not.toHaveBeenCalledWith(
+            "/backend-auth/exchange",
+            expect.anything(),
+        );
     });
 
-    it("clearBackendTokens removes all cached values", () => {
-        window.localStorage.setItem(ACCESS_TOKEN_KEY, "access");
-        window.localStorage.setItem(REFRESH_TOKEN_KEY, "refresh");
-        window.localStorage.setItem(USER_EMAIL_KEY, "user@test.dev");
+    it("clearBackendTokens clears cookie-backed tokens via API route", async () => {
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            mockResponse({ ok: true, status: 200, json: { ok: true } }),
+        );
 
-        clearBackendTokens();
+        await clearBackendTokens();
 
-        expect(window.localStorage.getItem(ACCESS_TOKEN_KEY)).toBeNull();
-        expect(window.localStorage.getItem(REFRESH_TOKEN_KEY)).toBeNull();
-        expect(window.localStorage.getItem(USER_EMAIL_KEY)).toBeNull();
+        expect(fetchMock).toHaveBeenCalledWith(
+            "/backend-auth/clear",
+            expect.objectContaining({
+                method: "POST",
+                credentials: "same-origin",
+                keepalive: true,
+            }),
+        );
+    });
+
+    it("backendFetch sends X-Backend-CSRF for unsafe requests when csrf cookie is present", async () => {
+        document.cookie = "backend_csrf_token=test-csrf-token";
+
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+            const headers = new Headers(init?.headers);
+            if (String(_input) === "/api/protected") {
+                expect(headers.get("X-Backend-CSRF")).toBe("test-csrf-token");
+            }
+
+            return mockResponse({ ok: true, status: 200, json: { ok: true } });
+        });
+
+        const response = await backendFetch(null, "/api/protected", {
+            method: "POST",
+            body: JSON.stringify({ prompt: "test" }),
+            headers: { "Content-Type": "application/json" },
+        });
+
+        expect(response.status).toBe(200);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 });

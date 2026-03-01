@@ -29,7 +29,7 @@ services:
       retries: 20
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.17
     restart: always
     volumes:
       - deepmtg_qdrant_data_prod:/qdrant/storage
@@ -62,6 +62,13 @@ services:
     networks:
       - deepmtg_network_prod
       - llm_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
     volumes:
       - django_static_prod:/app/staticfiles
       - django_media_prod:/app/media
@@ -79,6 +86,13 @@ services:
     networks:
       - deepmtg_network_prod
       - llm_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
 
   celery_llm_worker:
     image: deepmtg-app:prod
@@ -93,11 +107,18 @@ services:
     networks:
       - deepmtg_network_prod
       - llm_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
 
   celery_beat:
     image: deepmtg-app:prod
     env_file: .env.prod
-    command: "sh -lc 'cd /app/app && celery -A app beat --loglevel=info'"
+    command: "sh -lc 'cd /app/app && celery -A app beat --loglevel=info --schedule /tmp/celerybeat-schedule'"
     restart: unless-stopped
     depends_on:
       db:
@@ -107,6 +128,13 @@ services:
     networks:
       - deepmtg_network_prod
       - llm_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
 
   frontend:
     build:
@@ -123,6 +151,13 @@ services:
       start_period: 20s
     networks:
       - deepmtg_network_prod
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
     expose:
       - "3001"
 
@@ -149,9 +184,16 @@ services:
         condition: service_healthy
     networks:
       - deepmtg_network_prod
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.2.0
     restart: unless-stopped
     command: tunnel --config /etc/cloudflared/config.yml run
     volumes:
@@ -160,6 +202,13 @@ services:
       - deepmtg_network_prod
     depends_on:
       - proxy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
 
 volumes:
   deepmtg_postgres_data_prod:

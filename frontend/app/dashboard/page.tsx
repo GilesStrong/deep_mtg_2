@@ -146,8 +146,11 @@ export default function DashboardPage() {
     }, [activeDecks, fetchDecks, session]);
 
     const handleSignOut = async () => {
-        clearBackendTokens();
-        await signOut({ callbackUrl: "/login" });
+        try {
+            await clearBackendTokens();
+        } finally {
+            await signOut({ callbackUrl: "/login" });
+        }
     };
 
     const userInitials =
@@ -173,7 +176,7 @@ export default function DashboardPage() {
     }, [decks, selectedSetCodes]);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="flex-1 bg-gradient-to-br from-slate-50 to-slate-100">
             <header className="border-b bg-white/80 backdrop-blur-sm">
                 <div className="container mx-auto flex items-center justify-between px-4 py-4">
                     <h1 className="text-2xl font-bold">Deep MTG</h1>
@@ -191,6 +194,7 @@ export default function DashboardPage() {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>{session?.user?.name}</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => router.push("/dashboard/account")}>Account</DropdownMenuItem>
                                 <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>

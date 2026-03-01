@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -139,6 +139,66 @@ describe("GenerateDeckPage", () => {
         expect(screen.getByRole("button", { name: "Submit Generation Task" })).toBeDisabled();
     });
 
+    it("shows prompt length counter and enables submit only within valid prompt length", async () => {
+        const user = userEvent.setup();
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 2 });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+
+        expect(await screen.findByText("Remaining builds today: 2")).toBeInTheDocument();
+        expect(screen.getByText("0/3000")).toBeInTheDocument();
+
+        const promptInput = screen.getByLabelText("Prompt");
+        const submitButton = screen.getByRole("button", { name: "Submit Generation Task" });
+
+        await user.type(promptInput, "short prompt");
+        expect(screen.getByText("12/3000")).toBeInTheDocument();
+        expect(submitButton).toBeDisabled();
+
+        await user.clear(promptInput);
+        await user.type(promptInput, "a".repeat(20));
+        expect(screen.getByText("20/3000")).toBeInTheDocument();
+        expect(submitButton).toBeEnabled();
+    });
+
+    it("disables submit when prompt length exceeds max", async () => {
+        const user = userEvent.setup();
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 2 });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+
+        expect(await screen.findByText("Remaining builds today: 2")).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText("Prompt"), {
+            target: { value: "a".repeat(3001) },
+        });
+
+        expect(screen.getByText("3001/3000")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Submit Generation Task" })).toBeDisabled();
+    });
+
     it("redirects to clean generate route when deckId marker is missing", async () => {
         mockUseSearchParams.mockReturnValue({
             get: (key: string) => (key === "deckId" ? "deck-1" : null),
@@ -188,7 +248,7 @@ describe("GenerateDeckPage", () => {
 
         expect(await screen.findByText("Remaining builds today: 2")).toBeInTheDocument();
 
-        await user.type(screen.getByLabelText("Prompt"), "bad prompt");
+        await user.type(screen.getByLabelText("Prompt"), "Build me a legal deck with forbidden card names to trigger validation.");
         await user.click(screen.getByRole("button", { name: "Submit Generation Task" }));
 
         expect(await screen.findByText("Prompt failed safety checks")).toBeInTheDocument();

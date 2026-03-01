@@ -18,13 +18,15 @@ class VerifyGoogleTokenTests(TestCase):
     def test_returns_verified_result_for_valid_issuer(self, mock_verify, mock_request, mock_settings):
         """
         GIVEN a Google ID token with a valid issuer and verified email
-        WHEN verify_google_token is called
+        WHEN verify_google_token is called with allowed-list enforcement disabled
         THEN it returns a verified result with the Google user ID
         """
         mock_settings.GOOGLE_CLIENT_ID = "google-client-id"
+        mock_settings.GOOGLE_ENFORCE_ALLOWED_EMAILS = False
         mock_verify.return_value = {
             "iss": "accounts.google.com",
             "email_verified": True,
+            "email": "user@example.com",
             "sub": "google-user-123",
         }
 
@@ -44,11 +46,83 @@ class VerifyGoogleTokenTests(TestCase):
         THEN it raises ValueError
         """
         mock_settings.GOOGLE_CLIENT_ID = "google-client-id"
+        mock_settings.GOOGLE_ENFORCE_ALLOWED_EMAILS = False
         mock_verify.return_value = {
             "iss": "https://malicious.example.com",
             "email_verified": True,
+            "email": "user@example.com",
             "sub": "google-user-123",
         }
 
         with self.assertRaises(ValueError):
             verify_google_token("id-token")
+
+    @patch(f"{_MODULE}.APP_SETTINGS")
+    @patch(f"{_MODULE}.requests.Request")
+    @patch(f"{_MODULE}.id_token.verify_oauth2_token")
+    def test_returns_verified_result_when_email_in_allowed_list(self, mock_verify, mock_request, mock_settings):
+        """
+        GIVEN a Google ID token with a valid issuer and an email present in the allowed list
+        WHEN verify_google_token is called with allowed-list enforcement enabled
+        THEN it returns a verified result with the Google user ID
+        """
+        mock_settings.GOOGLE_CLIENT_ID = "google-client-id"
+        mock_settings.GOOGLE_ENFORCE_ALLOWED_EMAILS = True
+        mock_settings.GOOGLE_ALLOWED_EMAILS = ["allowed@example.com", "other@example.com"]
+        mock_verify.return_value = {
+            "iss": "accounts.google.com",
+            "email_verified": True,
+            "email": "allowed@example.com",
+            "sub": "google-user-123",
+        }
+
+        result = verify_google_token("id-token")
+
+        mock_verify.assert_called_once_with("id-token", mock_request.return_value, "google-client-id")
+        self.assertTrue(result.verified)
+        self.assertEqual(result.google_id, "google-user-123")
+
+    @patch(f"{_MODULE}.APP_SETTINGS")
+    @patch(f"{_MODULE}.requests.Request")
+    @patch(f"{_MODULE}.id_token.verify_oauth2_token")
+    def test_raises_when_email_not_in_allowed_list(self, mock_verify, _mock_request, mock_settings):
+        """
+        GIVEN a Google ID token with a valid issuer but an email absent from the allowed list
+        WHEN verify_google_token is called with allowed-list enforcement enabled
+        THEN it raises ValueError
+        """
+        mock_settings.GOOGLE_CLIENT_ID = "google-client-id"
+        mock_settings.GOOGLE_ENFORCE_ALLOWED_EMAILS = True
+        mock_settings.GOOGLE_ALLOWED_EMAILS = ["allowed@example.com"]
+        mock_verify.return_value = {
+            "iss": "accounts.google.com",
+            "email_verified": True,
+            "email": "notallowed@example.com",
+            "sub": "google-user-456",
+        }
+
+        with self.assertRaises(ValueError):
+            verify_google_token("id-token")
+
+    @patch(f"{_MODULE}.APP_SETTINGS")
+    @patch(f"{_MODULE}.requests.Request")
+    @patch(f"{_MODULE}.id_token.verify_oauth2_token")
+    def test_skips_allowed_list_check_when_enforcement_disabled(self, mock_verify, _mock_request, mock_settings):
+        """
+        GIVEN a Google ID token with a valid issuer and an email absent from the allowed list
+        WHEN verify_google_token is called with allowed-list enforcement disabled
+        THEN it returns a result without raising ValueError
+        """
+        mock_settings.GOOGLE_CLIENT_ID = "google-client-id"
+        mock_settings.GOOGLE_ENFORCE_ALLOWED_EMAILS = False
+        mock_settings.GOOGLE_ALLOWED_EMAILS = ["allowed@example.com"]
+        mock_verify.return_value = {
+            "iss": "accounts.google.com",
+            "email_verified": True,
+            "email": "notallowed@example.com",
+            "sub": "google-user-456",
+        }
+
+        result = verify_google_token("id-token")
+
+        self.assertEqual(result.google_id, "google-user-456")

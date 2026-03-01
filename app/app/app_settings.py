@@ -29,6 +29,19 @@ class DjangoSettings(BaseSettings):
     CSRF_TRUSTED_ORIGINS: list[str]
 
 
+class SecuritySettings(BaseSettings):
+    SECURE_HSTS_SECONDS: int | None = None
+    SECURE_HSTS_INCLUDE_SUBDOMAINS: bool | None = False
+    SECURE_HSTS_PRELOAD: bool | None = None
+    SESSION_COOKIE_HTTPONLY: bool = True
+    SESSION_COOKIE_SAMESITE: Literal['Lax', 'Strict', 'None'] = 'Lax'
+    CSRF_COOKIE_HTTPONLY: bool = False  # We have our own middleware
+    CSRF_COOKIE_SAMESITE: Literal['Lax', 'Strict', 'None'] = 'Lax'
+    SECURE_CONTENT_TYPE_NOSNIFF: bool = True
+    SECURE_REFERRER_POLICY: str = 'strict-origin-when-cross-origin'
+    X_FRAME_OPTIONS: Literal['DENY', 'SAMEORIGIN'] = 'DENY'
+
+
 class CelerySettings(BaseSettings):
     CELERY_BROKER_URL: str
     CELERY_RESULT_BACKEND: str
@@ -57,6 +70,8 @@ class AISettings(BaseSettings):
     GOOGLE_API_KEY: str
     DEEPSEEK_API_KEY: str
     MAX_AGENT_CALLS_PER_TASK: int
+    MAX_AGENT_INPUT_TOKENS: int
+    MAX_AGENT_OUTPUT_TOKENS: int
 
 
 class QdrantSettings(BaseSettings):
@@ -74,6 +89,8 @@ class LogfireSettings(BaseSettings):
 class GoogleAuthSettings(BaseSettings):
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
+    GOOGLE_ENFORCE_ALLOWED_EMAILS: bool
+    GOOGLE_ALLOWED_EMAILS: list[str]
 
 
 class AuthSettings(BaseSettings):
@@ -82,6 +99,8 @@ class AuthSettings(BaseSettings):
     JWT_SIGNING_KEY: str
     ACCESS_TOKEN_TTL_SECONDS: int
     REFRESH_TOKEN_TTL_SECONDS: int
+    AUTH_EXCHANGE_PER_MINUTE: int = 20
+    AUTH_REFRESH_PER_MINUTE: int = 60
 
 
 class LimitSettings(BaseSettings):
@@ -106,6 +125,7 @@ class AppSettings(
     GoogleAuthSettings,
     EnvSettings,
     DjangoSettings,
+    SecuritySettings,
     CelerySettings,
     PostgresSettings,
     AISettings,

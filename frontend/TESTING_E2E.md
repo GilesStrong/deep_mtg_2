@@ -71,6 +71,9 @@ This avoids Google OAuth and backend auth dependencies.
 - `GET /api/app/ai/deck/remaining_quota/`
 - `POST /api/app/ai/deck/`
 - `GET /api/app/ai/deck/build_status/:taskId/`
+- `GET /api/app/user/me/export/`
+- `POST /api/app/user/me/delete-request/`
+- `DELETE /api/app/user/me/`
 
 ## Required user journeys covered
 
@@ -80,3 +83,8 @@ This avoids Google OAuth and backend auth dependencies.
 - Unauthenticated protected-route redirect to `/login`
 
 Regenerate scenarios are exercised through normal app navigation and marker handling, without test-only sessionStorage overrides.
+
+Account management scenarios are also covered with backend mocks only:
+
+- Dashboard account export flow via `GET /api/app/user/me/export/`
+- Dashboard two-step account deletion via `POST /api/app/user/me/delete-request/` and `DELETE /api/app/user/me/`

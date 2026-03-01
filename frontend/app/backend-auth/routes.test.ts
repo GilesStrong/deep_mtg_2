@@ -1,0 +1,134 @@
+import { NextRequest } from "next/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const makeExchangeRequest = (body: string, headers?: HeadersInit): NextRequest =>
+    new NextRequest("http://localhost/backend-auth/exchange", {
+        method: "POST",
+        headers,
+        body,
+    });
+
+const makeRefreshRequest = (cookieValue?: string, headers?: HeadersInit): NextRequest => {
+    const combinedHeaders = new Headers(headers);
+    if (cookieValue) {
+        combinedHeaders.set("cookie", `backend_refresh_token=${cookieValue}`);
+    }
+
+    return new NextRequest("http://localhost/backend-auth/refresh", {
+        method: "POST",
+        headers: combinedHeaders,
+    });
+};
+
+describe("backend-auth route handlers", () => {
+    beforeEach(() => {
+        vi.restoreAllMocks();
+        vi.resetModules();
+        process.env.BACKEND_INTERNAL_URL = "http://backend.internal";
+    });
+
+    it("exchange sets access, refresh, and csrf cookies when backend exchange succeeds", async () => {
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(JSON.stringify({ access_token: "access-123", refresh_token: "refresh-123" }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+
+        const route = await import("@/app/backend-auth/exchange/route");
+        const response = await route.POST(
+            makeExchangeRequest(JSON.stringify({ google_id_token: "google-token" }), {
+                "user-agent": "vitest",
+                "x-forwarded-for": "203.0.113.10",
+            }),
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({ ok: true });
+        expect(fetchMock).toHaveBeenCalledWith(
+            "http://backend.internal/api/app/token/exchange",
+            expect.objectContaining({
+                method: "POST",
+                cache: "no-store",
+            }),
+        );
+        expect(response.cookies.get("backend_access_token")?.value).toBe("access-123");
+        expect(response.cookies.get("backend_refresh_token")?.value).toBe("refresh-123");
+
+        const csrfCookie = response.cookies.get("backend_csrf_token");
+        expect(csrfCookie?.value).toBeTruthy();
+        expect(csrfCookie?.httpOnly).toBe(false);
+    });
+
+    it("exchange returns backend error detail when token exchange fails", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(JSON.stringify({ detail: "User not allowed" }), {
+                status: 403,
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+
+        const route = await import("@/app/backend-auth/exchange/route");
+        const response = await route.POST(makeExchangeRequest(JSON.stringify({ google_id_token: "google-token" })));
+
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toEqual({ detail: "User not allowed" });
+    });
+
+    it("refresh returns 401 when refresh cookie is missing", async () => {
+        const fetchMock = vi.spyOn(globalThis, "fetch");
+
+        const route = await import("@/app/backend-auth/refresh/route");
+        const response = await route.POST(makeRefreshRequest());
+
+        expect(response.status).toBe(401);
+        await expect(response.json()).resolves.toEqual({ detail: "Missing refresh token" });
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("refresh rotates access, refresh, and csrf cookies on success", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(JSON.stringify({ access_token: "new-access", refresh_token: "new-refresh" }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+
+        const route = await import("@/app/backend-auth/refresh/route");
+        const response = await route.POST(
+            makeRefreshRequest("refresh-cookie-value", {
+                "user-agent": "vitest",
+                "x-forwarded-for": "203.0.113.10",
+            }),
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({ ok: true });
+        expect(response.cookies.get("backend_access_token")?.value).toBe("new-access");
+        expect(response.cookies.get("backend_refresh_token")?.value).toBe("new-refresh");
+
+        const csrfCookie = response.cookies.get("backend_csrf_token");
+        expect(csrfCookie?.value).toBeTruthy();
+        expect(csrfCookie?.httpOnly).toBe(false);
+    });
+
+    it("clear expires all backend auth cookies", async () => {
+        const route = await import("@/app/backend-auth/clear/route");
+        const response = await route.POST();
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({ ok: true });
+
+        const access = response.cookies.get("backend_access_token");
+        const refresh = response.cookies.get("backend_refresh_token");
+        const csrf = response.cookies.get("backend_csrf_token");
+
+        expect(access?.value).toBe("");
+        expect(refresh?.value).toBe("");
+        expect(csrf?.value).toBe("");
+        expect(access?.maxAge).toBe(0);
+        expect(refresh?.maxAge).toBe(0);
+        expect(csrf?.maxAge).toBe(0);
+        expect(csrf?.httpOnly).toBe(false);
+    });
+});

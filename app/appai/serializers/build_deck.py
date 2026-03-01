@@ -7,6 +7,8 @@ from pydantic import field_validator
 
 from appai.models.deck_build import DeckBuildTask
 
+PROMPT_LENGTH = (20, 3000)
+
 
 class CheckQuotaOut(Schema):
     remaining: int = Field(..., description="The number of remaining deck builds the user can perform today.")
@@ -16,6 +18,8 @@ class BuildDeckPostIn(Schema):
     prompt: str = Field(
         ...,
         description='The prompt for building the deck. This should include the desired theme, strategy, or specific cards you want in the deck.',
+        min_length=PROMPT_LENGTH[0],
+        max_length=PROMPT_LENGTH[1],
     )
     set_codes: list[str] | None = Field(
         None, description='Optional list of set codes to restrict the card selection to specific sets.'

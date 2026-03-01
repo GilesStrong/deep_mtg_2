@@ -161,7 +161,11 @@ async def run_deck_constructor_agent(
     response = await agent.run(
         input_message,
         deps=deps,
-        usage_limits=UsageLimits(request_limit=APP_SETTINGS.MAX_AGENT_CALLS_PER_TASK),
+        usage_limits=UsageLimits(
+            request_limit=APP_SETTINGS.MAX_AGENT_CALLS_PER_TASK,
+            input_tokens_limit=APP_SETTINGS.MAX_AGENT_INPUT_TOKENS,
+            output_tokens_limit=APP_SETTINGS.MAX_AGENT_OUTPUT_TOKENS,
+        ),
     )
 
     deck = await Deck.objects.aget(

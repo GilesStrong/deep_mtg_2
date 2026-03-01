@@ -27,9 +27,10 @@ class RefreshTokenModelTests(TestCase):
         mock_token_urlsafe.return_value = "refresh-token-value"
         user = User.objects.create(google_id="gid-model-1", verified=True, warning_count=0)
 
-        token = RefreshToken.mint(user, user_agent="x" * 1200, ip="127.0.0.1")
+        token, raw_token = RefreshToken.mint(user, user_agent="x" * 1200, ip="127.0.0.1")
 
-        self.assertEqual(token.token, "refresh-token-value")
+        self.assertEqual(raw_token, "refresh-token-value")
+        self.assertEqual(token.token, RefreshToken.hash_token("refresh-token-value"))
         self.assertEqual(token.user_id, user.id)
         self.assertEqual(token.user_agent, "x" * 1000)
         self.assertEqual(token.ip, "127.0.0.1")
@@ -42,7 +43,7 @@ class RefreshTokenModelTests(TestCase):
         THEN it returns False
         """
         user = User.objects.create(google_id="gid-model-2", verified=True, warning_count=0)
-        token = RefreshToken.mint(user)
+        token, _raw_token = RefreshToken.mint(user)
         token.revoked_at = timezone.now()
         token.save(update_fields=["revoked_at"])
 
@@ -55,7 +56,7 @@ class RefreshTokenModelTests(TestCase):
         THEN it returns False
         """
         user = User.objects.create(google_id="gid-model-3", verified=True, warning_count=0)
-        token = RefreshToken.mint(user)
+        token, _raw_token = RefreshToken.mint(user)
         token.expires_at = timezone.now() - timedelta(seconds=1)
         token.save(update_fields=["expires_at"])
 
@@ -68,6 +69,49 @@ class RefreshTokenModelTests(TestCase):
         THEN it returns True
         """
         user = User.objects.create(google_id="gid-model-4", verified=True, warning_count=0)
-        token = RefreshToken.mint(user)
+        token, _raw_token = RefreshToken.mint(user)
 
         self.assertTrue(token.is_valid())
+
+    def test_mint_with_parent_inherits_family(self):
+        """
+        GIVEN a parent refresh token
+        WHEN a child refresh token is minted with parent set
+        THEN the child links to parent and shares the same family_id
+        """
+        user = User.objects.create(google_id="gid-model-5", verified=True, warning_count=0)
+        parent, _parent_raw = RefreshToken.mint(user)
+
+        child, _child_raw = RefreshToken.mint(user, parent=parent)
+
+        self.assertEqual(child.parent_id, parent.id)
+        self.assertEqual(child.family_id, parent.family_id)
+
+    def test_revoke_family_only_revokes_active_tokens(self):
+        """
+        GIVEN a token family with both active and already-revoked tokens
+        WHEN revoke_family is called
+        THEN only active tokens are revoked with the provided reason
+        """
+        user = User.objects.create(google_id="gid-model-6", verified=True, warning_count=0)
+        token_a, _ = RefreshToken.mint(user)
+        token_b, _ = RefreshToken.mint(user, family_id=token_a.family_id)
+        token_c, _ = RefreshToken.mint(user, family_id=token_a.family_id)
+        token_c.revoked_at = timezone.now()
+        token_c.save(update_fields=["revoked_at"])
+
+        revoked = RefreshToken.revoke_family(
+            token_a.family_id,
+            reason=RefreshToken.RevocationReason.REUSE_DETECTED,
+        )
+
+        token_a.refresh_from_db()
+        token_b.refresh_from_db()
+        token_c.refresh_from_db()
+
+        self.assertEqual(revoked, 2)
+        self.assertIsNotNone(token_a.revoked_at)
+        self.assertIsNotNone(token_b.revoked_at)
+        self.assertEqual(token_a.revoked_reason, RefreshToken.RevocationReason.REUSE_DETECTED)
+        self.assertEqual(token_b.revoked_reason, RefreshToken.RevocationReason.REUSE_DETECTED)
+        self.assertEqual(token_c.revoked_reason, "")
