@@ -1,5 +1,10 @@
 name: CI
 
+permissions:
+  contents: read
+  security-events: write
+  id-token: write
+
 on:
   push:
     branches: [main]
@@ -101,3 +106,67 @@ jobs:
           POSTGRES_HOST: 127.0.0.1
           POSTGRES_PORT: 5432
         run: cd app && uv run python manage.py test --failfast
+
+  backend-security:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install uv
+          uv --version
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Run Trivy dependency scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          vuln-type: library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-backend.sarif
+          exit-code: 1
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-backend.sarif
+
+      - name: Generate backend SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: backend-sbom.spdx.json
+
+      - name: Install cosign
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign backend SBOM (keyless)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          cosign sign-blob --yes \
+            --output-signature backend-sbom.sig \
+            --output-certificate backend-sbom.pem \
+            backend-sbom.spdx.json
+
+      - name: Upload backend SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-sbom
+          path: |
+            backend-sbom.spdx.json
+            backend-sbom.sig
+            backend-sbom.pem

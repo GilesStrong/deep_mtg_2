@@ -29,7 +29,7 @@ services:
       retries: 20
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.17
     restart: always
     volumes:
       - deepmtg_qdrant_data_prod:/qdrant/storage
@@ -193,7 +193,7 @@ services:
       - /tmp:rw,noexec,nosuid,size=32m
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.2.0
     restart: unless-stopped
     command: tunnel --config /etc/cloudflared/config.yml run
     volumes:
