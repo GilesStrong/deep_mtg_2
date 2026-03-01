@@ -29,6 +29,19 @@ class DjangoSettings(BaseSettings):
     CSRF_TRUSTED_ORIGINS: list[str]
 
 
+class SecuritySettings(BaseSettings):
+    SECURE_HSTS_SECONDS: int | None = None
+    SECURE_HSTS_INCLUDE_SUBDOMAINS: bool | None = False
+    SECURE_HSTS_PRELOAD: bool | None = None
+    SESSION_COOKIE_HTTPONLY: bool = True
+    SESSION_COOKIE_SAMESITE: Literal['Lax', 'Strict', 'None'] = 'Lax'
+    CSRF_COOKIE_HTTPONLY: bool = False  # We have our own middleware
+    CSRF_COOKIE_SAMESITE: Literal['Lax', 'Strict', 'None'] = 'Lax'
+    SECURE_CONTENT_TYPE_NOSNIFF: bool = True
+    SECURE_REFERRER_POLICY: str = 'strict-origin-when-cross-origin'
+    X_FRAME_OPTIONS: Literal['DENY', 'SAMEORIGIN'] = 'DENY'
+
+
 class CelerySettings(BaseSettings):
     CELERY_BROKER_URL: str
     CELERY_RESULT_BACKEND: str
@@ -112,6 +125,7 @@ class AppSettings(
     GoogleAuthSettings,
     EnvSettings,
     DjangoSettings,
+    SecuritySettings,
     CelerySettings,
     PostgresSettings,
     AISettings,
