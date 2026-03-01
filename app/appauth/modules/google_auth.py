@@ -40,4 +40,7 @@ def verify_google_token(token: str) -> GoogleTokenVerificationResult:
     if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
         raise ValueError("Wrong issuer.")
 
+    if APP_SETTINGS.GOOGLE_ENFORCE_ALLOWED_EMAILS and idinfo.get('email') not in APP_SETTINGS.GOOGLE_ALLOWED_EMAILS:
+        raise ValueError("User not allowed.")
+
     return GoogleTokenVerificationResult(verified=idinfo.get('email_verified', False), google_id=idinfo['sub'])

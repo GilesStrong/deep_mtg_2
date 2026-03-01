@@ -74,6 +74,8 @@ class LogfireSettings(BaseSettings):
 class GoogleAuthSettings(BaseSettings):
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
+    GOOGLE_ENFORCE_ALLOWED_EMAILS: bool
+    GOOGLE_ALLOWED_EMAILS: list[str]
 
 
 class AuthSettings(BaseSettings):
