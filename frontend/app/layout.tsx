@@ -26,7 +26,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers>
           <div className="min-h-screen flex flex-col">
-            <main className="flex-1">{children}</main>
+            <main className="flex h-full flex-1 flex-col">{children}</main>
             <LegalFooter />
           </div>
         </Providers>
