@@ -28,23 +28,23 @@ jobs:
           bun install --save-text-lockfile
           ls -la
 
-      - name: Run Trivy dependency scan
-        uses: aquasecurity/trivy-action@0.34.1
-        with:
-          scan-type: fs
-          scan-ref: frontend
-          vuln-type: library
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          format: sarif
-          output: trivy-frontend.sarif
-          exit-code: 1
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+          grype version
 
-      - name: Upload Trivy SARIF
-        if: always() && hashFiles('trivy-frontend.sarif') != ''
+      - name: Scan frontend directory with Grype (SARIF)
+        run: |
+          grype dir:frontend \
+            --only-fixed=false \
+            --fail-on high \
+            -o sarif > grype-frontend.sarif
+
+      - name: Upload Grype SARIF
+        if: always() && hashFiles('grype-frontend.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: trivy-frontend.sarif
+          sarif_file: grype-frontend.sarif
 
       - name: Generate frontend SBOM (SPDX)
         uses: anchore/sbom-action@v0
