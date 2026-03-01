@@ -25,6 +25,8 @@ import { getAvatarUrlFromSession } from "@/lib/avatar";
 const REGENERATE_NAV_MARKER_KEY = "deep-mtg.regenerate-nav";
 const REGENERATE_NAV_MARKER_MAX_AGE_MS = 60_000;
 const BUILD_STATUS_TIMEOUT_MS = 120_000;
+const PROMPT_MIN_LENGTH = 20;
+const PROMPT_MAX_LENGTH = 3000;
 
 function GenerateDeckPageContent() {
     const { data: session } = useSession();
@@ -259,7 +261,13 @@ function GenerateDeckPageContent() {
     };
 
     const handleGenerateDeck = async () => {
-        if (!prompt.trim() || selectedSetCodes.length === 0 || remainingQuota === 0) {
+        if (
+            !prompt.trim() ||
+            prompt.length < PROMPT_MIN_LENGTH ||
+            prompt.length > PROMPT_MAX_LENGTH ||
+            selectedSetCodes.length === 0 ||
+            remainingQuota === 0
+        ) {
             return;
         }
 
@@ -307,7 +315,10 @@ function GenerateDeckPageContent() {
     };
 
     const isQuotaExceeded = remainingQuota === 0;
-    const isSubmitDisabled = !prompt.trim() || isGenerating || isLoadingSetCodes || selectedSetCodes.length === 0 || isQuotaExceeded;
+    const promptLength = prompt.length;
+    const isPromptLengthInvalid = promptLength < PROMPT_MIN_LENGTH || promptLength > PROMPT_MAX_LENGTH;
+    const isSubmitDisabled =
+        !prompt.trim() || isPromptLengthInvalid || isGenerating || isLoadingSetCodes || selectedSetCodes.length === 0 || isQuotaExceeded;
 
     const handleSignOut = async () => {
         clearBackendTokens();
@@ -361,7 +372,12 @@ function GenerateDeckPageContent() {
                                 <p className="text-sm text-muted-foreground">Target deck: {regenerationDeckId}</p>
                             ) : null}
                             <div className="space-y-2">
-                                <Label htmlFor="prompt">Prompt</Label>
+                                <div className="flex items-center justify-between gap-2">
+                                    <Label htmlFor="prompt">Prompt</Label>
+                                    <p className="text-xs text-muted-foreground" aria-live="polite">
+                                        {promptLength}/{PROMPT_MAX_LENGTH}
+                                    </p>
+                                </div>
                                 <Textarea
                                     id="prompt"
                                     placeholder="A blue-red spellslinger deck with strong instant-speed interaction..."
@@ -370,6 +386,11 @@ function GenerateDeckPageContent() {
                                     rows={5}
                                     disabled={isGenerating}
                                 />
+                                {isPromptLengthInvalid ? (
+                                    <p className="text-xs text-muted-foreground">
+                                        Prompt must be between {PROMPT_MIN_LENGTH} and {PROMPT_MAX_LENGTH} characters.
+                                    </p>
+                                ) : null}
                             </div>
                             <div className="space-y-2">
                                 <Label>Set Codes</Label>
