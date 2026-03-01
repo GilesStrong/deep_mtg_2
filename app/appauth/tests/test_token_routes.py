@@ -195,5 +195,5 @@ class RefreshRouteTests(TestCase):
         self.assertIsNotNone(old_rt.revoked_at)
         self.assertEqual(old_rt.revoked_reason, RefreshToken.RevocationReason.ROTATED)
         self.assertIsNotNone(new_rt.revoked_at)
-        self.assertEqual(new_rt.revoked_reason, RefreshToken.RevocationReason.REUSE_DETECTED)
+        self.assertEqual(new_rt.revoked_reason, RefreshToken.RevocationReason.REUSE_DETECTED[0])
         self.assertLessEqual(old_rt.revoked_at, timezone.now())

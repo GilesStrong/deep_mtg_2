@@ -4,13 +4,11 @@ from ninja import Field, Schema
 
 
 class ExportDeckCardOut(Schema):
-    card_id: UUID = Field(..., description='The unique ID of the card')
     card_name: str = Field(..., description='Card name')
     quantity: int = Field(..., description='Number of copies in this deck')
 
 
 class ExportDeckOut(Schema):
-    id: UUID = Field(..., description='The unique ID of the deck')
     name: str = Field(..., description='Deck name')
     short_summary: str | None = Field(None, description='Deck short summary')
     full_summary: str | None = Field(None, description='Deck full summary')
@@ -33,7 +31,6 @@ class ExportUserOut(Schema):
     id: UUID = Field(..., description='The unique ID of the user account')
     google_id: str = Field(..., description='Google account ID associated with this user')
     verified: bool = Field(..., description='Whether the user has a verified account')
-    warning_count: int = Field(..., description='Number of policy warnings associated with this user')
 
 
 class ExportDataOut(Schema):

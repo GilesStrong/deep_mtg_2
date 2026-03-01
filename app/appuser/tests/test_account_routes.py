@@ -47,8 +47,6 @@ class AccountRoutesTests(TestCase):
         self.assertEqual(len(result.decks[0].cards), 1)
         self.assertEqual(result.decks[0].cards[0].card_name, "Opt")
         self.assertEqual(result.decks[0].cards[0].quantity, 3)
-        self.assertEqual(len(result.refresh_tokens), 1)
-        self.assertEqual(result.refresh_tokens[0].user_agent, "pytest")
 
     def test_export_account_data_rate_limit_rejected(self):
         """

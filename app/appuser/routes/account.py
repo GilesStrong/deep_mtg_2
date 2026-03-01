@@ -16,7 +16,6 @@ from appuser.serializers.account import (
     ExportDataOut,
     ExportDeckCardOut,
     ExportDeckOut,
-    ExportRefreshTokenOut,
     ExportUserOut,
 )
 
@@ -145,12 +144,11 @@ def export_account_data(request: HttpRequest) -> ExportDataOut:
 
     for deck in user_decks:
         cards = [
-            ExportDeckCardOut(card_id=deck_card.card_id, card_name=deck_card.card.name, quantity=deck_card.quantity)
+            ExportDeckCardOut(card_name=deck_card.card.name, quantity=deck_card.quantity)
             for deck_card in deck.deckcard_set.all()
         ]
         decks.append(
             ExportDeckOut(
-                id=deck.id,
                 name=deck.name,
                 short_summary=deck.short_llm_summary,
                 full_summary=deck.llm_summary,
@@ -162,27 +160,14 @@ def export_account_data(request: HttpRequest) -> ExportDataOut:
             )
         )
 
-    refresh_tokens = [
-        ExportRefreshTokenOut(
-            created_at=token.created_at.isoformat(),
-            expires_at=token.expires_at.isoformat(),
-            revoked_at=token.revoked_at.isoformat() if token.revoked_at else None,
-            user_agent=token.user_agent,
-            ip=token.ip,
-        )
-        for token in user.refresh_tokens.all().order_by('-created_at')
-    ]
-
     return ExportDataOut(
         exported_at=timezone.now().isoformat(),
         user=ExportUserOut(
             id=user.id,
             google_id=user.google_id,
             verified=user.verified,
-            warning_count=user.warning_count,
         ),
         decks=decks,
-        refresh_tokens=refresh_tokens,
     )
 
 
