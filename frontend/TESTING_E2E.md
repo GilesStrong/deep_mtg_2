@@ -68,6 +68,8 @@ This avoids Google OAuth and backend auth dependencies.
 - `GET /api/app/cards/deck/`
 - `GET /api/app/cards/deck/:deckId/full/`
 - `GET /api/app/cards/card/set_codes/`
+- `GET /api/app/cards/card/tags/`
+- `POST /api/app/search/search/`
 - `GET /api/app/ai/deck/remaining_quota/`
 - `POST /api/app/ai/deck/`
 - `GET /api/app/ai/deck/build_status/:taskId/`

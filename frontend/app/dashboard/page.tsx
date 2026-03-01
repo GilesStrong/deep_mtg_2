@@ -206,7 +206,10 @@ export default function DashboardPage() {
                 <div className="mx-auto max-w-4xl space-y-6">
                     <div className="flex items-center justify-between">
                         <h2 className="text-xl font-semibold">Decks</h2>
-                        <Button onClick={() => router.push("/decks/generate")}>Generate Deck</Button>
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" onClick={() => router.push("/cards/search")}>Search Cards</Button>
+                            <Button onClick={() => router.push("/decks/generate")}>Generate Deck</Button>
+                        </div>
                     </div>
 
                     <Card>

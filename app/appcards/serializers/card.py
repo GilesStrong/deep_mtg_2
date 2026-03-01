@@ -13,6 +13,10 @@ class SetCodesOut(Schema):
     )
 
 
+class SetTagsOut(Schema):
+    tags: list[str] = Field(..., description="A list of all available tags that can be used for deck construction")
+
+
 class GetCardIn(Schema):
     card_id: UUID = Field(..., description='The unique identifier of the card to retrieve.')
 

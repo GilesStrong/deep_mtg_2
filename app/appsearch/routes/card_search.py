@@ -1,12 +1,12 @@
 from appauth.modules.auth_rate_limit import check_auth_rate_limit
 from appcards.constants.storage import CARD_COLLECTION_NAME
 from appcards.models.card import Card
-from appcards.modules.card_info import CardInfo, card_to_info
+from appcards.modules.card_info import card_to_info
 from django.http import HttpRequest
 from ninja import Router
 from ninja.errors import HttpError
 
-from appsearch.serializers.card_search import SearchCardsIn
+from appsearch.serializers.card_search import FoundCard, SearchCardsIn, SearchCardsOut
 from appsearch.services.qdrant.search import run_query_from_dsl
 from appsearch.services.qdrant.search_dsl import Filter, MatchAnyCondition, Query
 
@@ -63,10 +63,10 @@ def _check_search_rate_limit(request: HttpRequest) -> None:
     '/search/',
     summary='Search for cards',
     description='Search for cards based on a query string.',
-    response={200: list[CardInfo]},
+    response={200: SearchCardsOut},
     operation_id='search_cards',
 )
-def search_cards(request: HttpRequest, payload: SearchCardsIn) -> list[CardInfo]:
+def search_cards(request: HttpRequest, payload: SearchCardsIn) -> SearchCardsOut:
     """
     Search for cards based on a query string and filters.
     Searches are limited to a certain number per hour to prevent abuse.
@@ -76,7 +76,7 @@ def search_cards(request: HttpRequest, payload: SearchCardsIn) -> list[CardInfo]
         payload (SearchCardsIn): An object containing the search query string and filters such as tags, set codes, and colors.
 
     Returns:
-        list[CardInfo]: A list of card information objects that match the search criteria.
+        SearchCardsOut: An object containing a list of card information objects and their relevance scores that match the search criteria.
     """
     _check_search_rate_limit(request)
     query = payload.query
@@ -85,12 +85,15 @@ def search_cards(request: HttpRequest, payload: SearchCardsIn) -> list[CardInfo]
     tags = payload.tags
 
     # Build filter
+    must = []
+    if len(set_codes) > 0:
+        must.append(MatchAnyCondition(key="set_codes", any=set_codes))
+    if len(colors) > 0:
+        must.append(MatchAnyCondition(key="colors", any=colors))
+    if len(tags) > 0:
+        must.append(MatchAnyCondition(key="tags", any=tags))
     card_filter = Filter(
-        must=[
-            MatchAnyCondition(key="set_codes", any=set_codes),
-            MatchAnyCondition(key="colors", any=colors),
-            MatchAnyCondition(key="tags", any=tags),
-        ],
+        must=must,  # type: ignore[arg-type]
     )
 
     # Run search
@@ -103,7 +106,7 @@ def search_cards(request: HttpRequest, payload: SearchCardsIn) -> list[CardInfo]
     for point in found_cards:
         try:
             card = Card.objects.get(id=point.id)
-            card_infos.append(card_to_info(card))
+            card_infos.append(FoundCard(card_info=card_to_info(card), relevance_score=point.score))
         except Card.DoesNotExist:
             continue
-    return card_infos
+    return SearchCardsOut(cards=card_infos)

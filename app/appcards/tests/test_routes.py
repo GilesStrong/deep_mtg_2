@@ -10,7 +10,7 @@ from ninja.errors import HttpError
 from appcards.models.card import Card, Rarity
 from appcards.models.deck import Deck
 from appcards.models.printing import Printing
-from appcards.routes.card import get_card, list_set_codes
+from appcards.routes.card import get_card, list_set_codes, list_tags
 from appcards.routes.deck import delete_deck, get_summary_deck
 
 _CARD_MODULE = "appcards.routes.card"
@@ -18,6 +18,20 @@ _CARD_MODULE = "appcards.routes.card"
 
 class CardRoutesTests(TestCase):
     """Tests for appcards card routes."""
+
+    def test_list_tags_returns_distinct_sorted_values(self):
+        """
+        GIVEN cards with overlapping tag lists
+        WHEN list_tags is called
+        THEN it returns distinct tags in ascending order
+        """
+        Card.objects.create(name="Opt", text="Scry 1.", rarity=Rarity.COMMON, tags=["Control", "Cantrip"])
+        Card.objects.create(name="Shock", text="Deal 2 damage.", rarity=Rarity.COMMON, tags=["Aggro", "Control"])
+        Card.objects.create(name="Llanowar Elves", text="Add G.", rarity=Rarity.COMMON, tags=["Ramp"])
+
+        result = list_tags(SimpleNamespace())
+
+        self.assertEqual(result.tags, ["Aggro", "Cantrip", "Control", "Ramp"])
 
     def test_list_set_codes_returns_distinct_sorted_values(self):
         """

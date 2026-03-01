@@ -1,8 +1,9 @@
 from appcards.constants.cards import CARD_TAGS
 from appcards.models.card import ManaColorEnum
+from appcards.modules.card_info import CardInfo
 from ninja import Field, Schema
 from ninja.errors import HttpError
-from pydantic import field_validator
+from pydantic import BaseModel, field_validator
 
 PROMPT_LENGTH = (20, 200)
 
@@ -38,3 +39,15 @@ class SearchCardsIn(Schema):
                 400, f'Invalid tags: {", ".join(invalid_tags)}. Valid tags are: {", ".join(CARD_TAGS.keys())}'
             )
         return value
+
+
+class FoundCard(BaseModel):
+    card_info: CardInfo = Field(..., description='The information of the found card.')
+    relevance_score: float = Field(..., description='The relevance score of the found card to the search query.')
+
+
+class SearchCardsOut(Schema):
+    cards: list[FoundCard] = Field(
+        ...,
+        description='A list of FoundCard objects, where each object contains a CardInfo object representing a card that matches the search criteria, and a float representing the relevance score of that card to the search query.',
+    )

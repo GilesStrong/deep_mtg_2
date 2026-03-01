@@ -32,6 +32,36 @@ type DeckCardResponse = {
     toughness: string | null;
     colors: string[];
     keywords: string[];
+    tags?: string[];
+};
+
+type SearchCardResponse = {
+    id: string;
+    name: string;
+    text: string;
+    llm_summary: string | null;
+    types: string[];
+    subtypes: string[];
+    supertypes: string[];
+    set_codes: string[];
+    rarity: string;
+    converted_mana_cost: number;
+    mana_cost_colorless: number;
+    mana_cost_white: number;
+    mana_cost_blue: number;
+    mana_cost_black: number;
+    mana_cost_red: number;
+    mana_cost_green: number;
+    power: string | null;
+    toughness: string | null;
+    colors: string[];
+    keywords: string[];
+    tags: string[];
+};
+
+type SearchCardResult = {
+    card_info: SearchCardResponse;
+    relevance_score: number;
 };
 
 type DeckDetail = {
@@ -239,6 +269,41 @@ export const mockSetCodes = async (page: Page, setCodes: string[]): Promise<void
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({ set_codes: setCodes }),
+        });
+    });
+};
+
+export const mockCardTags = async (page: Page, tags: string[]): Promise<void> => {
+    await page.route("**/api/app/cards/card/tags/", async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ tags }),
+        });
+    });
+};
+
+export const captureCardSearchRequest = (page: Page): Promise<Request> =>
+    page.waitForRequest(
+        (request) =>
+            request.method() === "POST" && isPath(request.url(), "/api/app/search/search/"),
+        { timeout: 10_000 }
+    );
+
+export const mockCardSearchResponse = async (
+    page: Page,
+    cards: SearchCardResult[]
+): Promise<void> => {
+    await page.route("**/api/app/search/search/", async (route) => {
+        if (route.request().method() !== "POST") {
+            await route.continue();
+            return;
+        }
+
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ cards }),
         });
     });
 };

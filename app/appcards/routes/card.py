@@ -1,9 +1,10 @@
 from django.http import HttpRequest
 from ninja import Path, Router
 
+from appcards.models.card import Card
 from appcards.models.printing import Printing
 from appcards.modules.card_info import CardInfo, card_to_info
-from appcards.serializers.card import GetCardIn, SetCodesOut
+from appcards.serializers.card import GetCardIn, SetCodesOut, SetTagsOut
 
 router = Router(tags=['cards'])
 
@@ -23,6 +24,24 @@ def list_set_codes(request: HttpRequest) -> SetCodesOut:
     """
     set_codes = list(Printing.objects.order_by('set_code').values_list('set_code', flat=True).distinct())
     return SetCodesOut(set_codes=set_codes)
+
+
+@router.get(
+    '/tags/',
+    summary='List available tags',
+    description='Retrieve a list of all available tags.',
+    response={200: SetTagsOut},
+    operation_id='list_tags',
+)
+def list_tags(request: HttpRequest) -> SetTagsOut:
+    """
+    Retrieve a list of all available tags.
+
+    This endpoint allows you to fetch the tags that are currently available for deck construction.
+    """
+    tag_lists = Card.objects.values_list('tags', flat=True)
+    tags = sorted({tag for tag_list in tag_lists for tag in (tag_list or [])})
+    return SetTagsOut(tags=tags)
 
 
 @router.get(

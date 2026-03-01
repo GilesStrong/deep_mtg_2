@@ -159,6 +159,17 @@ describe("DeckPage", () => {
         expect(push).toHaveBeenCalledWith("/decks/generate?deckId=deck-1");
     });
 
+    it("navigates to card search from deck details", async () => {
+        const user = userEvent.setup();
+
+        render(<DeckPage />);
+        expect(await screen.findByText("Deck Details")).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Search Cards" }));
+
+        expect(push).toHaveBeenCalledWith("/cards/search?deckId=deck-1");
+    });
+
     it("shows not found state when deck fetch fails", async () => {
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
             if (url === "/api/app/cards/deck/deck-1/full/") {
