@@ -97,15 +97,6 @@ export const mockAuth = async (page: Page): Promise<void> => {
         },
     ]);
 
-    await page.addInitScript(
-        ({ email }) => {
-            window.localStorage.setItem("deep_mtg_backend_access_token", "e2e-access-token");
-            window.localStorage.setItem("deep_mtg_backend_refresh_token", "e2e-refresh-token");
-            window.localStorage.setItem("deep_mtg_backend_user_email", email);
-        },
-        { email: E2E_USER.email }
-    );
-
     await page.route("**/api/auth/session", async (route) => {
         await route.fulfill({
             status: 200,
@@ -117,25 +108,31 @@ export const mockAuth = async (page: Page): Promise<void> => {
         });
     });
 
-    await page.route("**/api/app/token/exchange", async (route) => {
+    await page.route("**/backend-auth/exchange", async (route) => {
         await route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({
-                access_token: "e2e-access-token",
-                refresh_token: "e2e-refresh-token",
+                ok: true,
             }),
         });
     });
 
-    await page.route("**/api/app/token/refresh", async (route) => {
+    await page.route("**/backend-auth/refresh", async (route) => {
         await route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({
-                access_token: "e2e-access-token",
-                refresh_token: "e2e-refresh-token",
+                ok: true,
             }),
+        });
+    });
+
+    await page.route("**/backend-auth/clear", async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ ok: true }),
         });
     });
 };

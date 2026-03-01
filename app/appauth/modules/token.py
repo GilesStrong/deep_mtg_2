@@ -74,6 +74,7 @@ def decode_access_token(token: str) -> dict:
 
 
 class AccessTokenAuth(HttpBearer):
+    cookie_name = "backend_access_token"
     """
     HTTP Bearer token authentication class for access token validation.
 
@@ -101,3 +102,14 @@ class AccessTokenAuth(HttpBearer):
             return User.objects.get(id=user_id)
         except (jwt.PyJWTError, ValueError, User.DoesNotExist):
             return None
+
+    def __call__(self, request: HttpRequest) -> User | None:
+        user = super().__call__(request)
+        if user is not None:
+            return user
+
+        cookie_token = request.COOKIES.get(self.cookie_name)
+        if not cookie_token:
+            return None
+
+        return self.authenticate(request, cookie_token)
