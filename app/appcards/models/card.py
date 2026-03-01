@@ -59,6 +59,7 @@ class Card(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     llm_summary = models.TextField(blank=True, null=True)
+    tags = models.JSONField(default=list, blank=True, validators=[_validate_str_list])
     subtypes = models.JSONField(default=list, blank=True, validators=[_validate_str_list])
     supertypes = models.JSONField(default=list, blank=True, validators=[_validate_str_list])
     power = models.CharField(max_length=10, blank=True, null=True)

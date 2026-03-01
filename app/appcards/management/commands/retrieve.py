@@ -29,4 +29,4 @@ class Command(BaseCommand):
         )
 
         for p in points:
-            print(f"Retrieved card ID: {p.id}, score: {p.score}, payload name: {p.payload['name']}")
+            print(f"Retrieved card ID: {p.id}, score: {p.score}, payload: {p.payload}")

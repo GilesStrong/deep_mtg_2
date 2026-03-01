@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from appcore.modules.beartype import beartype
 from django.core.management.base import BaseCommand
+from django.db.models import Q
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from appcards.models import Card
@@ -21,14 +22,15 @@ def generate_card_summary(card: Card, semaphore: Semaphore) -> None:
     with semaphore:
         info = card_to_info(card)
         summary = summarise_card(info)
-        card.llm_summary = summary
+        card.llm_summary = summary.summary
+        card.tags = summary.tags
         card.save()
         print(f"✓ Generated summary for: {card.name}")
 
 
 @beartype
 def generate_card_summaries(n_max_summaries: Optional[int], max_workers: int = 5) -> None:
-    cards = Card.objects.filter(llm_summary__isnull=True).prefetch_related("printings")
+    cards = Card.objects.filter(Q(llm_summary__isnull=True)).prefetch_related("printings")
     print(f"Generating summaries for {cards.count()} cards")
     if n_max_summaries is not None:
         if n_max_summaries <= 0:
@@ -47,7 +49,7 @@ def generate_card_summaries(n_max_summaries: Optional[int], max_workers: int = 5
             except Exception as e:
                 print(f"✗ Failed to generate summary: {e}")
 
-    n_remaining = Card.objects.filter(llm_summary__isnull=True).count()
+    n_remaining = Card.objects.filter(Q(llm_summary__isnull=True)).count()
     print(f"Finished generating summaries. {n_remaining} cards remaining without summaries.")
 
 

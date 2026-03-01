@@ -45,7 +45,7 @@ def get_un_embedded_cards(cards: list[Card]) -> list[Card]:
     existing_points = QDRANT_CLIENT.retrieve(
         collection_name=CARD_COLLECTION_NAME,
         ids=[str(card.id) for card in cards],
-        with_payload=False,
+        with_payload=True,
         with_vectors=False,
     )
 

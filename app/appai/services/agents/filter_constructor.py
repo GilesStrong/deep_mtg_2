@@ -1,5 +1,7 @@
+import json
+
 from aiocache import cached
-from appcards.constants.cards import EVERGREEN_KEYWORDS
+from appcards.constants.cards import CARD_TAGS, EVERGREEN_KEYWORDS
 from appcards.models.card import ManaColorEnum, Rarity, TypeEnum
 from appcards.modules.card_info import CardInfo
 from appcore.modules.beartype import beartype
@@ -29,6 +31,7 @@ METADATA_FILTER_FIELDS = [
     'types',
     'rarity',
     'keywords',
+    'tags',
 ]
 
 
@@ -130,6 +133,14 @@ def validate_card_filter(card_filter: Filter) -> None:
                 for value in condition.any:
                     if type(value) is not str:
                         raise ModelRetry(f"Invalid string filter: {value} is not a valid string")
+        if condition.key == 'tags':
+            if isinstance(condition, MatchAnyCondition):
+                for tag in condition.any:
+                    if tag not in CARD_TAGS:
+                        raise ModelRetry(f"Invalid tag filter: {tag} is not a valid tag")
+            elif isinstance(condition, MatchValueCondition):
+                if condition.value not in CARD_TAGS:
+                    raise ModelRetry(f"Invalid tag filter: {condition.value} is not a valid tag")
 
     for condition in card_filter.should + card_filter.must + card_filter.must_not:
         _validate_condition(condition)
@@ -156,8 +167,14 @@ Should filter on colors to be red only, creature type, low converted mana cost, 
 {METADATA_FIELD_DESCRIPTIONS}
 
 ## Notes
+### Keywords
 If filtering on keywords, only filter on evergreen keywords, which are the most commonly used keywords in Magic: The Gathering.
 The following are the current set of evergreen keywords: {EVERGREEN_KEYWORDS}
+
+### Tags
+If filtering on tags, only filter on the predefined set of tags that are used to categorise cards based on their attributes and potential roles in a deck.
+The following are the current set of tags and their meanings: {json.dumps(CARD_TAGS, indent=2, ensure_ascii=False)}
+A card can have multiple tags, and some tags are more general than others e.g. a card that is tagged as 'Aggro' may also be tagged as 'Weenie'.
 
 # Input
 The input will be a search query string provided by the user in natural language.
