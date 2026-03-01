@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from appuser.models import User
 from django.test import TestCase
+from django.utils import timezone
 from ninja.errors import HttpError
 
 from appauth.models.token import RefreshToken
@@ -146,15 +147,53 @@ class RefreshRouteTests(TestCase):
         with (
             patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit,
             patch(f"{_MODULE}.mint_access_token") as mock_mint_access,
-            patch(f"{_MODULE}.RefreshToken.mint") as mock_mint_refresh,
         ):
             mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
             mock_mint_access.return_value = "new-access-token"
-            mock_mint_refresh.return_value = (SimpleNamespace(token="hashed-new-refresh-token"), "new-refresh-token")
 
             result = refresh(request, payload)
 
         old_rt.refresh_from_db()
+        new_rt = RefreshToken.from_raw_token(result.refresh_token)
         self.assertIsNotNone(old_rt.revoked_at)
+        self.assertEqual(old_rt.revoked_reason, RefreshToken.RevocationReason.ROTATED)
+        self.assertEqual(old_rt.replaced_by_id, new_rt.id)
+        self.assertEqual(new_rt.parent_id, old_rt.id)
+        self.assertEqual(new_rt.family_id, old_rt.family_id)
         self.assertEqual(result.access_token, "new-access-token")
-        self.assertEqual(result.refresh_token, "new-refresh-token")
+        self.assertIsInstance(result.refresh_token, str)
+
+    def test_reuse_of_rotated_token_revokes_token_family(self):
+        """
+        GIVEN a refresh token that has already been rotated once
+        WHEN the old token is used again
+        THEN the token family is revoked and refresh returns 401
+        """
+        user = User.objects.create(google_id="gid-refresh-reuse", verified=True, warning_count=0)
+        old_rt, old_raw_token = RefreshToken.mint(user, user_agent="ua", ip="127.0.0.1")
+
+        request = SimpleNamespace(headers={"User-Agent": "pytest"}, META={"REMOTE_ADDR": "127.0.0.1"})
+
+        with (
+            patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit,
+            patch(f"{_MODULE}.mint_access_token") as mock_mint_access,
+        ):
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
+            mock_mint_access.return_value = "new-access-token"
+
+            first_result = refresh(request, SimpleNamespace(refresh_token=old_raw_token))
+
+            with self.assertRaises(HttpError) as ctx:
+                refresh(request, SimpleNamespace(refresh_token=old_raw_token))
+
+        self.assertEqual(ctx.exception.status_code, 401)
+
+        old_rt.refresh_from_db()
+        new_rt = RefreshToken.from_raw_token(first_result.refresh_token)
+        new_rt.refresh_from_db()
+
+        self.assertIsNotNone(old_rt.revoked_at)
+        self.assertEqual(old_rt.revoked_reason, RefreshToken.RevocationReason.ROTATED)
+        self.assertIsNotNone(new_rt.revoked_at)
+        self.assertEqual(new_rt.revoked_reason, RefreshToken.RevocationReason.REUSE_DETECTED)
+        self.assertLessEqual(old_rt.revoked_at, timezone.now())

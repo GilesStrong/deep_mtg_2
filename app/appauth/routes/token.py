@@ -1,6 +1,8 @@
 from app.app_settings import APP_SETTINGS
 from appuser.models import User
+from django.db import transaction
 from django.http import HttpRequest
+from django.utils import timezone
 from ninja import Router
 from ninja.errors import HttpError
 
@@ -140,18 +142,38 @@ def refresh(request: HttpRequest, payload: RefreshIn) -> ExchangeOut:
     except RefreshToken.DoesNotExist:
         raise HttpError(401, "Invalid refresh token")
 
-    if not rt.is_valid():
+    is_invalid = False
+    reuse_family_id = None
+    new_raw_refresh_token = ""
+    with transaction.atomic():
+        rt = RefreshToken.objects.select_for_update().select_related("user").get(pk=rt.pk)
+
+        if not rt.is_valid():
+            is_invalid = True
+            if rt.looks_like_rotated_token_reuse():
+                reuse_family_id = rt.family_id
+        else:
+            new_rt, new_raw_refresh_token = RefreshToken.mint(
+                rt.user,
+                user_agent=request.headers.get("User-Agent", ""),
+                ip=request.META.get("REMOTE_ADDR"),
+                parent=rt,
+                family_id=rt.family_id,
+            )
+
+            RefreshToken.objects.filter(pk=rt.pk).update(
+                revoked_at=timezone.now(),
+                revoked_reason=RefreshToken.RevocationReason.ROTATED,
+                replaced_by_id=new_rt.pk,
+            )
+
+    if is_invalid:
+        if reuse_family_id is not None:
+            RefreshToken.revoke_family(
+                reuse_family_id,
+                reason=RefreshToken.RevocationReason.REUSE_DETECTED[0],
+            )
         raise HttpError(401, "Refresh token expired or revoked")
-
-    # Rotate the refresh token by revoking the old one and minting a new one
-    rt.revoked_at = __import__("django.utils.timezone").utils.timezone.now()
-    rt.save(update_fields=["revoked_at"])
-
-    _new_rt, new_raw_refresh_token = RefreshToken.mint(
-        rt.user,
-        user_agent=request.headers.get("User-Agent", ""),
-        ip=request.META.get("REMOTE_ADDR"),
-    )
 
     access = mint_access_token(user_id=rt.user.id)
     return ExchangeOut(access_token=access, refresh_token=new_raw_refresh_token)

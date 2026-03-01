@@ -72,3 +72,46 @@ class RefreshTokenModelTests(TestCase):
         token, _raw_token = RefreshToken.mint(user)
 
         self.assertTrue(token.is_valid())
+
+    def test_mint_with_parent_inherits_family(self):
+        """
+        GIVEN a parent refresh token
+        WHEN a child refresh token is minted with parent set
+        THEN the child links to parent and shares the same family_id
+        """
+        user = User.objects.create(google_id="gid-model-5", verified=True, warning_count=0)
+        parent, _parent_raw = RefreshToken.mint(user)
+
+        child, _child_raw = RefreshToken.mint(user, parent=parent)
+
+        self.assertEqual(child.parent_id, parent.id)
+        self.assertEqual(child.family_id, parent.family_id)
+
+    def test_revoke_family_only_revokes_active_tokens(self):
+        """
+        GIVEN a token family with both active and already-revoked tokens
+        WHEN revoke_family is called
+        THEN only active tokens are revoked with the provided reason
+        """
+        user = User.objects.create(google_id="gid-model-6", verified=True, warning_count=0)
+        token_a, _ = RefreshToken.mint(user)
+        token_b, _ = RefreshToken.mint(user, family_id=token_a.family_id)
+        token_c, _ = RefreshToken.mint(user, family_id=token_a.family_id)
+        token_c.revoked_at = timezone.now()
+        token_c.save(update_fields=["revoked_at"])
+
+        revoked = RefreshToken.revoke_family(
+            token_a.family_id,
+            reason=RefreshToken.RevocationReason.REUSE_DETECTED,
+        )
+
+        token_a.refresh_from_db()
+        token_b.refresh_from_db()
+        token_c.refresh_from_db()
+
+        self.assertEqual(revoked, 2)
+        self.assertIsNotNone(token_a.revoked_at)
+        self.assertIsNotNone(token_b.revoked_at)
+        self.assertEqual(token_a.revoked_reason, RefreshToken.RevocationReason.REUSE_DETECTED)
+        self.assertEqual(token_b.revoked_reason, RefreshToken.RevocationReason.REUSE_DETECTED)
+        self.assertEqual(token_c.revoked_reason, "")
