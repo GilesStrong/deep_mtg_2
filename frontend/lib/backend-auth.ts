@@ -73,11 +73,16 @@ export const ensureBackendTokens = async (session: Session | null): Promise<void
     await exchangeGoogleToken(googleIdToken);
 };
 
-export const clearBackendTokens = (): void => {
-    void fetch(BACKEND_AUTH_CLEAR_PATH, {
+export const clearBackendTokens = async (): Promise<void> => {
+    const response = await fetch(BACKEND_AUTH_CLEAR_PATH, {
         method: "POST",
         credentials: "same-origin",
+        keepalive: true,
     });
+
+    if (!response.ok) {
+        throw new Error(await parseBackendErrorMessage(response, "Failed to clear backend tokens"));
+    }
 };
 
 export const backendFetch = async (
@@ -115,7 +120,11 @@ export const backendFetch = async (
             return response;
         }
     } catch {
-        clearBackendTokens();
+        try {
+            await clearBackendTokens();
+        } catch {
+            // no-op
+        }
     }
 
     const googleIdToken = session?.user?.googleAuthToken;

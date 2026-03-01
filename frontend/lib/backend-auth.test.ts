@@ -93,18 +93,19 @@ describe("backend-auth", () => {
         );
     });
 
-    it("clearBackendTokens clears cookie-backed tokens via API route", () => {
+    it("clearBackendTokens clears cookie-backed tokens via API route", async () => {
         const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
             mockResponse({ ok: true, status: 200, json: { ok: true } }),
         );
 
-        clearBackendTokens();
+        await clearBackendTokens();
 
         expect(fetchMock).toHaveBeenCalledWith(
             "/backend-auth/clear",
             expect.objectContaining({
                 method: "POST",
                 credentials: "same-origin",
+                keepalive: true,
             }),
         );
     });

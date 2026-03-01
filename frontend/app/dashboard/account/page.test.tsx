@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -65,8 +65,8 @@ describe("AccountPage", () => {
       if (tagName.toLowerCase() === "a") {
         return {
           click: anchorClick,
-          set href(_value: string) {},
-          set download(_value: string) {},
+          set href(_value: string) { },
+          set download(_value: string) { },
         } as unknown as HTMLElement;
       }
       return originalCreateElement(tagName);
@@ -92,7 +92,7 @@ describe("AccountPage", () => {
     expect(mockBackendFetch).toHaveBeenCalledWith(expect.anything(), "/api/app/user/me/export/");
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(anchorClick).toHaveBeenCalledTimes(1);
-    expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Account data export downloaded.")).toBeInTheDocument();
   });
 

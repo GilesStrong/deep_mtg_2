@@ -131,7 +131,7 @@ def export_account_data(request: HttpRequest) -> ExportDataOut:
         request: The incoming HTTP request containing authenticated user context.
 
     Returns:
-        A full export payload containing user profile, decks/cards, and refresh token metadata.
+        A full export payload containing relevant user data
 
     Raises:
         HttpError: If account export requests exceed the allowed hourly rate limit.

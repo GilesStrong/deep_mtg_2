@@ -10,7 +10,7 @@ function BackendUserSync() {
 
   useEffect(() => {
     if (status !== "authenticated") {
-      clearBackendTokens();
+      void clearBackendTokens();
       return;
     }
 
@@ -19,7 +19,11 @@ function BackendUserSync() {
         await ensureBackendTokens(session);
       } catch (error) {
         console.error("Error syncing backend auth tokens:", error);
-        clearBackendTokens();
+        try {
+          await clearBackendTokens();
+        } catch (clearError) {
+          console.error("Error clearing backend auth tokens:", clearError);
+        }
 
         const message =
           error instanceof Error && error.message

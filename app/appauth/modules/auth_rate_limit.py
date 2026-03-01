@@ -53,7 +53,7 @@ def check_auth_rate_limit(
     """
     Check whether an authentication action is within its rate limit for the requesting client.
 
-    Evaluates a sliding-window rate limit backed by Redis. Each unique combination of
+    Evaluates a fixed-window rate limit backed by Redis. Each unique combination of
     action type and client IP address is tracked in a dedicated Redis key that expires
     after the configured window.
 

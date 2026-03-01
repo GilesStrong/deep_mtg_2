@@ -11,7 +11,7 @@ on:
       - "app/**"
 
 jobs:
-  linting:
+  backend-linting:
     runs-on: ubuntu-24.04
 
     steps:

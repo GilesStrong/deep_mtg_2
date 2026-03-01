@@ -50,7 +50,9 @@ export default function AccountPage() {
             anchor.href = url;
             anchor.download = formatExportFileName();
             anchor.click();
-            URL.revokeObjectURL(url);
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+            }, 0);
 
             setMessage("Account data export downloaded.");
         } catch (caughtError) {
@@ -105,8 +107,11 @@ export default function AccountPage() {
                 throw new Error(await toErrorMessage(response, "Failed to delete account."));
             }
 
-            clearBackendTokens();
-            await signOut({ callbackUrl: "/login" });
+            try {
+                await clearBackendTokens();
+            } finally {
+                await signOut({ callbackUrl: "/login" });
+            }
         } catch (caughtError) {
             setError(caughtError instanceof Error ? caughtError.message : "Failed to delete account.");
             setIsDeleting(false);

@@ -146,8 +146,11 @@ export default function DashboardPage() {
     }, [activeDecks, fetchDecks, session]);
 
     const handleSignOut = async () => {
-        clearBackendTokens();
-        await signOut({ callbackUrl: "/login" });
+        try {
+            await clearBackendTokens();
+        } finally {
+            await signOut({ callbackUrl: "/login" });
+        }
     };
 
     const userInitials =
