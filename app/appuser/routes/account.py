@@ -1,7 +1,15 @@
 import secrets
 
 from appauth.modules.auth import get_user_from_request
+from appauth.modules.auth_rate_limit import check_auth_rate_limit
 from appcards.models.deck import Deck
+from django.core.cache import cache
+from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
+from django.http import HttpRequest
+from django.utils import timezone
+from ninja import Router
+from ninja.errors import HttpError
+
 from appuser.serializers.account import (
     DeleteAccountIn,
     DeleteAccountRequestOut,
@@ -11,17 +19,13 @@ from appuser.serializers.account import (
     ExportRefreshTokenOut,
     ExportUserOut,
 )
-from django.core.cache import cache
-from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
-from django.http import HttpRequest
-from django.utils import timezone
-from ninja import Router
-from ninja.errors import HttpError
 
 router = Router(tags=['user'])
 
 DELETE_CONFIRMATION_TTL_SECONDS = 900
 DELETE_REQUEST_COOLDOWN_SECONDS = 30
+EXPORT_ACCOUNT_LIMIT_PER_HOUR = 1
+EXPORT_ACCOUNT_WINDOW_SECONDS = 3600
 DELETE_SIGNING_SALT = 'appuser.delete_account'
 DELETE_NONCE_CACHE_KEY_PREFIX = 'delete-account-nonce'
 DELETE_COOLDOWN_CACHE_KEY_PREFIX = 'delete-account-cooldown'
@@ -95,6 +99,25 @@ def _validate_delete_confirmation_token(user_id: str, confirmation_token: str) -
         raise HttpError(400, 'Confirmation token is no longer valid. Request a new deletion token.')
 
 
+def _check_export_rate_limit(request: HttpRequest) -> None:
+    """Enforce the account export rate limit for the requesting client.
+
+    Args:
+        request: The incoming request used to derive the rate-limit key.
+
+    Raises:
+        HttpError: If account export requests exceed the configured hourly limit.
+    """
+    rate_limit = check_auth_rate_limit(
+        request,
+        action='account-export',
+        limit=EXPORT_ACCOUNT_LIMIT_PER_HOUR,
+        window_seconds=EXPORT_ACCOUNT_WINDOW_SECONDS,
+    )
+    if not rate_limit.allowed:
+        raise HttpError(429, f'Too many account export attempts. Retry in {rate_limit.retry_after_seconds}s')
+
+
 @router.get(
     '/me/export/',
     summary='Export account data',
@@ -110,7 +133,11 @@ def export_account_data(request: HttpRequest) -> ExportDataOut:
 
     Returns:
         A full export payload containing user profile, decks/cards, and refresh token metadata.
+
+    Raises:
+        HttpError: If account export requests exceed the allowed hourly rate limit.
     """
+    _check_export_rate_limit(request)
     user = get_user_from_request(request)
 
     decks = []

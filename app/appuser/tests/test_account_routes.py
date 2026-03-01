@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from appauth.models.token import RefreshToken
 from appcards.models.card import Card, Rarity
@@ -9,7 +10,15 @@ from django.test import TestCase
 from ninja.errors import HttpError
 
 from appuser.models import User
-from appuser.routes.account import delete_account, export_account_data, request_delete_account
+from appuser.routes.account import (
+    EXPORT_ACCOUNT_LIMIT_PER_HOUR,
+    EXPORT_ACCOUNT_WINDOW_SECONDS,
+    delete_account,
+    export_account_data,
+    request_delete_account,
+)
+
+_MODULE = 'appuser.routes.account'
 
 
 class AccountRoutesTests(TestCase):
@@ -27,7 +36,9 @@ class AccountRoutesTests(TestCase):
         DeckCard.objects.create(deck=deck, card=card, quantity=3)
         _token, _raw_token = RefreshToken.mint(user, user_agent="pytest", ip="127.0.0.1")
 
-        result = export_account_data(SimpleNamespace(auth=user))
+        with patch(f'{_MODULE}.check_auth_rate_limit') as mock_limit:
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
+            result = export_account_data(SimpleNamespace(auth=user, headers={}, META={}))
 
         self.assertEqual(result.user.id, user.id)
         self.assertEqual(result.user.google_id, "gid-export")
@@ -38,6 +49,42 @@ class AccountRoutesTests(TestCase):
         self.assertEqual(result.decks[0].cards[0].quantity, 3)
         self.assertEqual(len(result.refresh_tokens), 1)
         self.assertEqual(result.refresh_tokens[0].user_agent, "pytest")
+
+    def test_export_account_data_rate_limit_rejected(self):
+        """
+        GIVEN an authenticated user and a blocked export rate-limit result
+        WHEN export_account_data is called
+        THEN it raises HttpError 429
+        """
+        user = User.objects.create(google_id='gid-export-limited', verified=True, warning_count=0)
+
+        with patch(f'{_MODULE}.check_auth_rate_limit') as mock_limit:
+            mock_limit.return_value = SimpleNamespace(allowed=False, retry_after_seconds=3600)
+
+            with self.assertRaises(HttpError) as context:
+                export_account_data(SimpleNamespace(auth=user, headers={}, META={}))
+
+        self.assertEqual(context.exception.status_code, 429)
+
+    def test_export_account_data_rate_limit_called_with_hourly_window(self):
+        """
+        GIVEN an authenticated user and an allowed export rate-limit result
+        WHEN export_account_data is called
+        THEN it checks rate limiting with a 1-per-hour configuration
+        """
+        user = User.objects.create(google_id='gid-export-window', verified=True, warning_count=0)
+        request = SimpleNamespace(auth=user, headers={}, META={})
+
+        with patch(f'{_MODULE}.check_auth_rate_limit') as mock_limit:
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
+            export_account_data(request)
+
+        mock_limit.assert_called_once_with(
+            request,
+            action='account-export',
+            limit=EXPORT_ACCOUNT_LIMIT_PER_HOUR,
+            window_seconds=EXPORT_ACCOUNT_WINDOW_SECONDS,
+        )
 
     def test_delete_account_removes_user_and_related_records(self):
         """
