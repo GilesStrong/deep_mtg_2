@@ -33,3 +33,17 @@ docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-comp
 # stop
 docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml down
 ```
+
+## Product / Legal Basics
+
+The app now includes baseline product/legal UX and APIs:
+
+- Public legal pages in the frontend:
+	- `/privacy`
+	- `/terms`
+	- `/support`
+- Account self-service (authenticated):
+	- Frontend: `/dashboard/account`
+	- Export user data JSON: `GET /api/app/user/me/export/`
+	- Request deletion confirmation token: `POST /api/app/user/me/delete-request/`
+	- Confirm deletion + remove associated records: `DELETE /api/app/user/me/` (with `confirmation_token`)

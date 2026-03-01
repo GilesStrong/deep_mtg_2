@@ -21,6 +21,7 @@ cp frontend/.env.example frontend/.env
 - `NEXTAUTH_SECRET`: A random secret string (at least 32 characters)
 - `NEXTAUTH_URL`: Should be `http://localhost:3000` for local dev
 - `BACKEND_INTERNAL_URL`: Internal backend base URL for server-side token exchange (default: `http://web:8000`)
+- `NEXT_PUBLIC_SUPPORT_EMAIL`: Public support email shown on the support page (optional)
 
 ### Running the Application
 
