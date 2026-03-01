@@ -28,10 +28,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Only runtime libs (no -dev packages)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install wheels from builder
 COPY --from=builder /wheels /wheels
 COPY requirements.txt .
@@ -40,6 +36,13 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
 
 # Copy project files
 COPY . .
+
+RUN addgroup --system --gid 10001 appgroup && \
+    adduser --system --uid 10001 --ingroup appgroup appuser && \
+    mkdir -p /app/staticfiles /app/media && \
+    chown -R appuser:appgroup /app
+
+USER appuser
 
 EXPOSE 8000
 
