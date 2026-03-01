@@ -31,7 +31,8 @@ DELETE_COOLDOWN_CACHE_KEY_PREFIX = 'delete-account-cooldown'
 
 
 def _nonce_cache_key(user_id: str) -> str:
-    """Build the cache key used for the latest deletion nonce for a user.
+    """
+    Build the cache key used for the latest deletion nonce for a user.
 
     Args:
         user_id: The user ID represented as a string.
@@ -43,7 +44,8 @@ def _nonce_cache_key(user_id: str) -> str:
 
 
 def _cooldown_cache_key(user_id: str) -> str:
-    """Build the cache key used for delete-request cooldown state.
+    """
+    Build the cache key used for delete-request cooldown state.
 
     Args:
         user_id: The user ID represented as a string.
@@ -55,7 +57,8 @@ def _cooldown_cache_key(user_id: str) -> str:
 
 
 def _issue_delete_confirmation_token(user_id: str) -> str:
-    """Create and store a short-lived deletion confirmation token.
+    """
+    Create and store a short-lived deletion confirmation token.
 
     Args:
         user_id: The authenticated user's ID represented as a string.
@@ -70,7 +73,8 @@ def _issue_delete_confirmation_token(user_id: str) -> str:
 
 
 def _validate_delete_confirmation_token(user_id: str, confirmation_token: str) -> None:
-    """Validate delete confirmation token integrity, age, and nonce match.
+    """
+    Validate delete confirmation token integrity, age, and nonce match.
 
     Args:
         user_id: The authenticated user's ID represented as a string.
@@ -99,7 +103,8 @@ def _validate_delete_confirmation_token(user_id: str, confirmation_token: str) -
 
 
 def _check_export_rate_limit(request: HttpRequest) -> None:
-    """Enforce the account export rate limit for the requesting client.
+    """
+    Enforce the account export rate limit for the requesting client.
 
     Args:
         request: The incoming request used to derive the rate-limit key.
@@ -125,7 +130,8 @@ def _check_export_rate_limit(request: HttpRequest) -> None:
     operation_id='export_account_data',
 )
 def export_account_data(request: HttpRequest) -> ExportDataOut:
-    """Export all account data for the authenticated user.
+    """
+    Export all account data for the authenticated user.
 
     Args:
         request: The incoming HTTP request containing authenticated user context.
@@ -179,7 +185,8 @@ def export_account_data(request: HttpRequest) -> ExportDataOut:
     operation_id='request_account_deletion',
 )
 def request_delete_account(request: HttpRequest) -> DeleteAccountRequestOut:
-    """Start the first step of account deletion for the authenticated user.
+    """
+    Start the first step of account deletion for the authenticated user.
 
     This endpoint enforces a short cooldown window to reduce accidental repeated
     requests and returns a short-lived confirmation token for step two.
@@ -220,7 +227,8 @@ def request_delete_account(request: HttpRequest) -> DeleteAccountRequestOut:
     operation_id='delete_account',
 )
 def delete_account(request: HttpRequest, payload: DeleteAccountIn) -> None:
-    """Delete the authenticated user account after token confirmation.
+    """
+    Delete the authenticated user account after token confirmation.
 
     Args:
         request: The incoming HTTP request containing authenticated user context.

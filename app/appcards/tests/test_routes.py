@@ -7,10 +7,11 @@ from appuser.models import User
 from django.test import TestCase
 from ninja.errors import HttpError
 
+from appcards.constants.cards import HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
 from appcards.models.card import Card, Rarity
 from appcards.models.deck import Deck
 from appcards.models.printing import Printing
-from appcards.routes.card import get_card, list_set_codes
+from appcards.routes.card import get_card, list_set_codes, list_tags
 from appcards.routes.deck import delete_deck, get_summary_deck
 
 _CARD_MODULE = "appcards.routes.card"
@@ -18,6 +19,38 @@ _CARD_MODULE = "appcards.routes.card"
 
 class CardRoutesTests(TestCase):
     """Tests for appcards card routes."""
+
+    def test_list_tags_returns_hierarchical_mapping_with_used_tags(self):
+        """
+        GIVEN cards with overlapping tag lists
+        WHEN list_tags is called
+        THEN it returns all primary tags with only used tags populated
+        """
+        Card.objects.create(name="Opt", text="Scry 1.", rarity=Rarity.COMMON, tags=["Control", "Cantrip"])
+        Card.objects.create(name="Shock", text="Deal 2 damage.", rarity=Rarity.COMMON, tags=["Aggro", "Control"])
+        Card.objects.create(name="Llanowar Elves", text="Add G.", rarity=Rarity.COMMON, tags=["Ramp"])
+
+        result = list_tags(SimpleNamespace())
+
+        self.assertEqual(result.tags["CardAdvantage"], {"Cantrip": HIERARCHICAL_TAGS["CardAdvantage"]["Cantrip"]})
+        self.assertEqual(
+            result.tags,
+            {
+                primary_tag: {
+                    **(
+                        {primary_tag: PRIMARY_TAG_DESCRIPTIONS[primary_tag]}
+                        if primary_tag in {"Aggro", "Control", "Ramp"}
+                        else {}
+                    ),
+                    **(
+                        {"Cantrip": HIERARCHICAL_TAGS["CardAdvantage"]["Cantrip"]}
+                        if primary_tag == "CardAdvantage"
+                        else {}
+                    ),
+                }
+                for primary_tag in HIERARCHICAL_TAGS
+            },
+        )
 
     def test_list_set_codes_returns_distinct_sorted_values(self):
         """

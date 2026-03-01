@@ -386,6 +386,13 @@ export default function DeckPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
+                      variant="outline"
+                      onClick={() => router.push(`/cards/search?deckId=${deck?.id ?? deckId}`)}
+                      disabled={isDeckBuilding || isDeleting || isSaving}
+                    >
+                      Search Cards
+                    </Button>
+                    <Button
                       onClick={handleRegenerate}
                       disabled={isDeckBuilding || isDeleting || isSaving}
                     >

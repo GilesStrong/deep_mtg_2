@@ -35,8 +35,6 @@ def _get_latest_build(deck_id: str) -> DeckBuildTask | None:
 )
 def list_decks(request: HttpRequest) -> list[GetSummaryDeckOut]:
     """
-    Fvf2EuwRMA0g9izKpjFdQ
-
     Retrieve summaries for all decks, ordered by most recently updated.
 
     Args:
@@ -83,8 +81,6 @@ def get_summary_deck(
     path_params: Path[GetDeckIn],
 ) -> GetSummaryDeckOut:
     """
-    Q7sP1itKOKULDuVIHtFVU
-
     Retrieve the summary details of a deck by its ID.
 
     This endpoint allows you to fetch the details of a specific deck using its unique identifier.
@@ -126,8 +122,6 @@ def get_deck(
     path_params: Path[GetDeckIn],
 ) -> GetFullDeckOut:
     """
-    iLkBgG18y5wAR5n3lnBWp
-
     Retrieve the full details of a deck by its ID.
 
     This endpoint allows you to fetch the details of a specific deck using its unique identifier.
@@ -174,8 +168,6 @@ def delete_deck(
     path_params: Path[GetDeckIn],
 ) -> None:
     """
-    WaqnXA1TLRljEvGixbNXP
-
     Delete a deck by its ID.
 
     This endpoint allows you to delete a specific deck using its unique identifier.
@@ -205,8 +197,6 @@ def delete_deck(
 )
 def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: UpdateDeckIn) -> GetFullDeckOut:
     """
-    MaO70u-rw-zk-h2_cbhRc
-
     Update the details of a deck by its ID.
 
     This endpoint allows you to update the details of a specific deck using its unique identifier.

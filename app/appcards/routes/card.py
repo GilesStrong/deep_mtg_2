@@ -1,9 +1,11 @@
 from django.http import HttpRequest
 from ninja import Path, Router
 
+from appcards.constants.cards import HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
+from appcards.models.card import Card
 from appcards.models.printing import Printing
 from appcards.modules.card_info import CardInfo, card_to_info
-from appcards.serializers.card import GetCardIn, SetCodesOut
+from appcards.serializers.card import GetCardIn, SetCodesOut, SetTagsOut
 
 router = Router(tags=['cards'])
 
@@ -17,15 +19,40 @@ router = Router(tags=['cards'])
 )
 def list_set_codes(request: HttpRequest) -> SetCodesOut:
     """
-    try:
-    -zNTA8iJe-WuzI0XrRESC
-
     Retrieve a list of all available set codes.
 
     This endpoint allows you to fetch the set codes that are currently available for deck construction.
     """
     set_codes = list(Printing.objects.order_by('set_code').values_list('set_code', flat=True).distinct())
     return SetCodesOut(set_codes=set_codes)
+
+
+@router.get(
+    '/tags/',
+    summary='List available tags',
+    description='Retrieve a list of all available tags.',
+    response={200: SetTagsOut},
+    operation_id='list_tags',
+)
+def list_tags(request: HttpRequest) -> SetTagsOut:
+    """
+    Retrieve a list of all available tags.
+
+    This endpoint allows you to fetch the tags that are currently available for deck construction.
+    """
+    tag_lists = Card.objects.values_list('tags', flat=True)
+    used_tags = sorted({tag for tag_list in tag_lists for tag in (tag_list or [])})
+
+    tags: dict[str, dict[str, str]] = {}
+    for primary_tag, subtags in HIERARCHICAL_TAGS.items():
+        bucket: dict[str, str] = {}
+        if primary_tag in used_tags:
+            bucket[primary_tag] = PRIMARY_TAG_DESCRIPTIONS.get(primary_tag, "No description available")
+        for subtag, description in subtags.items():
+            if subtag in used_tags:
+                bucket[subtag] = description
+        tags[primary_tag] = bucket
+    return SetTagsOut(tags=tags)
 
 
 @router.get(
@@ -37,8 +64,6 @@ def list_set_codes(request: HttpRequest) -> SetCodesOut:
 )
 def get_card(request: HttpRequest, path_params: Path[GetCardIn]) -> CardInfo:
     """
-    PVn4yqXeYxd4O1rHEiOPp
-
     Retrieve the details of a card by its ID.
 
     This endpoint allows you to fetch the details of a specific card using its unique identifier.
