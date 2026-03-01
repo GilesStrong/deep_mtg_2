@@ -20,6 +20,7 @@ from appauth.api import router as auth_router
 from appauth.modules.token import AccessTokenAuth
 from appcards.api import router as cards_router
 from django.contrib import admin
+from django.http import HttpRequest, HttpResponse
 from django.urls import path
 from ninja import NinjaAPI
 
@@ -29,7 +30,12 @@ app_api.add_router('/cards', cards_router)
 app_api.add_router('/token', auth_router, auth=None)  # No auth for auth routes
 
 
+def healthz(_request: HttpRequest) -> HttpResponse:
+    return HttpResponse("ok", content_type="text/plain")
+
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/app/', app_api.urls),
+    path('healthz', healthz),
 ]

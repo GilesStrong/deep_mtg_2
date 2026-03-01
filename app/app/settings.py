@@ -33,6 +33,17 @@ SECRET_KEY = APP_SETTINGS.SECRET_KEY
 DEBUG = APP_SETTINGS.DEBUG
 
 ALLOWED_HOSTS: list[str] = APP_SETTINGS.ALLOWED_HOSTS
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    USE_X_FORWARDED_HOST = True
+else:
+    SECURE_PROXY_SSL_HEADER = None
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    USE_X_FORWARDED_HOST = False
+CSRF_TRUSTED_ORIGINS = APP_SETTINGS.CSRF_TRUSTED_ORIGINS
 
 # Disable runtime type checks during testing to allow for mocking
 TESTING = "pytest" in sys.modules or "test" in sys.argv
@@ -83,7 +94,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'app.wsgi.application'
-
+ASGI_APPLICATION = "app.asgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -135,7 +146,15 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+MEDIA_URL = '/media/'
+
+if APP_SETTINGS.ENVIRONMENT in ("staging", "production"):
+    STATIC_ROOT = Path("/app/staticfiles")
+    MEDIA_ROOT = Path("/app/media")
+else:
+    STATIC_ROOT = BASE_DIR / 'staticfiles'
+    MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

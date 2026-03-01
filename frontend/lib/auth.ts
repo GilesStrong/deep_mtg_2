@@ -7,6 +7,9 @@ type GoogleIdTokenClaims = {
   email?: string;
 };
 
+const GOOGLE_ALLOWED_EMAILS_ENV = "GOOGLE_ALLOWED_EMAILS";
+const GOOGLE_ENFORCE_ALLOWED_EMAILS_ENV = "GOOGLE_ENFORCE_ALLOWED_EMAILS";
+
 const decodeJwtPayload = (jwtToken: string): GoogleIdTokenClaims | null => {
   const parts = jwtToken.split(".");
   if (parts.length < 2) {
@@ -23,6 +26,30 @@ const decodeJwtPayload = (jwtToken: string): GoogleIdTokenClaims | null => {
   }
 };
 
+const getGoogleAllowedEmails = (): Set<string> => {
+  const rawValue = process.env[GOOGLE_ALLOWED_EMAILS_ENV];
+  if (!rawValue) {
+    return new Set();
+  }
+
+  const normalizedEmails = rawValue
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter((email) => email.length > 0);
+
+  return new Set(normalizedEmails);
+};
+
+const isGoogleAllowedEmailsEnforced = (): boolean => {
+  const rawValue = process.env[GOOGLE_ENFORCE_ALLOWED_EMAILS_ENV];
+  if (!rawValue) {
+    return true;
+  }
+
+  const normalizedValue = rawValue.trim().toLowerCase();
+  return ["true", "1", "yes", "on"].includes(normalizedValue);
+};
+
 export const authOptions: AuthOptions = {
   providers: [
     GoogleProvider({
@@ -32,8 +59,31 @@ export const authOptions: AuthOptions = {
   ],
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   callbacks: {
+    async signIn({ account, profile, user }) {
+      if (account?.provider !== "google") {
+        return false;
+      }
+
+      if (!isGoogleAllowedEmailsEnforced()) {
+        return true;
+      }
+
+      const userEmail =
+        (typeof user.email === "string" && user.email) ||
+        (profile && "email" in profile && typeof profile.email === "string"
+          ? profile.email
+          : undefined);
+
+      if (!userEmail) {
+        return false;
+      }
+
+      const allowedEmails = getGoogleAllowedEmails();
+      return allowedEmails.has(userEmail.trim().toLowerCase());
+    },
     async redirect({ url, baseUrl }) {
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       else if (new URL(url).origin === baseUrl) return url;

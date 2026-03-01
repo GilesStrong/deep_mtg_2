@@ -18,6 +18,65 @@ beforeAll(async () => {
 });
 
 describe("authOptions callbacks", () => {
+    it("signIn callback allows only configured Google emails", async () => {
+        process.env.GOOGLE_ENFORCE_ALLOWED_EMAILS = "true";
+        process.env.GOOGLE_ALLOWED_EMAILS = "allowed@test.dev, other@test.dev";
+
+        const allowedResult = await authOptions.callbacks?.signIn?.({
+            account: { provider: "google" },
+            user: { email: "allowed@test.dev" },
+            profile: undefined,
+        } as never);
+
+        const deniedResult = await authOptions.callbacks?.signIn?.({
+            account: { provider: "google" },
+            user: { email: "denied@test.dev" },
+            profile: undefined,
+        } as never);
+
+        expect(allowedResult).toBe(true);
+        expect(deniedResult).toBe(false);
+    });
+
+    it("signIn callback normalizes allowlist and user email", async () => {
+        process.env.GOOGLE_ENFORCE_ALLOWED_EMAILS = "true";
+        process.env.GOOGLE_ALLOWED_EMAILS = "  TeSt.User@Test.Dev  ";
+
+        const result = await authOptions.callbacks?.signIn?.({
+            account: { provider: "google" },
+            user: { email: "test.user@test.dev" },
+            profile: undefined,
+        } as never);
+
+        expect(result).toBe(true);
+    });
+
+    it("signIn callback denies when allowlist is unset and enforcement is enabled", async () => {
+        process.env.GOOGLE_ENFORCE_ALLOWED_EMAILS = "true";
+        delete process.env.GOOGLE_ALLOWED_EMAILS;
+
+        const result = await authOptions.callbacks?.signIn?.({
+            account: { provider: "google" },
+            user: { email: "anyone@test.dev" },
+            profile: undefined,
+        } as never);
+
+        expect(result).toBe(false);
+    });
+
+    it("signIn callback allows all Google users when enforcement is disabled", async () => {
+        process.env.GOOGLE_ENFORCE_ALLOWED_EMAILS = "false";
+        delete process.env.GOOGLE_ALLOWED_EMAILS;
+
+        const result = await authOptions.callbacks?.signIn?.({
+            account: { provider: "google" },
+            user: { email: "anyone@test.dev" },
+            profile: undefined,
+        } as never);
+
+        expect(result).toBe(true);
+    });
+
     it("redirect callback handles relative and same-origin URLs", async () => {
         expect(
             await authOptions.callbacks?.redirect?.({

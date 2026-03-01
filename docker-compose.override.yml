@@ -25,9 +25,12 @@ services:
       - "3000:3000"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
+    env_file:
+    - ./frontend/.env
     environment:
       - BACKEND_UPSTREAM=web:8000
       - FRONTEND_UPSTREAM=frontend:3001
+      - PUBLIC_URL=${PUBLIC_URL}
     networks:
       - deepmtg_network
     depends_on:

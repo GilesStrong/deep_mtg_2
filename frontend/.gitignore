@@ -1,3 +1,8 @@
+# prod
+cloudflared/*.json
+cloudflared/cert.pem
+cloudflared/config.yml
+
 # dependencies
 /node_modules
 /.pnp
@@ -27,6 +32,7 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.prod
 
 # vercel
 .vercel
