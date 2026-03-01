@@ -368,4 +368,72 @@ describe("CardSearchPage", () => {
             expect(payload.tags).toEqual(["Control"]);
         });
     });
+
+    it("only sends subtags when primary tags are selected in state", async () => {
+        const user = userEvent.setup();
+
+        mockUseSearchParams.mockReturnValue({
+            get: vi.fn((key: string) => (key === "deckId" ? "deck-1" : null)),
+        });
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE", "DMU"] });
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockJsonResponse({
+                    tags: {
+                        Strategy: {
+                            Control: "Cards that are designed to manage the game state.",
+                            Ramp: "Cards that accelerate mana production.",
+                        },
+                    },
+                });
+            }
+
+            if (url === "/api/app/cards/deck/deck-1/full/") {
+                return mockJsonResponse({
+                    short_summary: "Control shell with board wipes",
+                    set_codes: ["ONE"],
+                    cards: [
+                        [
+                            2,
+                            {
+                                colors: ["W"],
+                                tags: ["Strategy", "Control"],
+                                set_codes: ["ONE"],
+                            },
+                        ],
+                    ],
+                });
+            }
+
+            if (url === "/api/app/search/search/" && init?.method === "POST") {
+                return mockJsonResponse({ cards: [] });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        expect(await screen.findByDisplayValue("Control shell with board wipes")).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Search Cards" }));
+
+        await waitFor(() => {
+            const call = mockBackendFetch.mock.calls.find(
+                (entry) => entry[1] === "/api/app/search/search/" && entry[2]?.method === "POST"
+            );
+            expect(call).toBeTruthy();
+
+            const payload = JSON.parse(String(call?.[2]?.body)) as {
+                tags: string[];
+            };
+
+            expect(payload.tags).toEqual(["Control"]);
+            expect(payload.tags).not.toContain("Strategy");
+        });
+    });
 });

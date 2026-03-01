@@ -358,6 +358,11 @@ export default function CardSearchPage() {
         return [...card.supertypes, ...card.types, ...card.subtypes].join(" ");
     };
 
+    const selectedSubtags = useMemo(
+        () => selectedTags.filter((tag) => availableSubtags.has(tag)),
+        [availableSubtags, selectedTags]
+    );
+
     const handleSearch = async () => {
         const trimmedQuery = query.trim();
         if (trimmedQuery.length < QUERY_MIN_LENGTH || trimmedQuery.length > QUERY_MAX_LENGTH) {
@@ -376,7 +381,7 @@ export default function CardSearchPage() {
                     query: trimmedQuery,
                     set_codes: selectedSetCodes,
                     colors: selectedColors,
-                    tags: selectedTags,
+                    tags: selectedSubtags,
                 }),
             });
 
@@ -405,8 +410,8 @@ export default function CardSearchPage() {
     };
 
     const activeFilterCount = useMemo(
-        () => selectedSetCodes.length + selectedTags.length + selectedColors.length,
-        [selectedColors.length, selectedSetCodes.length, selectedTags.length]
+        () => selectedSetCodes.length + selectedSubtags.length + selectedColors.length,
+        [selectedColors.length, selectedSetCodes.length, selectedSubtags.length]
     );
 
     return (
