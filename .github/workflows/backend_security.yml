@@ -30,7 +30,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Run Trivy dependency scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.34.1
         with:
           scan-type: fs
           scan-ref: .
