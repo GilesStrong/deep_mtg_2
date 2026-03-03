@@ -32,23 +32,12 @@ def make_daily_theme(self: Task) -> None:
     This method is designed to be used as a Celery task and will early-return if a
     theme has already been generated for the current date.
 
-    The method performs the following steps:
-        1. Checks if a DailyDeckTheme already exists for today, returning early if so.
-        2. Ensures the theme collection exists in the vector store.
-        3. Generates a daily deck theme using `get_daily_deck_theme()`.
-        4. Creates a dense embedding of the theme description using `_dense_embed()`.
-        5. Persists the theme to the database and upserts the embedding into the
-           vector store within an atomic transaction.
-
     Args:
         self (Task): The Celery task instance, providing access to task metadata
             such as `self.request.id`.
 
     Raises:
         RuntimeError: If an error occurs during the theme generation process.
-
-    Returns:
-        None
     """
     if DailyDeckTheme.objects.filter(date=datetime.now().date()).exists():
         return

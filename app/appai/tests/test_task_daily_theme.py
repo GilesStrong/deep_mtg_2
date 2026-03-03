@@ -97,7 +97,7 @@ class DailyThemeTaskTests(TestCase):
             upsert_args[1][0],
             {
                 "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-                "vector": [0.01, 0.02, 0.03],
+                "vector": {"dense": [0.01, 0.02, 0.03]},
                 "payload": {
                     "description": theme_description,
                     "date": "2026-03-03",

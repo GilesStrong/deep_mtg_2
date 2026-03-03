@@ -28,7 +28,10 @@ class CardSearchResults(BaseModel):
 # TODO: Make the main agent be able to specify the filter, and/or split the filter query and the vector-search query
 @beartype
 async def search_for_cards(
-    ctx: RunContext[DeckBuildingDeps], query: str, search_with_advanced_filter: bool = True, max_results: int = 10
+    ctx: RunContext[DeckBuildingDeps],
+    card_description: str,
+    search_with_advanced_filter: bool = True,
+    max_results: int = 10,
 ) -> CardSearchResults:
     """
     Searches for cards matching a query.
@@ -57,12 +60,13 @@ async def search_for_cards(
     Be aware that the results of the search are NOT added to the deck. Use the appropriate tool to add cards to the deck after retrieving them with this search tool.
 
     Args:
-        query (str): The search query to use.
+        card_description (str): The description of the card to search for. Do not query just keywords, instead provide a natural language description of the type of card you are looking for, and how it should function in-game.
+            Include also any details that you think are relevant to the card, and the kind of deck it should fit into.
         search_with_advanced_filter (bool): Whether to construct and apply a filter based on interpreted query.
         max_results (int): The maximum number of results to return, subject to a maximum limit.
 
     Returns:
-        SearchResults: The search results containing the matching cards and the maximum number of results that were requested.
+        CardSearchResults: The search results containing the matching cards and the maximum number of results that were requested.
     """
     if max_results > MAX_SEARCH_RESULTS:
         max_results = MAX_SEARCH_RESULTS
@@ -79,7 +83,7 @@ async def search_for_cards(
     )
 
     if search_with_advanced_filter:
-        advanced_filter = await filter_constructor(query)
+        advanced_filter = await filter_constructor(card_description)
         combined_filter = Filter(
             min_should_count=advanced_filter.min_should_count,
             should=advanced_filter.should,
@@ -97,7 +101,12 @@ async def search_for_cards(
 
     # Run search
     found_cards = await sync_to_async(run_query_from_dsl)(
-        Query(collection_name=CARD_COLLECTION_NAME, query_string=query, filter=combined_filter, limit=max_results),
+        Query(
+            collection_name=CARD_COLLECTION_NAME,
+            query_string=card_description,
+            filter=combined_filter,
+            limit=max_results,
+        ),
         exclude_ids=exclude_ids,
     )
 

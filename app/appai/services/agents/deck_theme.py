@@ -26,7 +26,7 @@ When using the find_similar_themes tool, if no similar themes exist, that's grea
 
 If you wish to include specific keywords, only use evergreen keywords that are not likely to rotate out of standard, and avoid using very specific mechanics that may only be present in a few cards.
 The current set of evergreen keywords are: {EVERGREEN_KEYWORDS}.
-However, in general, err on the side of including general descriptions for what the mechanics should accomplish, rather that how they may be specified on the cards.
+However, in general, err on the side of including general descriptions for what the mechanics should accomplish, rather than how they may be specified on the cards.
 
 # Output
 Your output should be a few short sentences that describe the theme of the day.
@@ -46,7 +46,7 @@ This should be a quick, cheap operation, so do not call many tools.
 
 class NewTheme(BaseModel):
     description: str = Field(
-        description="A sentences that describe the theme of the deck. Do not include any prefix like 'the theme of the deck is...', just the description of the theme itself. The description should be specific enough to provide a clear direction for building a deck, but not so specific that it relies on a particular card or mechanic.",
+        description="A few sentences that describe the theme of the deck. Do not include any prefix like 'the theme of the deck is...', just the description of the theme itself. The description should be specific enough to provide a clear direction for building a deck, but not so specific that it relies on a particular card or mechanic.",
         min_length=20,
         max_length=255,
     )
@@ -60,18 +60,11 @@ def get_daily_deck_theme() -> NewTheme:
     This function initializes an AI agent with deck-building capabilities and runs it
     synchronously to produce a new theme suggestion for a Magic: The Gathering deck.
 
-    The agent is equipped with tools to search for cards and themes, and operates
-    under a predefined deck theme prompt to guide its suggestions.
+    The agent is equipped with tools to search for previously generated themes.
 
     Returns:
         NewTheme: A new deck theme object containing the AI-generated theme
                   suggestion for the day, including relevant cards and theme details.
-
-    Notes:
-        - Uses a synchronous execution model via `run_sync`.
-        - Each call generates a unique deck ID using UUID4.
-        - The agent leverages `search_for_cards` and `search_for_themes` tools
-          to inform its theme generation.
     """
     agent = Agent(
         model=TOOL_MODEL,

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from appcards.constants.storage import THEME_COLLECTION_NAME
 from django.test import TestCase
 
-from appai.services.agents.tools.query_tools import find_similar_themes
+from appai.services.agents.tools.query_tools import NewTheme, find_similar_themes
 
 _MODULE = "appai.services.agents.tools.query_tools"
 
@@ -45,7 +45,10 @@ class SearchForThemesToolTests(TestCase):
             ),
         ]
 
-        result = await find_similar_themes(ctx=MagicMock(), query_theme="artifact recursion")
+        result = await find_similar_themes(
+            ctx=MagicMock(),
+            proposed_theme=NewTheme(description="Artifacts are recurred from graveyard for value."),
+        )
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].description, "Artifacts in graveyard matter.")
@@ -59,12 +62,15 @@ class SearchForThemesToolTests(TestCase):
         WHEN search_for_themes is called
         THEN it runs the search against the theme collection with limit=5 and no filter
         """
-        await find_similar_themes(ctx=MagicMock(), query_theme="token go-wide")
+        await find_similar_themes(
+            ctx=MagicMock(),
+            proposed_theme=NewTheme(description="Token go-wide strategy with anthem effects."),
+        )
 
         mock_run_query.assert_called_once()
         query_arg = mock_run_query.call_args.args[0]
 
         self.assertEqual(query_arg.collection_name, THEME_COLLECTION_NAME)
-        self.assertEqual(query_arg.query_string, "token go-wide")
+        self.assertEqual(query_arg.query_string, "Token go-wide strategy with anthem effects.")
         self.assertIsNone(query_arg.filter)
         self.assertEqual(query_arg.limit, 5)
