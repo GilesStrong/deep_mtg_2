@@ -407,7 +407,12 @@ describe("GenerateDeckPage", () => {
 
         render(<GenerateDeckPage />);
 
-        expect(await screen.findByText(`Today's theme: ${dailyTheme}`)).toBeInTheDocument();
+        expect(
+            await screen.findByText((_, element) => {
+                const text = element?.textContent?.replace(/\s+/g, " ").trim();
+                return text === `Today's theme: ${dailyTheme}`;
+            })
+        ).toBeInTheDocument();
 
         await user.click(screen.getByRole("button", { name: "Generate this deck" }));
 

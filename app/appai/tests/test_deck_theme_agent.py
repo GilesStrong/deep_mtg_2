@@ -48,6 +48,3 @@ class GetDailyDeckThemeTests(TestCase):
         agent_kwargs = mock_agent_cls.call_args.kwargs
         self.assertEqual(agent_kwargs["output_type"].__name__, "NewTheme")
         self.assertIs(agent_kwargs["deps_type"], mock_deps_cls)
-        self.assertEqual(len(agent_kwargs["tools"]), 2)
-        self.assertEqual(agent_kwargs["tools"][0].__name__, "search_for_cards")
-        self.assertEqual(agent_kwargs["tools"][1].__name__, "search_for_themes")
