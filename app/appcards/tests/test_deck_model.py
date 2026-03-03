@@ -82,6 +82,32 @@ class ValidateDeckBasicTests(TestCase):
 class DeckSaveBehaviorTests(TestCase):
     """Tests for Deck.save behavior updating set codes and validity."""
 
+    def test_tags_default_to_empty_list(self):
+        """
+        GIVEN a newly created deck without explicit tags
+        WHEN it is read back from the database
+        THEN tags defaults to an empty list
+        """
+        user = User.objects.create(google_id="deck-gid-tags-1", verified=True)
+        deck = Deck.objects.create(name="Untagged Deck", user=user)
+
+        deck.refresh_from_db()
+
+        self.assertEqual(deck.tags, [])
+
+    def test_tags_are_persisted(self):
+        """
+        GIVEN a deck created with tags
+        WHEN it is saved and refreshed
+        THEN the same tags are persisted on the deck
+        """
+        user = User.objects.create(google_id="deck-gid-tags-2", verified=True)
+        deck = Deck.objects.create(name="Tagged Deck", user=user, tags=["Aggro", "Midrange"])
+
+        deck.refresh_from_db()
+
+        self.assertCountEqual(deck.tags, ["Aggro", "Midrange"])
+
     def test_save_updates_set_codes_from_printings(self):
         """
         GIVEN an existing deck with cards that have printings

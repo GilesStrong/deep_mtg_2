@@ -88,6 +88,19 @@ class CardRoutesTests(TestCase):
 class DeckRoutesTests(TestCase):
     """Tests for appcards deck routes."""
 
+    def test_get_summary_deck_includes_tags(self):
+        """
+        GIVEN an owned deck with tags
+        WHEN get_summary_deck is called
+        THEN the response includes the deck tags
+        """
+        user = User.objects.create(google_id="owner-tags-gid", verified=True)
+        deck = Deck.objects.create(name="Tagged Deck", user=user, tags=["Aggro", "Burn"])
+
+        response = get_summary_deck(SimpleNamespace(auth=user), SimpleNamespace(deck=deck))
+
+        self.assertCountEqual(response.tags, ["Aggro", "Burn"])
+
     def test_get_summary_deck_blocks_non_owner(self):
         """
         GIVEN a deck owned by another user

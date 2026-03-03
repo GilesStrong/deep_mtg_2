@@ -27,11 +27,9 @@ class SearchCardsIn(Schema):
         description='Optional list of colors to filter the card search results. Colors should be represented by their single-letter codes (e.g., "W" for white, "U" for blue, "B" for black, "R" for red, "G" for green).',
     )
 
-    @field_validator('tags', mode='before')
+    @field_validator('tags', mode='after')
     @classmethod
     def validate_tags(cls, value: list[str]) -> list[str]:
-        if not isinstance(value, list):
-            raise ValueError('Tags must be a list of strings')
         set_value = set(value)
         invalid_tags = set_value - set(CARD_TAGS.keys())
         if len(invalid_tags):

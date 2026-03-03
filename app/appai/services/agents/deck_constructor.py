@@ -1,12 +1,14 @@
+import json
 from typing import Optional
 from uuid import UUID
 
 from app.app_settings import APP_SETTINGS
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
+from appcards.constants.decks import DECK_CLASSIFICATIONS, GROUPED_DECK_CLASSIFICATIONS
 from appcards.models.deck import MAX_DECK_NAME_LENGTH, SHORT_SUMMARY_LENGTH_LIMIT, SUMMARY_LENGTH_LIMIT, Deck
 from appcore.modules.beartype import beartype
 from asgiref.sync import sync_to_async
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_ai import Agent, UsageLimits
 
 from appai.constants.llm_models import TOOL_MODEL
@@ -43,8 +45,22 @@ Additionally, use the history to understand the original purpose and strategy of
 
 # Output
 You will not output the final deck directly. Instead, you will use the available tools to build the deck iteratively.
-When you are finished building the deck, provide a final summary of the deck, including its strategy, key cards, and how it meets the user's requirements.
-Additionally, use the rename_deck tool to give the deck a name that reflects its strategy and key features.
+
+You output will instead consist of summary aspects of the deck:
+## Summary
+A long-form final summary of the deck, including its strategy, key cards, and how it meets the user's requirements.
+
+## Short summary
+A short, snappy catchline for the deck. ~15 words. Suitable for use when viewing multiple decks side by side to help distinguish them.
+
+## Name
+A name for the deck that reflects its strategy and key features.
+
+## Tags
+A list of tags that describe the deck, which classify how the deck plays. Tags should be selected from a predefined set of categories that reflect the deck's strategy, playstyle, and key features:
+{json.dumps(GROUPED_DECK_CLASSIFICATIONS, indent=2, ensure_ascii=False)}
+This is a grouped classification: the tags are the inner keys, within the broader groups of deck classifications.
+Normally, a deck would only have upto one tag from each group, but it is possible to have multiple tags from the same group if the deck has multiple distinct strategies or features that are relevant to that group.
 
 # Deck state and tools
 The state of the deck will be maintained through the tools you use:
@@ -106,6 +122,21 @@ class DeckConstructionOutput(BaseModel):
         min_length=SHORT_SUMMARY_LENGTH_LIMIT[0],
         max_length=SHORT_SUMMARY_LENGTH_LIMIT[1],
     )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="A list of tags that describe the deck, which classify how the deck plays.",
+    )
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def validate_tags(cls, value: list[str]) -> list[str]:
+        invalid_tags = [tag for tag in value if tag not in DECK_CLASSIFICATIONS]
+        if invalid_tags:
+            raise ValueError(
+                f"Invalid tags: {', '.join(invalid_tags)}. Valid tags are: {', '.join(DECK_CLASSIFICATIONS.keys())}"
+            )
+        value = list(set(value))
+        return value
 
 
 @beartype
@@ -157,6 +188,8 @@ async def run_deck_constructor_agent(
         input_message += "\n\n# Previous generation history"
         for i, previous_request in enumerate(generation_history):
             input_message += f"\n## Generation {i + 1}\n{previous_request}"
+    if deck.tags is not None and len(deck.tags) > 0:
+        input_message += f"\n\n# Current deck tags\n{', '.join(deck.tags)}"
 
     response = await agent.run(
         input_message,
@@ -174,6 +207,7 @@ async def run_deck_constructor_agent(
     deck.name = response.output.deck_name
     deck.llm_summary = response.output.summary
     deck.short_llm_summary = response.output.short_summary
+    deck.tags = response.output.tags
     if deck.generation_history is None:
         deck.generation_history = []
     deck.generation_history.append(deck_description)

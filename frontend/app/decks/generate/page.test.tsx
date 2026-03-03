@@ -253,4 +253,62 @@ describe("GenerateDeckPage", () => {
 
         expect(await screen.findByText("Prompt failed safety checks")).toBeInTheDocument();
     });
+
+    it("shows regeneration target deck name instead of deck id", async () => {
+        const user = userEvent.setup();
+
+        mockUseSearchParams.mockReturnValue({
+            get: (key: string) => (key === "deckId" ? "deck-1" : null),
+        });
+
+        sessionStorage.setItem(
+            "deep-mtg.regenerate-nav",
+            JSON.stringify({ deckId: "deck-1", createdAt: Date.now() })
+        );
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["BRO", "ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 2 });
+            }
+
+            if (url === "/api/app/cards/deck/deck-1/") {
+                return mockJsonResponse({ id: "deck-1", name: "Azorius Control" });
+            }
+
+            if (url === "/api/app/ai/deck/" && init?.method === "POST") {
+                return mockJsonResponse({ task_id: "task-regen-1" });
+            }
+
+            if (url === "/api/app/ai/deck/build_status/task-regen-1/") {
+                return mockJsonResponse({ status: "IN_PROGRESS", deck_id: "deck-1" });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+
+        expect(await screen.findByText("Target deck: Azorius Control")).toBeInTheDocument();
+
+        await user.type(screen.getByLabelText("Prompt"), "Blue white control deck with sweepers and card advantage");
+        await user.click(screen.getByRole("button", { name: "Submit Generation Task" }));
+
+        await waitFor(() => {
+            const postCall = mockBackendFetch.mock.calls.find(
+                (call) => call[1] === "/api/app/ai/deck/" && call[2]?.method === "POST"
+            );
+            expect(postCall).toBeTruthy();
+
+            const payload = JSON.parse(String(postCall?.[2]?.body)) as {
+                prompt: string;
+                set_codes: string[];
+                deck_id?: string;
+            };
+            expect(payload.deck_id).toBe("deck-1");
+        });
+    });
 });

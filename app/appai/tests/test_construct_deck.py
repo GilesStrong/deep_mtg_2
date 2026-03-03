@@ -3,9 +3,12 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
+from appcards.constants.decks import DECK_CLASSIFICATIONS
 from django.test import TestCase
+from pydantic import ValidationError
 
 from appai.modules.construct_deck import DeckConstructorResults, construct_deck
+from appai.services.agents.deck_constructor import DeckConstructionOutput
 
 _MODULE = "appai.modules.construct_deck"
 
@@ -314,3 +317,41 @@ class ConstructDeckReturnValueTests(TestCase):
 
         call_kwargs = mock_agent.call_args.kwargs
         self.assertEqual(call_kwargs["available_set_codes"], set_codes)
+
+
+class DeckConstructionOutputTagsTests(TestCase):
+    """Tests for DeckConstructionOutput tags validation."""
+
+    def test_accepts_and_deduplicates_valid_tags(self):
+        """
+        GIVEN DeckConstructionOutput with valid duplicate tags
+        WHEN the model is created
+        THEN tags are deduplicated and remain valid deck classification tags
+        """
+        valid_tags = list(DECK_CLASSIFICATIONS.keys())
+        self.assertGreaterEqual(len(valid_tags), 2)
+
+        output = DeckConstructionOutput(
+            deck_name="Mono Red",
+            summary="A" * 60,
+            short_summary="A" * 15,
+            tags=[valid_tags[0], valid_tags[0], valid_tags[1]],
+        )
+
+        self.assertCountEqual(output.tags, [valid_tags[0], valid_tags[1]])
+
+    def test_rejects_invalid_tags(self):
+        """
+        GIVEN DeckConstructionOutput with an invalid tag value
+        WHEN the model is created
+        THEN pydantic raises a validation error for invalid tags
+        """
+        with self.assertRaises(ValidationError) as ctx:
+            DeckConstructionOutput(
+                deck_name="Mono Red",
+                summary="A" * 60,
+                short_summary="A" * 15,
+                tags=["not-a-real-tag"],
+            )
+
+        self.assertIn("Invalid tags", str(ctx.exception))

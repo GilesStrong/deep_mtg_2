@@ -24,6 +24,7 @@ type DeckSummary = {
     name: string;
     short_summary: string | null;
     set_codes: string[];
+    tags?: string[];
     date_updated: string;
     generation_status: string | null;
     generation_task_id: string | null;
@@ -38,6 +39,7 @@ export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [availableSetCodes, setAvailableSetCodes] = useState<string[]>([]);
     const [selectedSetCodes, setSelectedSetCodes] = useState<string[]>([]);
+    const [selectedDeckTags, setSelectedDeckTags] = useState<string[]>([]);
     const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
 
     const fetchDecks = useCallback(async () => {
@@ -167,13 +169,28 @@ export default function DashboardPage() {
         );
     };
 
-    const filteredDecks = useMemo(() => {
-        if (selectedSetCodes.length === 0) {
-            return decks;
-        }
+    const toggleDeckTag = (tag: string) => {
+        setSelectedDeckTags((current) =>
+            current.includes(tag) ? current.filter((value) => value !== tag) : [...current, tag]
+        );
+    };
 
-        return decks.filter((deck) => deck.set_codes.some((code) => selectedSetCodes.includes(code)));
-    }, [decks, selectedSetCodes]);
+    const availableDeckTags = useMemo(
+        () =>
+            Array.from(new Set(decks.flatMap((deck) => deck.tags ?? []))).sort((a, b) => a.localeCompare(b)),
+        [decks]
+    );
+
+    const filteredDecks = useMemo(() => {
+        return decks.filter((deck) => {
+            const matchesSetCodes =
+                selectedSetCodes.length === 0 || deck.set_codes.some((code) => selectedSetCodes.includes(code));
+            const matchesDeckTags =
+                selectedDeckTags.length === 0 || (deck.tags ?? []).some((tag) => selectedDeckTags.includes(tag));
+
+            return matchesSetCodes && matchesDeckTags;
+        });
+    }, [decks, selectedDeckTags, selectedSetCodes]);
 
     return (
         <div className="flex-1 bg-gradient-to-br from-slate-50 to-slate-100">
@@ -214,46 +231,80 @@ export default function DashboardPage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-base">Filter by Set Code</CardTitle>
+                            <CardTitle className="text-base">Filters</CardTitle>
                             <CardDescription>
-                                Select one or more set codes to show only decks that include cards from those sets.
+                                Filter decks by set codes and tags. Multiple selections within a filter use OR matching.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-2">
-                            {isLoadingSetCodes ? (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Loading set codes...
-                                </div>
-                            ) : availableSetCodes.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">No set codes available.</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    <Label>Set Codes</Label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {availableSetCodes.map((code) => {
-                                            const isSelected = selectedSetCodes.includes(code);
-
-                                            return (
-                                                <Button
-                                                    key={code}
-                                                    type="button"
-                                                    size="sm"
-                                                    variant={isSelected ? "default" : "outline"}
-                                                    onClick={() => toggleSetCode(code)}
-                                                >
-                                                    {code}
-                                                </Button>
-                                            );
-                                        })}
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>Set Codes</Label>
+                                {isLoadingSetCodes ? (
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Loading set codes...
                                     </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        {selectedSetCodes.length === 0
-                                            ? "No filter active. Showing all decks."
-                                            : `Filter active: ${selectedSetCodes.length} set code${selectedSetCodes.length === 1 ? "" : "s"} selected.`}
-                                    </p>
-                                </div>
-                            )}
+                                ) : availableSetCodes.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground">No set codes available.</p>
+                                ) : (
+                                    <>
+                                        <div className="flex flex-wrap gap-2">
+                                            {availableSetCodes.map((code) => {
+                                                const isSelected = selectedSetCodes.includes(code);
+
+                                                return (
+                                                    <Button
+                                                        key={code}
+                                                        type="button"
+                                                        size="sm"
+                                                        variant={isSelected ? "default" : "outline"}
+                                                        onClick={() => toggleSetCode(code)}
+                                                    >
+                                                        {code}
+                                                    </Button>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            {selectedSetCodes.length === 0
+                                                ? "No set-code filter active."
+                                                : `Set-code filter active: ${selectedSetCodes.length} selected.`}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Deck Tags</Label>
+                                {availableDeckTags.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground">No deck tags available.</p>
+                                ) : (
+                                    <>
+                                        <div className="flex flex-wrap gap-2">
+                                            {availableDeckTags.map((tag) => {
+                                                const isSelected = selectedDeckTags.includes(tag);
+
+                                                return (
+                                                    <Button
+                                                        key={tag}
+                                                        type="button"
+                                                        size="sm"
+                                                        variant={isSelected ? "default" : "outline"}
+                                                        onClick={() => toggleDeckTag(tag)}
+                                                    >
+                                                        {tag}
+                                                    </Button>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            {selectedDeckTags.length === 0
+                                                ? "No tag filter active."
+                                                : `Tag filter active: ${selectedDeckTags.length} tag${selectedDeckTags.length === 1 ? "" : "s"} selected (OR matching).`}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -279,8 +330,14 @@ export default function DashboardPage() {
                                 {decks.length === 0 ? (
                                     <Button onClick={() => router.push("/decks/generate")}>Go to Deck Generation</Button>
                                 ) : (
-                                    <Button onClick={() => setSelectedSetCodes([])} variant="outline">
-                                        Clear Filter
+                                    <Button
+                                        onClick={() => {
+                                            setSelectedSetCodes([]);
+                                            setSelectedDeckTags([]);
+                                        }}
+                                        variant="outline"
+                                    >
+                                        Clear Filters
                                     </Button>
                                 )}
                             </CardContent>
@@ -303,6 +360,9 @@ export default function DashboardPage() {
                                 <CardContent className="space-y-2">
                                     <p className="text-sm text-muted-foreground">
                                         {deck.short_summary ?? "No summary available yet."}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Tags: {(deck.tags ?? []).length > 0 ? (deck.tags ?? []).join(", ") : "None"}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
                                         Sets: {deck.set_codes.length > 0 ? deck.set_codes.join(", ") : "None"}

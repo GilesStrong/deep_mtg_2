@@ -71,6 +71,7 @@ describe("DeckPage", () => {
                     short_summary: "Control shell",
                     full_summary: "Long summary",
                     set_codes: ["ONE"],
+                    tags: ["Control", "Midrange"],
                     date_updated: "2026-02-01T10:00:00.000Z",
                     creation_status: "COMPLETED",
                     cards: [
@@ -119,6 +120,7 @@ describe("DeckPage", () => {
 
         render(<DeckPage />);
         expect(await screen.findByText("Deck Details")).toBeInTheDocument();
+        expect(screen.getByText("Tags: Control, Midrange")).toBeInTheDocument();
 
         const nameInput = screen.getByLabelText("Name");
         await user.clear(nameInput);

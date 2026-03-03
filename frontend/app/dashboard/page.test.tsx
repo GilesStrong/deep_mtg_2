@@ -82,6 +82,7 @@ describe("DashboardPage", () => {
                         name: "Izzet Spells",
                         short_summary: "Blue-red tempo",
                         set_codes: ["DMU"],
+                        tags: ["Control", "Tempo"],
                         date_updated: "2026-02-01T10:00:00.000Z",
                         generation_status: null,
                         generation_task_id: null,
@@ -91,6 +92,7 @@ describe("DashboardPage", () => {
                         name: "Mono White",
                         short_summary: "Aggro",
                         set_codes: ["ONE"],
+                        tags: ["Aggro"],
                         date_updated: "2026-02-02T10:00:00.000Z",
                         generation_status: null,
                         generation_task_id: null,
@@ -128,7 +130,31 @@ describe("DashboardPage", () => {
 
         expect(screen.getByText("Mono White")).toBeInTheDocument();
         expect(screen.queryByText("Izzet Spells")).not.toBeInTheDocument();
-        expect(screen.getByText("Filter active: 1 set code selected.")).toBeInTheDocument();
+        expect(screen.getByText("Set-code filter active: 1 selected.")).toBeInTheDocument();
+    });
+
+    it("shows deck tags as part of the short summary", async () => {
+        render(<DashboardPage />);
+
+        expect(await screen.findByText("Blue-red tempo")).toBeInTheDocument();
+        expect(screen.getAllByText("Aggro").length).toBeGreaterThan(0);
+        expect(screen.getByText("Tags: Control, Tempo")).toBeInTheDocument();
+        expect(screen.getByText("Tags: Aggro")).toBeInTheDocument();
+    });
+
+    it("filters decks by selected deck tags using OR logic", async () => {
+        const user = userEvent.setup();
+
+        render(<DashboardPage />);
+        expect(await screen.findByText("Izzet Spells")).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Control" }));
+        expect(screen.getByText("Izzet Spells")).toBeInTheDocument();
+        expect(screen.queryByText("Mono White")).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Aggro" }));
+        expect(screen.getByText("Izzet Spells")).toBeInTheDocument();
+        expect(screen.getByText("Mono White")).toBeInTheDocument();
     });
 
     it("shows empty states when deck and set code requests fail", async () => {

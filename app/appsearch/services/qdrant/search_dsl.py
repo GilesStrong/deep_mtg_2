@@ -52,9 +52,9 @@ class MatchAnyCondition(BaseModel):
     """
 
     key: str = Field(..., description="Field name to apply the match any condition on")
-    any: list[str] | list[str] = Field(..., description="List of values to match any of")
+    any: list[str] = Field(..., description="List of values to match any of")
 
-    @field_validator('any', mode='before')
+    @field_validator('any', mode='after')
     @classmethod
     def check_any(cls, v: list[str]) -> list[str]:
         if not v:

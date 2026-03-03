@@ -51,6 +51,7 @@ class Deck(models.Model):
     short_llm_summary = models.TextField(blank=True, null=True, max_length=SHORT_SUMMARY_LENGTH_LIMIT[1])
     llm_summary = models.TextField(blank=True, null=True, max_length=SUMMARY_LENGTH_LIMIT[1])
     generation_history = models.JSONField(default=list, blank=True, validators=[_validate_list_str])
+    tags = models.JSONField(default=list, blank=True, validators=[_validate_list_str])
     valid = models.BooleanField(default=False)
     user = models.ForeignKey(
         User,

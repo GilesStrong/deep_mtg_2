@@ -6,6 +6,7 @@ type DeckSummary = {
     name: string;
     short_summary: string | null;
     set_codes: string[];
+    tags?: string[];
     date_updated: string;
     generation_status: string | null;
     generation_task_id: string | null;
