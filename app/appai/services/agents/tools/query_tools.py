@@ -117,13 +117,17 @@ class Theme(BaseModel):
     days_since: int = Field(..., description="The number of days since this theme was used.")
 
 
+class NewTheme(BaseModel):
+    description: str = Field(..., description="A description of the new theme.", min_length=20, max_length=255)
+
+
 @beartype
-async def search_for_themes(ctx: RunContext[DeckBuildingDeps], query_theme: str) -> list[Theme]:
+async def find_similar_themes(ctx: RunContext[DeckBuildingDeps], proposed_theme: NewTheme) -> list[Theme]:
     """
-    Searches for deck themes matching a query.
+    Searches for deck themes similar to a proposed theme.
 
     Args:
-        query_theme (str): The theme query you are considering.
+        proposed_theme (NewTheme): The theme query you are considering.
 
     Returns:
         list[Theme]: A list of previously run deck themes that are similar to the search query, along with the number of days since each theme was last used.
@@ -131,7 +135,7 @@ async def search_for_themes(ctx: RunContext[DeckBuildingDeps], query_theme: str)
 
     # Run search
     found_themes = await sync_to_async(run_query_from_dsl)(
-        Query(collection_name=THEME_COLLECTION_NAME, query_string=query_theme, filter=None, limit=5)
+        Query(collection_name=THEME_COLLECTION_NAME, query_string=proposed_theme.description, filter=None, limit=5)
     )
     themes = []
     for point in found_themes:

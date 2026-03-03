@@ -208,8 +208,8 @@ if TESTING:
 
 CELERY_BEAT_SCHEDULE = {
     "daily-job-attempt": {
-        "task": "appai.tasks.make_daily_theme.make_daily_theme",
-        "schedule": crontab(minute="*/10"),  # every 10 minutes, but only completes once a day due to early exit
+        "task": "appai.tasks.daily_theme.make_daily_theme",
+        "schedule": crontab(minute="*/30"),  # every 30 minutes, but only completes once a day due to early exit
     },
 }
 

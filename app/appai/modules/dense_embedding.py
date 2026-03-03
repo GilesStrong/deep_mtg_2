@@ -43,9 +43,9 @@ def dense_embed(text: str) -> list[float]:
     Generates a dense embedding vector for the given text.
 
     This function handles two execution contexts:
-    - When running inside a Celery task, it delegates the embedding generation
+    - When running outside a Celery task, it delegates the embedding generation
         to a Celery worker task asynchronously, waiting up to 60 seconds for the result.
-    - When running outside a Celery task, it directly calls the underlying
+    - When running inside a Celery task, it directly calls the underlying
         embedding function.
 
     Args:
@@ -60,9 +60,9 @@ def dense_embed(text: str) -> list[float]:
                     within the 60-second timeout window.
     """
     if in_celery_task():
+        return _dense_embed(text)
+    else:
         from appai.tasks.dense_embedding import dense_embed as _dense_embed_task
 
         result: AsyncResult = cast(Any, _dense_embed_task.delay)(text)
         return cast(list[float], result.get(timeout=60))
-    else:
-        return _dense_embed(text)

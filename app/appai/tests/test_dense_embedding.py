@@ -148,11 +148,58 @@ class DenseEmbedOutsideCeleryTests(TestCase):
         _dense_embed.cache_clear()
 
     @patch(f"{_MODULE}.in_celery_task", return_value=False)
+    def test_delegates_to_celery_task_and_returns_result(self, mock_in_celery):
+        """
+        GIVEN the function is called outside a Celery task
+        WHEN dense_embed is called
+        THEN it delegates to the Celery embedding task and returns result.get(...)
+        """
+        mock_task = MagicMock()
+        mock_async_result = MagicMock()
+        mock_async_result.get.return_value = _SAMPLE_EMBEDDING
+        mock_task.delay.return_value = mock_async_result
+
+        with patch.dict("sys.modules", {"appai.tasks.dense_embedding": MagicMock(dense_embed=mock_task)}):
+            result = dense_embed(_SAMPLE_TEXT)
+
+        self.assertEqual(result, _SAMPLE_EMBEDDING)
+        mock_task.delay.assert_called_once_with(_SAMPLE_TEXT)
+        mock_async_result.get.assert_called_once_with(timeout=60)
+
+    @patch(f"{_MODULE}.in_celery_task", return_value=False)
+    @patch(f"{_MODULE}.requests.post")
+    def test_does_not_call_http_directly_outside_celery(self, mock_post, mock_in_celery):
+        """
+        GIVEN the function is called outside a Celery task
+        WHEN dense_embed is called
+        THEN no direct HTTP request is made to the Ollama API
+        """
+        mock_task = MagicMock()
+        mock_async_result = MagicMock()
+        mock_async_result.get.return_value = _SAMPLE_EMBEDDING
+        mock_task.delay.return_value = mock_async_result
+
+        with patch.dict("sys.modules", {"appai.tasks.dense_embedding": MagicMock(dense_embed=mock_task)}):
+            dense_embed(_SAMPLE_TEXT)
+
+        mock_post.assert_not_called()
+
+
+class DenseEmbedInsideCeleryTests(TestCase):
+    """Tests for dense_embed when called inside a Celery task."""
+
+    def setUp(self):
+        _dense_embed.cache_clear()
+
+    def tearDown(self):
+        _dense_embed.cache_clear()
+
+    @patch(f"{_MODULE}.in_celery_task", return_value=True)
     @patch(f"{_MODULE}.APP_SETTINGS")
     @patch(f"{_MODULE}.requests.post")
     def test_calls_internal_embed_directly(self, mock_post, mock_settings, mock_in_celery):
         """
-        GIVEN the function is called outside a Celery task
+        GIVEN the function is called inside a Celery task
         WHEN dense_embed is called
         THEN it directly calls _dense_embed and returns the embedding
         """
@@ -167,14 +214,14 @@ class DenseEmbedOutsideCeleryTests(TestCase):
         self.assertEqual(result, _SAMPLE_EMBEDDING)
         mock_post.assert_called_once()
 
-    @patch(f"{_MODULE}.in_celery_task", return_value=False)
+    @patch(f"{_MODULE}.in_celery_task", return_value=True)
     @patch(f"{_MODULE}.APP_SETTINGS")
     @patch(f"{_MODULE}.requests.post")
-    def test_does_not_delegate_to_celery_task(self, mock_post, mock_settings, mock_in_celery):
+    def test_calls_internal_embed_with_correct_text(self, mock_post, mock_settings, mock_in_celery):
         """
-        GIVEN the function is called outside a Celery task
+        GIVEN the function is called inside a Celery task with specific text
         WHEN dense_embed is called
-        THEN no Celery task is dispatched
+        THEN the HTTP request prompt matches the input text
         """
         mock_settings.OLLAMA_BASE_URL = "http://ollama:11434"
         mock_settings.EMBEDDING_MODEL = "nomic-embed-text"
@@ -182,87 +229,43 @@ class DenseEmbedOutsideCeleryTests(TestCase):
         mock_response.json.return_value = {"embedding": _SAMPLE_EMBEDDING}
         mock_post.return_value = mock_response
 
-        with patch.dict("sys.modules", {"appai.tasks.dense_embedding": MagicMock()}):
-            dense_embed(_SAMPLE_TEXT)
+        dense_embed(_SAMPLE_TEXT)
 
-        # Confirm the real HTTP path was taken, not a mocked task
-        mock_post.assert_called_once()
-
-
-class DenseEmbedInsideCeleryTests(TestCase):
-    """Tests for dense_embed when called inside a Celery task."""
-
-    def setUp(self):
-        _dense_embed.cache_clear()
-
-    def tearDown(self):
-        _dense_embed.cache_clear()
+        self.assertEqual(mock_post.call_args.kwargs["json"]["prompt"], _SAMPLE_TEXT)
 
     @patch(f"{_MODULE}.in_celery_task", return_value=True)
-    def test_delegates_to_celery_task(self, mock_in_celery):
+    @patch(f"{_MODULE}.APP_SETTINGS")
+    @patch(f"{_MODULE}.requests.post")
+    def test_uses_http_timeout_inside_celery(self, mock_post, mock_settings, mock_in_celery):
         """
         GIVEN the function is called inside a Celery task
         WHEN dense_embed is called
-        THEN it dispatches a Celery task and returns the task result
+        THEN the HTTP request uses a 60-second timeout
         """
-        mock_task = MagicMock()
-        mock_async_result = MagicMock()
-        mock_async_result.get.return_value = _SAMPLE_EMBEDDING
-        mock_task.delay.return_value = mock_async_result
+        mock_settings.OLLAMA_BASE_URL = "http://ollama:11434"
+        mock_settings.EMBEDDING_MODEL = "nomic-embed-text"
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"embedding": _SAMPLE_EMBEDDING}
+        mock_post.return_value = mock_response
 
-        with patch.dict("sys.modules", {"appai.tasks.dense_embedding": MagicMock(dense_embed=mock_task)}):
-            result = dense_embed(_SAMPLE_TEXT)
+        dense_embed(_SAMPLE_TEXT)
 
-        self.assertEqual(result, _SAMPLE_EMBEDDING)
-
-    @patch(f"{_MODULE}.in_celery_task", return_value=True)
-    def test_celery_task_called_with_correct_text(self, mock_in_celery):
-        """
-        GIVEN the function is called inside a Celery task with specific text
-        WHEN dense_embed is called
-        THEN the Celery task is dispatched with that same text
-        """
-        mock_task = MagicMock()
-        mock_async_result = MagicMock()
-        mock_async_result.get.return_value = _SAMPLE_EMBEDDING
-        mock_task.delay.return_value = mock_async_result
-
-        with patch.dict("sys.modules", {"appai.tasks.dense_embedding": MagicMock(dense_embed=mock_task)}):
-            dense_embed(_SAMPLE_TEXT)
-
-        mock_task.delay.assert_called_once_with(_SAMPLE_TEXT)
-
-    @patch(f"{_MODULE}.in_celery_task", return_value=True)
-    def test_celery_result_get_called_with_60s_timeout(self, mock_in_celery):
-        """
-        GIVEN the function is called inside a Celery task
-        WHEN dense_embed is called
-        THEN result.get is called with a 60-second timeout
-        """
-        mock_task = MagicMock()
-        mock_async_result = MagicMock()
-        mock_async_result.get.return_value = _SAMPLE_EMBEDDING
-        mock_task.delay.return_value = mock_async_result
-
-        with patch.dict("sys.modules", {"appai.tasks.dense_embedding": MagicMock(dense_embed=mock_task)}):
-            dense_embed(_SAMPLE_TEXT)
-
-        mock_async_result.get.assert_called_once_with(timeout=60)
+        self.assertEqual(mock_post.call_args.kwargs["timeout"], 60)
 
     @patch(f"{_MODULE}.in_celery_task", return_value=True)
     @patch(f"{_MODULE}.requests.post")
-    def test_does_not_call_http_directly_inside_celery(self, mock_post, mock_in_celery):
+    def test_does_not_dispatch_subtask_inside_celery(self, mock_post, mock_in_celery):
         """
         GIVEN the function is called inside a Celery task
         WHEN dense_embed is called
-        THEN no direct HTTP request is made to the Ollama API
+        THEN no nested Celery embedding task is dispatched
         """
-        mock_task = MagicMock()
-        mock_async_result = MagicMock()
-        mock_async_result.get.return_value = _SAMPLE_EMBEDDING
-        mock_task.delay.return_value = mock_async_result
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"embedding": _SAMPLE_EMBEDDING}
+        mock_post.return_value = mock_response
 
+        mock_task = MagicMock()
         with patch.dict("sys.modules", {"appai.tasks.dense_embedding": MagicMock(dense_embed=mock_task)}):
             dense_embed(_SAMPLE_TEXT)
 
-        mock_post.assert_not_called()
+        mock_task.delay.assert_not_called()

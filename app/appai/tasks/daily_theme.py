@@ -2,6 +2,7 @@ from datetime import datetime
 from timeit import default_timer
 
 import logfire
+from app.utils import celery_task_context
 from appcards.constants.storage import THEME_COLLECTION_NAME
 from appcards.models.deck import DailyDeckTheme
 from appcore.modules.beartype import beartype
@@ -35,7 +36,7 @@ def make_daily_theme(self: Task) -> None:
         1. Checks if a DailyDeckTheme already exists for today, returning early if so.
         2. Ensures the theme collection exists in the vector store.
         3. Generates a daily deck theme using `get_daily_deck_theme()`.
-        4. Creates a dense embedding of the theme description.
+        4. Creates a dense embedding of the theme description using `_dense_embed()`.
         5. Persists the theme to the database and upserts the embedding into the
            vector store within an atomic transaction.
 
@@ -52,33 +53,38 @@ def make_daily_theme(self: Task) -> None:
     if DailyDeckTheme.objects.filter(date=datetime.now().date()).exists():
         return
 
-    logfire.info(f"Starting daily theme generation task. Task ID: {self.request.id}")
-    create_collection_if_not_exists(THEME_COLLECTION_NAME)
+    with celery_task_context():
+        logfire.info(f"Starting daily theme generation task. Task ID: {self.request.id}")
+        create_collection_if_not_exists(THEME_COLLECTION_NAME)
 
-    start = default_timer()
-    try:
-        theme = get_daily_deck_theme()
-        logfire.info(f"Generated daily theme: {theme}")
-    except Exception as e:
-        logfire.error(f"Error during daily theme generation task with ID: {self.request.id}: {e}")
-        raise RuntimeError("Daily theme generation failed")
-    time_taken = default_timer() - start
-    logfire.info(f"Daily theme generation task with ID: {self.request.id} completed in {time_taken:.2f} seconds")
+        start = default_timer()
+        try:
+            theme = get_daily_deck_theme()
+            logfire.info(f"Generated daily theme: {theme}")
+        except Exception as e:
+            logfire.error(f"Error during daily theme generation task with ID: {self.request.id}: {e}")
+            raise RuntimeError("Daily theme generation failed")
+        time_taken = default_timer() - start
+        logfire.info(f"Daily theme generation task with ID: {self.request.id} completed in {time_taken:.2f} seconds")
 
-    embedding = dense_embed(theme.description)
+        embedding = dense_embed(theme.description)
 
-    with transaction.atomic():
-        daily_theme = DailyDeckTheme.objects.create(theme=theme.description)
-        upsert_documents(
-            THEME_COLLECTION_NAME,
-            [
-                qm.PointStruct(
-                    id=str(daily_theme.id),
-                    vector=embedding,
-                    payload={
-                        "description": theme.description,
-                        "date": daily_theme.date.isoformat(),
-                    },
+        with transaction.atomic():
+            try:
+                daily_theme = DailyDeckTheme.objects.create(theme=theme.description)
+                upsert_documents(
+                    THEME_COLLECTION_NAME,
+                    [
+                        qm.PointStruct(
+                            id=str(daily_theme.id),
+                            vector={'dense': embedding},
+                            payload={
+                                "description": theme.description,
+                                "date": daily_theme.date.isoformat(),
+                            },
+                        )
+                    ],
                 )
-            ],
-        )
+            except Exception as e:
+                logfire.error(f"Error during database transaction for daily theme task with ID: {self.request.id}: {e}")
+                raise RuntimeError("Failed to save daily theme to database and vector store")

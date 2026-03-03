@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+from appcards.constants.cards import EVERGREEN_KEYWORDS
 from appcore.modules.beartype import beartype
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
@@ -7,7 +8,7 @@ from pydantic_ai import Agent
 from appai.constants.llm_models import TOOL_MODEL
 from appai.constants.prompt_gotchas import GOTCHAS
 from appai.services.agents.deps import DeckBuildingDeps
-from appai.services.agents.tools.query_tools import search_for_cards, search_for_themes
+from appai.services.agents.tools.query_tools import find_similar_themes
 
 DECK_THEME_PROMPT = f"""
 # Overview
@@ -18,10 +19,18 @@ You don't necessarily care about the competitiveness of the deck, but you do car
 # Instructions
 Every day, you will come up with a new and interesting theme for a Magic: The Gathering deck.
 The theme should be something that can be clearly expressed in a few sentences, and should be something that can be used as a basis for building a deck around.
+The theme should be broad enough that the deck can be built in a variety of ways, without relying on a specific mechanic or card, which may not be legal or available in the format of the deck.
+However the theme should be specific enough that it provides a clear direction for building a deck, and is not something generic like "a fun deck" or "a deck with lots of creatures".
+Do not over think things, just come up with a fun and interesting theme that you think would be enjoyable to build a deck around.
+When using the find_similar_themes tool, if no similar themes exist, that's great! That means you have come up with a unique and interesting theme that hasn't been done before, so just go with it!
+
+If you wish to include specific keywords, only use evergreen keywords that are not likely to rotate out of standard, and avoid using very specific mechanics that may only be present in a few cards.
+The current set of evergreen keywords are: {EVERGREEN_KEYWORDS}.
+However, in general, err on the side of including general descriptions for what the mechanics should accomplish, rather that how they may be specified on the cards.
 
 # Output
 Your output should be a few short sentences that describe the theme of the day.
-Make sure to check that your theme is not too similar to the themes you have generated in the past two weeks, and that it is something that can be used as a basis for building a deck around.
+Make sure to check that your theme is not too similar to the themes you have generated in the past, and that it is something that can be used as a basis for building a deck around.
 
 # Gotchas
 
@@ -29,15 +38,15 @@ Make sure to check that your theme is not too similar to the themes you have gen
 
 # Tools
 You have access to the following tools to help you generate the theme:
-- search_for_cards tool to find whether there are cards that fit the theme you are considering. Do not search too many times.
-- search_for_themes tool to find past themes that you have generated, to help you avoid generating similar themes repeatedly. You can search for themes based on keywords or concepts that are similar to the theme you are considering.
+- find_similar_themes tool to find past themes that you have generated, to help you avoid generating similar themes repeatedly. You can search for themes based on keywords or concepts that are similar to the theme you are considering.
+  - Do not make generic searches, like "fun themes". Instead, send the exact theme you are considering as the search query.
 This should be a quick, cheap operation, so do not call many tools.
 """
 
 
 class NewTheme(BaseModel):
     description: str = Field(
-        description="A sentences that describe the theme of the day.",
+        description="A sentences that describe the theme of the deck. Do not include any prefix like 'the theme of the deck is...', just the description of the theme itself. The description should be specific enough to provide a clear direction for building a deck, but not so specific that it relies on a particular card or mechanic.",
         min_length=20,
         max_length=255,
     )
@@ -70,6 +79,6 @@ def get_daily_deck_theme() -> NewTheme:
         instrument=True,
         output_type=NewTheme,
         deps_type=DeckBuildingDeps,
-        tools=[search_for_cards, search_for_themes],
+        tools=[find_similar_themes],
     )
     return agent.run_sync(deps=DeckBuildingDeps(deck_id=uuid4())).output

@@ -1,6 +1,7 @@
 from typing import Any
 
 from app.app_settings import APP_SETTINGS
+from app.utils import celery_task_context
 from appcore.modules.beartype import beartype
 from celery import Task, shared_task
 
@@ -37,4 +38,5 @@ def summarise_card(self: Task, card_details: dict[str, Any]) -> dict[str, str | 
         dict[str, str | list[str]]: A dictionary containing the summarised card
             information, where values are either strings or lists of strings.
     """
-    return _summarise_card(CardInfo.model_validate(card_details)).model_dump()
+    with celery_task_context():
+        return _summarise_card(CardInfo.model_validate(card_details)).model_dump()

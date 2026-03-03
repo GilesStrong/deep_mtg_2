@@ -1,3 +1,4 @@
+from app.utils import celery_task_context
 from appcore.modules.beartype import beartype
 from celery import Task, shared_task
 
@@ -15,4 +16,5 @@ from appai.modules.dense_embedding import _dense_embed
 )
 @beartype
 def dense_embed(self: Task, text: str) -> list[float]:
-    return _dense_embed(text)
+    with celery_task_context():
+        return _dense_embed(text)
