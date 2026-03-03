@@ -142,9 +142,10 @@ async def list_deck_cards(ctx: RunContext[DeckBuildingDeps]) -> str:
         card_list = "\n".join(
             [
                 f"""
-{dc.quantity}x {dc.card.name} -- {dc.card.id}:
-Tags:{dc.card.tags}
-LLM Summary:{dc.card.llm_summary}
+# {dc.quantity}x {dc.card.name} -- {dc.card.id}:
+## Tags:{dc.card.tags}
+## LLM Summary:
+# {dc.card.llm_summary}
 """
                 for dc in deck_cards
             ]

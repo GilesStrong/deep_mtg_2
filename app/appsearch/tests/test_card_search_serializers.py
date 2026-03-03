@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.test import TestCase
 from ninja.errors import HttpError
+from pydantic import ValidationError
 
 from appsearch.serializers.card_search import SearchCardsIn
 
@@ -12,11 +13,11 @@ class SearchCardsInValidatorTests(TestCase):
     def test_validate_tags_rejects_non_list(self):
         """
         GIVEN tags provided as a non-list value
-        WHEN SearchCardsIn.validate_tags is called
-        THEN it raises ValueError indicating tags must be a list
+        WHEN SearchCardsIn is instantiated
+        THEN pydantic validation fails before field validators run
         """
-        with self.assertRaises(ValueError):
-            SearchCardsIn.validate_tags("Aggro")
+        with self.assertRaises(ValidationError):
+            SearchCardsIn(query="A valid query for cards", tags="Aggro")
 
     def test_validate_tags_rejects_invalid_tags(self):
         """
