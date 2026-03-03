@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -9,10 +10,10 @@ from ninja.errors import HttpError
 
 from appcards.constants.cards import HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
 from appcards.models.card import Card, Rarity
-from appcards.models.deck import Deck
+from appcards.models.deck import DailyDeckTheme, Deck
 from appcards.models.printing import Printing
 from appcards.routes.card import get_card, list_set_codes, list_tags
-from appcards.routes.deck import delete_deck, get_summary_deck
+from appcards.routes.deck import delete_deck, get_daily_theme, get_summary_deck
 
 _CARD_MODULE = "appcards.routes.card"
 
@@ -130,3 +131,31 @@ class DeckRoutesTests(TestCase):
 
         self.assertIsNone(result)
         self.assertFalse(Deck.objects.filter(id=deck.id).exists())
+
+    def test_get_daily_theme_returns_fallback_when_no_themes_exist(self):
+        """
+        GIVEN no DailyDeckTheme records exist
+        WHEN get_daily_theme is called
+        THEN it returns the hard-coded fallback theme string
+        """
+        result = get_daily_theme(SimpleNamespace())
+
+        self.assertEqual(
+            result,
+            "Blue-White Control: counterspells, card draw, and versatile answers to threats, with a focus on controlling the game and winning in the late game.",
+        )
+
+    def test_get_daily_theme_returns_latest_persisted_theme(self):
+        """
+        GIVEN multiple DailyDeckTheme records across days
+        WHEN get_daily_theme is called
+        THEN it returns the most recent theme by date
+        """
+        older = DailyDeckTheme.objects.create(theme="Older theme")
+        newer = DailyDeckTheme.objects.create(theme="Newest theme")
+        DailyDeckTheme.objects.filter(id=older.id).update(date=date.today() - timedelta(days=1))
+        DailyDeckTheme.objects.filter(id=newer.id).update(date=date.today())
+
+        result = get_daily_theme(SimpleNamespace())
+
+        self.assertEqual(result, "Newest theme")
