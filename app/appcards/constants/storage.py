@@ -1,1 +1,2 @@
 CARD_COLLECTION_NAME = "cards"
+THEME_COLLECTION_NAME = "themes"

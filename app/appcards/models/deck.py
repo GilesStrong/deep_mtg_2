@@ -131,3 +131,12 @@ def validate_deck_basic(deck_id: UUID | Deck) -> DeckValidationResult:
     if len(issues) > 0:
         return DeckValidationResult(valid=False, issues=issues, total_cards=total_cards)
     return DeckValidationResult(valid=True, issues=[], total_cards=total_cards)
+
+
+class DailyDeckTheme(models.Model):
+    id = models.UUIDField(default=uuid4, editable=False, primary_key=True, unique=True)
+    date = models.DateField(auto_now_add=True)
+    theme = models.TextField(max_length=255)
+
+    def __str__(self) -> str:
+        return f"{self.date}: {self.theme}"
