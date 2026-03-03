@@ -25,12 +25,34 @@ from appai.services.agents.deck_theme import get_daily_deck_theme
 )
 @beartype
 def make_daily_theme(self: Task) -> None:
-    logfire.info(f"Starting daily theme generation task. Task ID: {self.request.id}")
+    """
+    Generate and store a daily deck theme for Magic: The Gathering.
 
+    This method is designed to be used as a Celery task and will early-return if a
+    theme has already been generated for the current date.
+
+    The method performs the following steps:
+        1. Checks if a DailyDeckTheme already exists for today, returning early if so.
+        2. Ensures the theme collection exists in the vector store.
+        3. Generates a daily deck theme using `get_daily_deck_theme()`.
+        4. Creates a dense embedding of the theme description.
+        5. Persists the theme to the database and upserts the embedding into the
+           vector store within an atomic transaction.
+
+    Args:
+        self (Task): The Celery task instance, providing access to task metadata
+            such as `self.request.id`.
+
+    Raises:
+        RuntimeError: If an error occurs during the theme generation process.
+
+    Returns:
+        None
+    """
     if DailyDeckTheme.objects.filter(date=datetime.now().date()).exists():
-        logfire.info("Daily theme already exists for today. Exiting task.")
         return
 
+    logfire.info(f"Starting daily theme generation task. Task ID: {self.request.id}")
     create_collection_if_not_exists(THEME_COLLECTION_NAME)
 
     start = default_timer()

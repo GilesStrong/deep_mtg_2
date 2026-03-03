@@ -45,6 +45,25 @@ class NewTheme(BaseModel):
 
 @beartype
 def get_daily_deck_theme() -> NewTheme:
+    """
+    Generate a new daily deck theme for Magic: The Gathering using an AI agent.
+
+    This function initializes an AI agent with deck-building capabilities and runs it
+    synchronously to produce a new theme suggestion for a Magic: The Gathering deck.
+
+    The agent is equipped with tools to search for cards and themes, and operates
+    under a predefined deck theme prompt to guide its suggestions.
+
+    Returns:
+        NewTheme: A new deck theme object containing the AI-generated theme
+                  suggestion for the day, including relevant cards and theme details.
+
+    Notes:
+        - Uses a synchronous execution model via `run_sync`.
+        - Each call generates a unique deck ID using UUID4.
+        - The agent leverages `search_for_cards` and `search_for_themes` tools
+          to inform its theme generation.
+    """
     agent = Agent(
         model=TOOL_MODEL,
         system_prompt=DECK_THEME_PROMPT,

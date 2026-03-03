@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import logfire
+from celery.schedules import crontab
 from kombu import Exchange, Queue
 
 from app.app_settings import APP_SETTINGS
@@ -203,6 +204,14 @@ CELERY_TASK_QUEUES = (
 if TESTING:
     CELERY_TASK_ALWAYS_EAGER = True
     CELERY_TASK_EAGER_PROPAGATES = True
+
+
+CELERY_BEAT_SCHEDULE = {
+    "daily-job-attempt": {
+        "task": "appai.tasks.make_daily_theme.make_daily_theme",
+        "schedule": crontab(minute="*/10"),  # every 10 minutes, but only completes once a day due to early exit
+    },
+}
 
 if not TESTING:
     logfire.configure(environment=APP_SETTINGS.LOGFIRE_ENVIRONMENT, token=APP_SETTINGS.LOGFIRE_TOKEN)
