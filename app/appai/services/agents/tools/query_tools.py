@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID
 
-from appcards.constants.storage import CARD_COLLECTION_NAME
+from appcards.constants.storage import CARD_COLLECTION_NAME, THEME_COLLECTION_NAME
 from appcards.models import Card
 from appcards.models.deck import DeckCard
 from appcards.modules.card_info import CardInfo, card_to_info
@@ -17,7 +18,7 @@ from appai.services.agents.filter_constructor import filter_constructor
 MAX_SEARCH_RESULTS = 25
 
 
-class SearchResults(BaseModel):
+class CardSearchResults(BaseModel):
     cards: list[CardInfo] = Field(description="The list of cards matching the search query, with their details.")
     max_results: int = Field(
         description="The maximum number of results that were requested to be returned, which may be less than the actual number of results found."
@@ -27,8 +28,11 @@ class SearchResults(BaseModel):
 # TODO: Make the main agent be able to specify the filter, and/or split the filter query and the vector-search query
 @beartype
 async def search_for_cards(
-    ctx: RunContext[DeckBuildingDeps], query: str, search_with_advanced_filter: bool = True, max_results: int = 10
-) -> SearchResults:
+    ctx: RunContext[DeckBuildingDeps],
+    card_description: str,
+    search_with_advanced_filter: bool = True,
+    max_results: int = 10,
+) -> CardSearchResults:
     """
     Searches for cards matching a query.
     The search will be performed using a vector search between the query and the card embeddings, which are based on automatically generated summaries of the cards.
@@ -56,12 +60,13 @@ async def search_for_cards(
     Be aware that the results of the search are NOT added to the deck. Use the appropriate tool to add cards to the deck after retrieving them with this search tool.
 
     Args:
-        query (str): The search query to use.
+        card_description (str): The description of the card to search for. Do not query just keywords, instead provide a natural language description of the type of card you are looking for, and how it should function in-game.
+            Include also any details that you think are relevant to the card, and the kind of deck it should fit into.
         search_with_advanced_filter (bool): Whether to construct and apply a filter based on interpreted query.
         max_results (int): The maximum number of results to return, subject to a maximum limit.
 
     Returns:
-        SearchResults: The search results containing the matching cards and the maximum number of results that were requested.
+        CardSearchResults: The search results containing the matching cards and the maximum number of results that were requested.
     """
     if max_results > MAX_SEARCH_RESULTS:
         max_results = MAX_SEARCH_RESULTS
@@ -78,7 +83,7 @@ async def search_for_cards(
     )
 
     if search_with_advanced_filter:
-        advanced_filter = await filter_constructor(query)
+        advanced_filter = await filter_constructor(card_description)
         combined_filter = Filter(
             min_should_count=advanced_filter.min_should_count,
             should=advanced_filter.should,
@@ -96,7 +101,12 @@ async def search_for_cards(
 
     # Run search
     found_cards = await sync_to_async(run_query_from_dsl)(
-        Query(collection_name=CARD_COLLECTION_NAME, query_string=query, filter=combined_filter, limit=max_results),
+        Query(
+            collection_name=CARD_COLLECTION_NAME,
+            query_string=card_description,
+            filter=combined_filter,
+            limit=max_results,
+        ),
         exclude_ids=exclude_ids,
     )
 
@@ -108,4 +118,43 @@ async def search_for_cards(
             card_infos.append(await sync_to_async(card_to_info)(card))
         except Card.DoesNotExist:
             continue
-    return SearchResults(cards=card_infos, max_results=max_results)
+    return CardSearchResults(cards=card_infos, max_results=max_results)
+
+
+class Theme(BaseModel):
+    description: str = Field(..., description="A description of the theme.")
+    days_since: int = Field(..., description="The number of days since this theme was used.")
+
+
+class NewTheme(BaseModel):
+    description: str = Field(..., description="A description of the new theme.", min_length=20, max_length=255)
+
+
+@beartype
+async def find_similar_themes(ctx: RunContext[DeckBuildingDeps], proposed_theme: NewTheme) -> list[Theme]:
+    """
+    Searches for deck themes similar to a proposed theme.
+
+    Args:
+        proposed_theme (NewTheme): The theme query you are considering.
+
+    Returns:
+        list[Theme]: A list of previously run deck themes that are similar to the search query, along with the number of days since each theme was last used.
+    """
+
+    # Run search
+    found_themes = await sync_to_async(run_query_from_dsl)(
+        Query(collection_name=THEME_COLLECTION_NAME, query_string=proposed_theme.description, filter=None, limit=5)
+    )
+    themes = []
+    for point in found_themes:
+        if (
+            point.score < 0.5
+            or point.payload is None
+            or "description" not in point.payload
+            or "date" not in point.payload
+        ):
+            continue
+        days_since = (datetime.now() - datetime.fromisoformat(point.payload["date"])).days
+        themes.append(Theme(description=point.payload["description"], days_since=days_since))
+    return themes

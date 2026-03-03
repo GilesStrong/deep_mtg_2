@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 import logfire
+from app.utils import celery_task_context
 from appcore.modules.beartype import beartype
 from celery import Task, shared_task
 
@@ -28,28 +29,29 @@ def construct_deck(
     deck_id: Optional[str] = None,
     available_set_codes: Optional[list[str]] = None,
 ) -> None:
-    logfire.info(
-        f"Starting deck construction task with description: {deck_description} and deck_id: {deck_id}. Task ID: {self.request.id}"
-    )
-    if deck_id is not None:
-        deck_uuid = UUID(str(deck_id))
-    else:
-        deck_uuid = None
-    DeckBuildTask.objects.filter(id=self.request.id).update(status=DeckBuildStatus.IN_PROGRESS)
-    start = default_timer()
-    try:
-        asyncio.run(
-            _construct_deck(
-                deck_description=deck_description,
-                deck_id=deck_uuid,
-                user_id=UUID(user_id),
-                available_set_codes=set(available_set_codes) if available_set_codes else None,
-            )
+    with celery_task_context():
+        logfire.info(
+            f"Starting deck construction task with description: {deck_description} and deck_id: {deck_id}. Task ID: {self.request.id}"
         )
-    except Exception as e:
-        logfire.error(f"Error during deck construction task with ID: {self.request.id}: {e}")
-        DeckBuildTask.objects.filter(id=self.request.id).update(status=DeckBuildStatus.FAILED)
-        raise RuntimeError("Deck construction failed")
-    DeckBuildTask.objects.filter(id=self.request.id).update(status=DeckBuildStatus.COMPLETED)
-    time_taken = default_timer() - start
-    logfire.info(f"Deck construction task with ID: {self.request.id} completed in {time_taken:.2f} seconds")
+        if deck_id is not None:
+            deck_uuid = UUID(str(deck_id))
+        else:
+            deck_uuid = None
+        DeckBuildTask.objects.filter(id=self.request.id).update(status=DeckBuildStatus.IN_PROGRESS)
+        start = default_timer()
+        try:
+            asyncio.run(
+                _construct_deck(
+                    deck_description=deck_description,
+                    deck_id=deck_uuid,
+                    user_id=UUID(user_id),
+                    available_set_codes=set(available_set_codes) if available_set_codes else None,
+                )
+            )
+        except Exception as e:
+            logfire.error(f"Error during deck construction task with ID: {self.request.id}: {e}")
+            DeckBuildTask.objects.filter(id=self.request.id).update(status=DeckBuildStatus.FAILED)
+            raise RuntimeError("Deck construction failed")
+        DeckBuildTask.objects.filter(id=self.request.id).update(status=DeckBuildStatus.COMPLETED)
+        time_taken = default_timer() - start
+        logfire.info(f"Deck construction task with ID: {self.request.id} completed in {time_taken:.2f} seconds")
