@@ -110,3 +110,48 @@ class DeckOutputValidatorTests(TestCase):
 
         with self.assertRaises(RuntimeError):
             GetFullDeckOut.validate_cards([(0, card)])
+
+    def test_summary_out_includes_tags(self):
+        """
+        GIVEN a valid deck and summary payload with tags
+        WHEN GetSummaryDeckOut is constructed
+        THEN tags are preserved on the output object
+        """
+        user = User.objects.create(google_id="gid-summary-tags", verified=True)
+        deck = Deck.objects.create(name="Tagged Summary Deck", user=user, tags=["Aggro", "Burn"])
+
+        output = GetSummaryDeckOut(
+            id=deck.id,
+            name=deck.name,
+            short_summary="Fast red pressure",
+            set_codes=[],
+            tags=["Aggro", "Burn"],
+            date_updated="2026-03-03T00:00:00+00:00",
+            generation_status=None,
+            generation_task_id=None,
+        )
+
+        self.assertCountEqual(output.tags, ["Aggro", "Burn"])
+
+    def test_full_out_includes_tags(self):
+        """
+        GIVEN a valid deck and full payload with tags
+        WHEN GetFullDeckOut is constructed
+        THEN tags are preserved on the output object
+        """
+        user = User.objects.create(google_id="gid-full-tags", verified=True)
+        deck = Deck.objects.create(name="Tagged Full Deck", user=user, tags=["Control", "Midrange"])
+
+        output = GetFullDeckOut(
+            id=deck.id,
+            name=deck.name,
+            short_summary="Flexible plan",
+            full_summary="Longer explanation of the strategy and card roles.",
+            set_codes=[],
+            tags=["Control", "Midrange"],
+            date_updated="2026-03-03T00:00:00+00:00",
+            cards=[],
+            creation_status=None,
+        )
+
+        self.assertCountEqual(output.tags, ["Control", "Midrange"])

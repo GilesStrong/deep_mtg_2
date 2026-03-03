@@ -28,7 +28,7 @@ class BuildDeckPostIn(Schema):
         None, description='Optional deck ID to update an existing deck instead of creating a new one.'
     )
 
-    @field_validator('deck_id', mode='before')
+    @field_validator('deck_id', mode='after')
     @classmethod
     def validate_deck_id(cls, value: UUID | None) -> UUID | None:
         if value is None:
@@ -37,7 +37,7 @@ class BuildDeckPostIn(Schema):
             raise HttpError(404, 'Deck not found')
         return value
 
-    @field_validator('set_codes', mode='before')
+    @field_validator('set_codes', mode='after')
     @classmethod
     def validate_set_codes(cls, value: list[str] | None) -> list[str] | None:
         if value is not None and len(value) == 0:
@@ -50,14 +50,14 @@ class BuildDeckPostOut(Schema):
     status_url: str
     deck_id: UUID
 
-    @field_validator('deck_id', mode='before')
+    @field_validator('deck_id', mode='after')
     @classmethod
     def validate_deck_id(cls, value: UUID) -> UUID:
         if not Deck.objects.filter(id=value).exists():
             raise RuntimeError('Deck not found')
         return value
 
-    @field_validator('task_id', mode='before')
+    @field_validator('task_id', mode='after')
     @classmethod
     def validate_task_id(cls, value: UUID) -> UUID:
         if not DeckBuildTask.objects.filter(id=value).exists():
@@ -73,7 +73,7 @@ class BuildDeckStatusOut(Schema):
     status: str
     deck_id: UUID
 
-    @field_validator('deck_id', mode='before')
+    @field_validator('deck_id', mode='after')
     @classmethod
     def validate_deck_id(cls, value: UUID) -> UUID:
         if not Deck.objects.filter(id=value).exists():

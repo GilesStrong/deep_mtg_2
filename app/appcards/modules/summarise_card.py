@@ -23,11 +23,9 @@ class CardSummary(BaseModel):
         description="A list of tags that categorise the card based on its attributes and potential roles in a deck. Tags should be selected from a predefined set of categories that reflect the card's mechanics, strengths, weaknesses, and synergies with other cards or strategies.",
     )
 
-    @field_validator("tags", mode="before")
+    @field_validator("tags", mode="after")
     @classmethod
     def validate_tags(cls, value: list[str]) -> list[str]:
-        if not isinstance(value, list):
-            raise ValueError("Tags must be a list of strings.")
         invalid_tags = [tag for tag in value if tag not in CARD_TAGS]
         if invalid_tags:
             raise ValueError(f"Invalid tags: {', '.join(invalid_tags)}. Valid tags are: {', '.join(CARD_TAGS.keys())}")
