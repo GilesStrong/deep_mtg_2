@@ -27,12 +27,14 @@ const REGENERATE_NAV_MARKER_MAX_AGE_MS = 60_000;
 const BUILD_STATUS_TIMEOUT_MS = 120_000;
 const PROMPT_MIN_LENGTH = 20;
 const PROMPT_MAX_LENGTH = 3000;
+const DAILY_THEME_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 
 function GenerateDeckPageContent() {
     const { data: session } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
     const rawDeckId = searchParams.get("deckId");
+    const queryTheme = searchParams.get("theme");
 
     const [prompt, setPrompt] = useState("");
     const [regenerationDeckId, setRegenerationDeckId] = useState<string | null>(null);
@@ -48,6 +50,7 @@ function GenerateDeckPageContent() {
     const [isLoadingQuota, setIsLoadingQuota] = useState(true);
     const [generationError, setGenerationError] = useState<string | null>(null);
     const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
+    const [dailyTheme, setDailyTheme] = useState<string | null>(null);
 
     const parseApiError = async (response: Response, fallbackMessage: string): Promise<string> => {
         const responseText = await response.text();
@@ -130,6 +133,45 @@ function GenerateDeckPageContent() {
             router.replace("/decks/generate");
         }
     }, [rawDeckId, regenerationDeckId, router]);
+
+    useEffect(() => {
+        if (!queryTheme || rawDeckId) {
+            return;
+        }
+
+        setPrompt(queryTheme);
+        setDailyTheme(queryTheme);
+    }, [queryTheme, rawDeckId]);
+
+    useEffect(() => {
+        if (!session || rawDeckId || queryTheme) {
+            setDailyTheme(null);
+            return;
+        }
+
+        const loadDailyTheme = async () => {
+            const response = await backendFetch(session, "/api/app/cards/deck/daily_theme/");
+            if (!response.ok) {
+                setDailyTheme(null);
+                return;
+            }
+
+            try {
+                const data = (await response.json()) as string;
+                setDailyTheme(data);
+            } catch {
+                setDailyTheme(null);
+            }
+        };
+
+        void loadDailyTheme();
+
+        const interval = setInterval(() => {
+            void loadDailyTheme();
+        }, DAILY_THEME_REFRESH_INTERVAL_MS);
+
+        return () => clearInterval(interval);
+    }, [queryTheme, rawDeckId, session]);
 
     useEffect(() => {
         if (!regenerationDeckId || !session) {
@@ -399,6 +441,22 @@ function GenerateDeckPageContent() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            {!rawDeckId && dailyTheme ? (
+                                <div className="space-y-2">
+                                    <p className="text-sm text-muted-foreground">
+                                        <strong>Today&apos;s theme:</strong> {dailyTheme}
+                                    </p>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setPrompt(dailyTheme)}
+                                        disabled={isGenerating}
+                                    >
+                                        Generate this deck
+                                    </Button>
+                                </div>
+                            ) : null}
+
                             {regenerationDeckId ? (
                                 <p className="text-sm text-muted-foreground">
                                     Target deck:{" "}

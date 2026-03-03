@@ -78,6 +78,10 @@ describe("GenerateDeckPage", () => {
         const user = userEvent.setup();
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/deck/daily_theme/") {
+                return mockJsonResponse("Today's spellslinger theme");
+            }
+
             if (url === "/api/app/cards/card/set_codes/") {
                 return mockJsonResponse({ set_codes: ["BRO", "ONE"] });
             }
@@ -119,6 +123,10 @@ describe("GenerateDeckPage", () => {
 
     it("disables submit when remaining quota is zero", async () => {
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/deck/daily_theme/") {
+                return mockJsonResponse("Today's spellslinger theme");
+            }
+
             if (url === "/api/app/cards/card/set_codes/") {
                 return mockJsonResponse({ set_codes: ["ONE"] });
             }
@@ -143,6 +151,10 @@ describe("GenerateDeckPage", () => {
         const user = userEvent.setup();
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/deck/daily_theme/") {
+                return mockJsonResponse("Today's spellslinger theme");
+            }
+
             if (url === "/api/app/cards/card/set_codes/") {
                 return mockJsonResponse({ set_codes: ["ONE"] });
             }
@@ -176,6 +188,10 @@ describe("GenerateDeckPage", () => {
         const user = userEvent.setup();
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/deck/daily_theme/") {
+                return mockJsonResponse("Today's spellslinger theme");
+            }
+
             if (url === "/api/app/cards/card/set_codes/") {
                 return mockJsonResponse({ set_codes: ["ONE"] });
             }
@@ -205,6 +221,10 @@ describe("GenerateDeckPage", () => {
         });
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/deck/daily_theme/") {
+                return mockJsonResponse("Today's spellslinger theme");
+            }
+
             if (url === "/api/app/cards/card/set_codes/") {
                 return mockJsonResponse({ set_codes: ["ONE"] });
             }
@@ -229,6 +249,10 @@ describe("GenerateDeckPage", () => {
         const user = userEvent.setup();
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/deck/daily_theme/") {
+                return mockJsonResponse("Today's spellslinger theme");
+            }
+
             if (url === "/api/app/cards/card/set_codes/") {
                 return mockJsonResponse({ set_codes: ["BRO"] });
             }
@@ -310,5 +334,83 @@ describe("GenerateDeckPage", () => {
             };
             expect(payload.deck_id).toBe("deck-1");
         });
+
+        expect(screen.queryByText(/Today's theme:/)).not.toBeInTheDocument();
+    });
+
+    it("prefills prompt from theme query param and submits it", async () => {
+        const user = userEvent.setup();
+        const themePrompt = "Build around sacrificing artifacts for recurring value and token generation.";
+
+        mockUseSearchParams.mockReturnValue({
+            get: (key: string) => (key === "theme" ? themePrompt : null),
+        });
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["BRO", "ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 3 });
+            }
+
+            if (url === "/api/app/ai/deck/" && init?.method === "POST") {
+                return mockJsonResponse({ task_id: "task-theme-1" });
+            }
+
+            if (url === "/api/app/ai/deck/build_status/task-theme-1/") {
+                return mockJsonResponse({ status: "IN_PROGRESS", deck_id: "deck-1" });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+
+        expect(await screen.findByText("Remaining builds today: 3")).toBeInTheDocument();
+        expect(screen.getByLabelText("Prompt")).toHaveValue(themePrompt);
+
+        await user.click(screen.getByRole("button", { name: "Submit Generation Task" }));
+
+        await waitFor(() => {
+            const postCall = mockBackendFetch.mock.calls.find(
+                (call) => call[1] === "/api/app/ai/deck/" && call[2]?.method === "POST",
+            );
+            expect(postCall).toBeTruthy();
+
+            const payload = JSON.parse(String(postCall?.[2]?.body)) as { prompt: string; set_codes: string[] };
+            expect(payload.prompt).toBe(themePrompt);
+            expect(payload.set_codes).toEqual(["BRO", "ONE"]);
+        });
+    });
+
+    it("shows daily theme and fills prompt when clicking generate this deck", async () => {
+        const user = userEvent.setup();
+        const dailyTheme = "Artifacts are sacrificed for value and recurred from the graveyard.";
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/deck/daily_theme/") {
+                return mockJsonResponse(dailyTheme);
+            }
+
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["BRO", "ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 3 });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+
+        expect(await screen.findByText(`Today's theme: ${dailyTheme}`)).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Generate this deck" }));
+
+        expect(screen.getByLabelText("Prompt")).toHaveValue(dailyTheme);
     });
 });
