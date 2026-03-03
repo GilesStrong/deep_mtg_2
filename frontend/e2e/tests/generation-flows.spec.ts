@@ -21,6 +21,7 @@ const deckListing: DeckSummary[] = [
         name: "Izzet Spells",
         short_summary: "Spell-heavy tempo deck",
         set_codes: ["DMU", "WOE"],
+        tags: ["Tempo"],
         date_updated: "2026-02-01T10:00:00.000Z",
         generation_status: "COMPLETED",
         generation_task_id: null,

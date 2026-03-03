@@ -24,7 +24,7 @@ type DeckSummary = {
     name: string;
     short_summary: string | null;
     set_codes: string[];
-    tags: string[];
+    tags?: string[];
     date_updated: string;
     generation_status: string | null;
     generation_task_id: string | null;
@@ -362,7 +362,7 @@ export default function DashboardPage() {
                                         {deck.short_summary ?? "No summary available yet."}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                        Tags: {deck.tags.length > 0 ? deck.tags.join(", ") : "None"}
+                                        Tags: {(deck.tags ?? []).length > 0 ? (deck.tags ?? []).join(", ") : "None"}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
                                         Sets: {deck.set_codes.length > 0 ? deck.set_codes.join(", ") : "None"}

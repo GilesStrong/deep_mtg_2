@@ -20,6 +20,7 @@ const deckListing: DeckSummary[] = [
         name: "Azorius Control",
         short_summary: "Control shell with board wipes and card draw",
         set_codes: ["ONE", "DMU"],
+        tags: ["Control"],
         date_updated: "2026-02-15T10:00:00.000Z",
         generation_status: "COMPLETED",
         generation_task_id: null,
