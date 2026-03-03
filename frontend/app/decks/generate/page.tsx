@@ -36,6 +36,8 @@ function GenerateDeckPageContent() {
 
     const [prompt, setPrompt] = useState("");
     const [regenerationDeckId, setRegenerationDeckId] = useState<string | null>(null);
+    const [regenerationDeckName, setRegenerationDeckName] = useState<string | null>(null);
+    const [isLoadingRegenerationDeckName, setIsLoadingRegenerationDeckName] = useState(false);
     const [availableSetCodes, setAvailableSetCodes] = useState<string[]>([]);
     const [selectedSetCodes, setSelectedSetCodes] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -128,6 +130,34 @@ function GenerateDeckPageContent() {
             router.replace("/decks/generate");
         }
     }, [rawDeckId, regenerationDeckId, router]);
+
+    useEffect(() => {
+        if (!regenerationDeckId || !session) {
+            setRegenerationDeckName(null);
+            setIsLoadingRegenerationDeckName(false);
+            return;
+        }
+
+        const loadRegenerationDeckName = async () => {
+            setIsLoadingRegenerationDeckName(true);
+            try {
+                const response = await backendFetch(session, `/api/app/cards/deck/${regenerationDeckId}/`);
+                if (!response.ok) {
+                    throw new Error("Failed to fetch regeneration deck");
+                }
+
+                const data = (await response.json()) as { name?: string };
+                setRegenerationDeckName(data.name ?? null);
+            } catch (error) {
+                console.error("Error loading regeneration deck name:", error);
+                setRegenerationDeckName(null);
+            } finally {
+                setIsLoadingRegenerationDeckName(false);
+            }
+        };
+
+        void loadRegenerationDeckName();
+    }, [regenerationDeckId, session]);
 
     const pollBuildStatus = useCallback((newTaskId: string) => {
         const interval = setInterval(async () => {
@@ -370,7 +400,12 @@ function GenerateDeckPageContent() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {regenerationDeckId ? (
-                                <p className="text-sm text-muted-foreground">Target deck: {regenerationDeckId}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    Target deck:{" "}
+                                    {isLoadingRegenerationDeckName
+                                        ? "Loading..."
+                                        : regenerationDeckName ?? "Unknown deck"}
+                                </p>
                             ) : null}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between gap-2">

@@ -46,6 +46,7 @@ interface Deck {
   short_summary: string | null;
   full_summary: string | null;
   set_codes: string[];
+  tags: string[];
   date_updated: string;
   creation_status: string | null;
   cards: DeckCard[];
@@ -79,6 +80,7 @@ export default function DeckPage() {
         short_summary: string | null;
         full_summary: string | null;
         set_codes: string[];
+        tags?: string[];
         date_updated: string;
         creation_status: string | null;
         cards: [number, {
@@ -112,6 +114,7 @@ export default function DeckPage() {
         short_summary: data.short_summary,
         full_summary: data.full_summary,
         set_codes: data.set_codes,
+        tags: data.tags ?? [],
         date_updated: data.date_updated,
         creation_status: data.creation_status,
         cards: data.cards.map(([qty, cardInfo]) => ({
@@ -451,6 +454,9 @@ export default function DeckPage() {
                   </Button>
 
                   <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Tags: {deck.tags.length > 0 ? deck.tags.join(", ") : "None"}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       Sets: {deck.set_codes.length > 0 ? deck.set_codes.join(", ") : "None"}
                     </p>
