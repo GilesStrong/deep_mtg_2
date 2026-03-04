@@ -1,5 +1,3 @@
-from uuid import uuid4
-
 from appcards.constants.cards import EVERGREEN_KEYWORDS
 from appcore.modules.beartype import beartype
 from pydantic import BaseModel, Field
@@ -7,7 +5,6 @@ from pydantic_ai import Agent
 
 from appai.constants.llm_models import TOOL_MODEL
 from appai.constants.prompt_gotchas import GOTCHAS
-from appai.services.agents.deps import DeckBuildingDeps
 from appai.services.agents.tools.query_tools import find_similar_themes
 
 DECK_THEME_PROMPT = f"""
@@ -71,7 +68,6 @@ def get_daily_deck_theme() -> NewTheme:
         system_prompt=DECK_THEME_PROMPT,
         instrument=True,
         output_type=NewTheme,
-        deps_type=DeckBuildingDeps,
         tools=[find_similar_themes],
     )
-    return agent.run_sync(deps=DeckBuildingDeps(deck_id=uuid4())).output
+    return agent.run_sync().output

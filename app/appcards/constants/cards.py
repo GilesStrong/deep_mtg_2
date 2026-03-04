@@ -134,3 +134,20 @@ def _get_flat_card_tags() -> dict[str, str]:
 
 
 CARD_TAGS = _get_flat_card_tags()
+
+CARD_ROLES = {
+    "WinCon": "Cards that are central to the deck’s strategy and often the main source of its power or win condition.",
+    "Primary Engine": "Cards that are central to the deck’s strategy and often the main source of its power.",
+    "Interaction": "Cards that are primarily included to interact with opponents’ strategies, such as removal, counterspells, or disruption.",
+    "Ramp & Card Advantage": "Cards that are included to accelerate the deck’s mana production and card draw, enabling it to cast more powerful spells earlier than normal, or to provide additional resources or options.",
+    "Support": "Cards that provide utility or support to the deck’s main strategy, but are not the primary source of power or interaction.",
+    "Flex & filler": "Cards that can serve multiple roles or are included for versatility, often filling gaps in the deck or providing situational utility.",
+    "Land": "Basic or non-basic lands that provide the mana base for the deck.",
+}
+
+CARD_IMPORTANCES = {
+    "Critical": "Cards that are essential to the deck’s strategy and often the main source of its power or win condition. These cards are typically irreplaceable and central to the deck’s identity.",
+    "High Synergy": "Cards that have strong interactions with other cards in the deck, significantly enhancing the deck’s overall strategy and performance. While they may not be strictly essential, their presence greatly increases the deck’s effectiveness.",
+    "Functional": "Cards that serve a specific purpose in the deck and contribute to its overall strategy, but are not as central or impactful as Critical or High Synergy cards. These cards are often included for consistency, utility, or to fill specific roles within the deck.",
+    "Generic": "Cards that are generally useful and can fit into a variety of decks, but do not have strong synergies with the specific cards in the deck. These cards are often included for their standalone value or versatility, rather than for their interactions with other cards in the deck.",
+}
