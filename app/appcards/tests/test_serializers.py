@@ -106,10 +106,13 @@ class DeckOutputValidatorTests(TestCase):
         WHEN GetFullDeckOut.validate_cards is called
         THEN it raises RuntimeError for invalid quantity
         """
-        card = SimpleNamespace(id=UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"))
+        card = SimpleNamespace(
+            quantity=0,
+            card_info=SimpleNamespace(id=UUID("dddddddd-dddd-dddd-dddd-dddddddddddd")),
+        )
 
         with self.assertRaises(RuntimeError):
-            GetFullDeckOut.validate_cards([(0, card)])
+            GetFullDeckOut.validate_cards([card])
 
     def test_summary_out_includes_tags(self):
         """

@@ -10,10 +10,11 @@ from ninja.errors import HttpError
 
 from appcards.constants.cards import HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
 from appcards.models.card import Card, Rarity
-from appcards.models.deck import DailyDeckTheme, Deck
+from appcards.models.deck import DailyDeckTheme, Deck, DeckCard
 from appcards.models.printing import Printing
 from appcards.routes.card import get_card, list_set_codes, list_tags
-from appcards.routes.deck import delete_deck, get_daily_theme, get_summary_deck
+from appcards.routes.deck import delete_deck, get_daily_theme, get_deck, get_summary_deck, update_deck
+from appcards.serializers.deck import UpdateDeckIn
 
 _CARD_MODULE = "appcards.routes.card"
 
@@ -159,3 +160,52 @@ class DeckRoutesTests(TestCase):
         result = get_daily_theme(SimpleNamespace())
 
         self.assertEqual(result, "Newest theme")
+
+    def test_get_deck_includes_possible_replacements(self):
+        """
+        GIVEN a deck card with replacement cards
+        WHEN get_deck is called
+        THEN possible_replacements contains serialized replacement card infos
+        """
+        user = User.objects.create(google_id="deck-replacements-gid", verified=True)
+        deck = Deck.objects.create(name="Replacement Deck", user=user)
+        main_card = Card.objects.create(name="Lightning Bolt", text="Deal 3 damage.", rarity=Rarity.COMMON)
+        replacement_1 = Card.objects.create(name="Shock", text="Deal 2 damage.", rarity=Rarity.COMMON)
+        replacement_2 = Card.objects.create(name="Burst Lightning", text="Deal 2 damage.", rarity=Rarity.COMMON)
+
+        deck_card = DeckCard.objects.create(deck=deck, card=main_card, quantity=2)
+        deck_card.replacement_cards.add(replacement_1, replacement_2)
+
+        response = get_deck(SimpleNamespace(auth=user), SimpleNamespace(deck=deck))
+
+        self.assertEqual(len(response.cards), 1)
+        self.assertEqual(response.cards[0].card_info.name, "Lightning Bolt")
+        self.assertCountEqual(
+            [replacement.name for replacement in response.cards[0].possible_replacements],
+            ["Shock", "Burst Lightning"],
+        )
+
+    def test_update_deck_includes_possible_replacements(self):
+        """
+        GIVEN an owned deck card with replacement cards
+        WHEN update_deck updates metadata
+        THEN response cards include possible_replacements for each deck card
+        """
+        user = User.objects.create(google_id="deck-update-replacements-gid", verified=True)
+        deck = Deck.objects.create(name="Before Update", user=user)
+        main_card = Card.objects.create(name="Counterspell", text="Counter target spell.", rarity=Rarity.UNCOMMON)
+        replacement = Card.objects.create(name="Negate", text="Counter target noncreature spell.", rarity=Rarity.COMMON)
+
+        deck_card = DeckCard.objects.create(deck=deck, card=main_card, quantity=3)
+        deck_card.replacement_cards.add(replacement)
+
+        response = update_deck(
+            SimpleNamespace(auth=user),
+            SimpleNamespace(deck=deck),
+            UpdateDeckIn(name="After Update"),
+        )
+
+        self.assertEqual(response.name, "After Update")
+        self.assertEqual(len(response.cards), 1)
+        self.assertEqual(response.cards[0].card_info.name, "Counterspell")
+        self.assertEqual([candidate.name for candidate in response.cards[0].possible_replacements], ["Negate"])

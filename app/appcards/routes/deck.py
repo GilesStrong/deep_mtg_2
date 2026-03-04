@@ -6,7 +6,7 @@ from ninja.errors import HttpError
 
 from appcards.models.deck import DailyDeckTheme, Deck, DeckCard
 from appcards.modules.card_info import card_to_info
-from appcards.serializers.deck import GetDeckIn, GetFullDeckOut, GetSummaryDeckOut, UpdateDeckIn
+from appcards.serializers.deck import DeckCardInfo, GetDeckIn, GetFullDeckOut, GetSummaryDeckOut, UpdateDeckIn
 
 router = Router(tags=['decks'])
 
@@ -167,8 +167,19 @@ def get_deck(
     if deck.user.id != user.id:
         raise HttpError(403, "You do not have permission to access this deck")
 
-    deck_cards = list(DeckCard.objects.filter(deck_id=deck.id).select_related('card'))
-    card_infos = [(deck_card.quantity, card_to_info(deck_card.card)) for deck_card in deck_cards]
+    deck_cards = list(
+        DeckCard.objects.filter(deck_id=deck.id).select_related('card').prefetch_related('replacement_cards')
+    )
+    card_infos = [
+        DeckCardInfo(
+            quantity=deck_card.quantity,
+            card_info=card_to_info(deck_card.card),
+            possible_replacements=[
+                card_to_info(replacement_card) for replacement_card in deck_card.replacement_cards.all()
+            ],
+        )
+        for deck_card in deck_cards
+    ]
     latest_build = _get_latest_build(str(deck.id))
     creation_status = latest_build.status if latest_build else None
 
@@ -254,8 +265,19 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
     latest_build = _get_latest_build(str(deck.id))
     creation_status = latest_build.status if latest_build else None
 
-    deck_cards = list(DeckCard.objects.filter(deck_id=deck.id).select_related('card'))
-    card_infos = [(deck_card.quantity, card_to_info(deck_card.card)) for deck_card in deck_cards]
+    deck_cards = list(
+        DeckCard.objects.filter(deck_id=deck.id).select_related('card').prefetch_related('replacement_cards')
+    )
+    card_infos = [
+        DeckCardInfo(
+            quantity=deck_card.quantity,
+            card_info=card_to_info(deck_card.card),
+            possible_replacements=[
+                card_to_info(replacement_card) for replacement_card in deck_card.replacement_cards.all()
+            ],
+        )
+        for deck_card in deck_cards
+    ]
     return GetFullDeckOut(
         id=deck.id,
         name=deck.name,
