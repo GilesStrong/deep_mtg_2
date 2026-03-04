@@ -1,0 +1,12 @@
+# Style
+All functions must have type annotations and docstrings
+Docstrings should follow the Google style guide
+
+# Backend tests
+Tests should have GIVE/WHEN/THEN docstrings
+
+Run using django's test runner:
+```
+cd /workspace/deep_mtg_2/app && /workspace/deep_mtg_2/.venv/bin/python manage.py test
+```
+

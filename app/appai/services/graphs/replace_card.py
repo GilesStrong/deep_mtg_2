@@ -8,7 +8,7 @@ from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.search import run_query_from_dsl
 from appsearch.services.qdrant.search_dsl import Filter, Query
 from asgiref.sync import sync_to_async
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_graph import BaseNode, End, Graph, GraphRunContext
 
 from appai.services.agents.deck_constructor import (
@@ -19,6 +19,7 @@ MAX_TOP_K_REPLACEMENT_CANDIDATES = 5
 
 
 class ReplacementDeps(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     deck_strategy: str = Field(
         ...,
         description="Summary of the deck and its strategy",

@@ -1,7 +1,6 @@
 from appcore.modules.beartype import beartype
 
-from appcards.constants.cards import CARD_TAGS
-from appcards.constants.decks import COLOR_IDENTITY_TO_COLORS
+from appcards.constants.decks import COLOR_IDENTITY_TO_COLORS, GROUPED_DECK_CLASSIFICATIONS
 from appcards.models.deck import Deck
 
 
@@ -19,7 +18,7 @@ def get_colors_from_deck(deck: Deck) -> set[str]:
 
     if deck.tags is not None:
         color_identities: set[str] = set()
-        for color_identity in CARD_TAGS['color_identity']:
+        for color_identity in GROUPED_DECK_CLASSIFICATIONS['ColorIdentity'].keys():
             if color_identity in deck.tags:
                 color_identities.add(color_identity)
         if len(color_identities) > 0:
