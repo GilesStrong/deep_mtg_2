@@ -7,12 +7,13 @@ from appcards.models.card import Card, Rarity
 from appcards.models.deck import Deck, DeckCard
 from appuser.models.user import User
 from django.test import TestCase
+from django.utils import timezone
 
 from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
 from appai.tasks.cleanup import cleanup_old_deck_build_tasks
 
 _MODULE = "appai.tasks.cleanup"
-_FIXED_NOW = datetime(2026, 3, 5, 12, 0, 0)
+_FIXED_NOW = timezone.make_aware(datetime(2026, 3, 5, 12, 0, 0), timezone.get_current_timezone())
 
 
 class CleanupOldDeckBuildTasksTests(TestCase):

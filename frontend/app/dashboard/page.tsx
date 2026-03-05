@@ -30,7 +30,18 @@ type DeckSummary = {
     generation_task_id: string | null;
 };
 
-const POLLABLE_STATUSES = new Set(["PENDING", "IN_PROGRESS"]);
+const DEFAULT_POLLABLE_STATUSES = new Set([
+    "PENDING",
+    "IN_PROGRESS",
+    "BUILDING_DECK",
+    "CLASSIFYING_DECK_CARDS",
+    "FINDING_REPLACEMENT_CARDS",
+]);
+
+type BuildStatusesResponse = {
+    all: string[];
+    pollable: string[];
+};
 
 export default function DashboardPage() {
     const { data: session, status } = useSession();
@@ -41,6 +52,7 @@ export default function DashboardPage() {
     const [selectedSetCodes, setSelectedSetCodes] = useState<string[]>([]);
     const [selectedDeckTags, setSelectedDeckTags] = useState<string[]>([]);
     const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
+    const [pollableStatuses, setPollableStatuses] = useState<Set<string>>(new Set(DEFAULT_POLLABLE_STATUSES));
 
     const fetchDecks = useCallback(async () => {
         const response = await backendFetch(session, "/api/app/cards/deck/");
@@ -52,6 +64,33 @@ export default function DashboardPage() {
         const data = (await response.json()) as DeckSummary[];
         setDecks(data);
     }, [session]);
+
+    useEffect(() => {
+        const loadPollableStatuses = async () => {
+            try {
+                const response = await backendFetch(session, "/api/app/ai/deck/statuses/");
+                if (!response.ok) {
+                    throw new Error("Failed to fetch deck build statuses");
+                }
+
+                const data = (await response.json()) as BuildStatusesResponse;
+                if (Array.isArray(data.pollable) && data.pollable.length > 0) {
+                    setPollableStatuses(new Set(data.pollable));
+                    return;
+                }
+            } catch (error) {
+                console.error("Error loading deck build statuses:", error);
+            }
+
+            setPollableStatuses(new Set(DEFAULT_POLLABLE_STATUSES));
+        };
+
+        if (status !== "authenticated") {
+            return;
+        }
+
+        void loadPollableStatuses();
+    }, [session, status]);
 
     useEffect(() => {
         const loadSetCodes = async () => {
@@ -102,10 +141,10 @@ export default function DashboardPage() {
             decks.filter(
                 (deck) =>
                     deck.generation_status &&
-                    POLLABLE_STATUSES.has(deck.generation_status) &&
+                    pollableStatuses.has(deck.generation_status) &&
                     Boolean(deck.generation_task_id)
             ),
-        [decks]
+        [decks, pollableStatuses]
     );
 
     useEffect(() => {

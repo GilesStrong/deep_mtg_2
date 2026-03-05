@@ -9,7 +9,7 @@ from ninja.errors import HttpError
 
 from appai.models.deck_build import DeckBuildStatus
 from appai.models.deck_build import DeckBuildTask as DeckBuildTaskModel
-from appai.routes.build_deck import build_deck, check_deck_build_status, check_quota
+from appai.routes.build_deck import build_deck, check_deck_build_status, check_quota, get_deck_build_statuses
 
 _MODULE = "appai.routes.build_deck"
 _USER_ID = UUID("12345678-1234-5678-1234-567812345678")
@@ -40,6 +40,32 @@ class CheckQuotaRouteTests(TestCase):
 
         self.assertEqual(response.remaining, 4)
         mock_check_quota.assert_called_once_with(mock_get_redis.return_value, _USER_ID)
+
+
+class BuildStatusesRouteTests(TestCase):
+    """Tests for get_deck_build_statuses endpoint."""
+
+    def test_returns_all_statuses_and_pollable_subset(self):
+        """
+        GIVEN the deck build statuses endpoint
+        WHEN get_deck_build_statuses is called
+        THEN it returns all status values and the expected in-progress pollable subset
+        """
+        response = get_deck_build_statuses(MagicMock())
+
+        self.assertIn(DeckBuildStatus.PENDING, response.all)
+        self.assertIn(DeckBuildStatus.COMPLETED, response.all)
+        self.assertIn(DeckBuildStatus.FAILED, response.all)
+        self.assertEqual(
+            response.pollable,
+            [
+                DeckBuildStatus.PENDING,
+                DeckBuildStatus.IN_PROGRESS,
+                DeckBuildStatus.BUILDING_DECK,
+                DeckBuildStatus.CLASSIFYING_DECK_CARDS,
+                DeckBuildStatus.FINDING_REPLACEMENT_CARDS,
+            ],
+        )
 
 
 class BuildDeckRouteTests(TestCase):

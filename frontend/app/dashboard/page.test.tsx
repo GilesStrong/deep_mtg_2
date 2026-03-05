@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -71,6 +71,27 @@ describe("DashboardPage", () => {
         mockGetAvatarUrlFromSession.mockReturnValue("https://images.test/avatar.png");
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/ai/deck/statuses/") {
+                return mockJsonResponse({
+                    all: [
+                        "PENDING",
+                        "IN_PROGRESS",
+                        "BUILDING_DECK",
+                        "CLASSIFYING_DECK_CARDS",
+                        "FINDING_REPLACEMENT_CARDS",
+                        "COMPLETED",
+                        "FAILED",
+                    ],
+                    pollable: [
+                        "PENDING",
+                        "IN_PROGRESS",
+                        "BUILDING_DECK",
+                        "CLASSIFYING_DECK_CARDS",
+                        "FINDING_REPLACEMENT_CARDS",
+                    ],
+                });
+            }
+
             if (url === "/api/app/cards/card/set_codes/") {
                 return mockJsonResponse({ set_codes: ["ONE", "DMU"] });
             }
@@ -159,7 +180,11 @@ describe("DashboardPage", () => {
 
     it("shows empty states when deck and set code requests fail", async () => {
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
-            if (url === "/api/app/cards/card/set_codes/" || url === "/api/app/cards/deck/") {
+            if (
+                url === "/api/app/ai/deck/statuses/" ||
+                url === "/api/app/cards/card/set_codes/" ||
+                url === "/api/app/cards/deck/"
+            ) {
                 return mockErrorResponse();
             }
 
@@ -187,5 +212,71 @@ describe("DashboardPage", () => {
 
         expect(mockClearBackendTokens).toHaveBeenCalledTimes(1);
         expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/login" });
+    });
+
+    it("polls build status for BUILDING_DECK generation state", async () => {
+        const setIntervalSpy = vi.spyOn(global, "setInterval").mockImplementation((callback: TimerHandler) => {
+            if (typeof callback === "function") {
+                void callback();
+            }
+            return 1 as unknown as ReturnType<typeof setInterval>;
+        });
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/ai/deck/statuses/") {
+                return mockJsonResponse({
+                    all: [
+                        "PENDING",
+                        "IN_PROGRESS",
+                        "BUILDING_DECK",
+                        "CLASSIFYING_DECK_CARDS",
+                        "FINDING_REPLACEMENT_CARDS",
+                        "COMPLETED",
+                        "FAILED",
+                    ],
+                    pollable: [
+                        "PENDING",
+                        "IN_PROGRESS",
+                        "BUILDING_DECK",
+                        "CLASSIFYING_DECK_CARDS",
+                        "FINDING_REPLACEMENT_CARDS",
+                    ],
+                });
+            }
+
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE", "DMU"] });
+            }
+
+            if (url === "/api/app/cards/deck/") {
+                return mockJsonResponse([
+                    {
+                        id: "deck-1",
+                        name: "Izzet Spells",
+                        short_summary: "Blue-red tempo",
+                        set_codes: ["DMU"],
+                        tags: ["Control", "Tempo"],
+                        date_updated: "2026-02-01T10:00:00.000Z",
+                        generation_status: "BUILDING_DECK",
+                        generation_task_id: "task-1",
+                    },
+                ]);
+            }
+
+            if (url === "/api/app/ai/deck/build_status/task-1/") {
+                return mockJsonResponse({ status: "COMPLETED", deck_id: "deck-1" });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<DashboardPage />);
+        expect(await screen.findByText("Izzet Spells")).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(mockBackendFetch).toHaveBeenCalledWith(expect.anything(), "/api/app/ai/deck/build_status/task-1/");
+        });
+
+        setIntervalSpy.mockRestore();
     });
 });

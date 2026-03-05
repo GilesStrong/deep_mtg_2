@@ -15,6 +15,7 @@ from appai.modules.build_rate_limit import check_remaining_daily_quota, withdraw
 from appai.serializers.build_deck import (
     BuildDeckPostIn,
     BuildDeckPostOut,
+    BuildDeckStatusesOut,
     BuildDeckStatusIn,
     BuildDeckStatusOut,
     CheckQuotaOut,
@@ -23,6 +24,33 @@ from appai.services.agents.guardrails import is_request_relevant
 from appai.tasks.construct_deck import construct_deck
 
 router = Router(tags=['decks'])
+
+
+@router.get(
+    '/statuses/',
+    summary='Get deck build statuses',
+    description='Retrieve all deck build statuses and the subset that should be actively polled by clients.',
+    response={200: BuildDeckStatusesOut},
+    operation_id='get_deck_build_statuses',
+)
+def get_deck_build_statuses(request: HttpRequest) -> BuildDeckStatusesOut:
+    """Get all deck build statuses and the in-progress pollable subset.
+
+    Args:
+        request: The incoming HTTP request object.
+
+    Returns:
+        BuildDeckStatusesOut: All possible statuses and the pollable in-progress statuses.
+    """
+    pollable_statuses = [
+        str(DeckBuildStatus.PENDING),
+        str(DeckBuildStatus.IN_PROGRESS),
+        str(DeckBuildStatus.BUILDING_DECK),
+        str(DeckBuildStatus.CLASSIFYING_DECK_CARDS),
+        str(DeckBuildStatus.FINDING_REPLACEMENT_CARDS),
+    ]
+    all_statuses = [str(choice) for choice, _ in DeckBuildStatus.choices]
+    return BuildDeckStatusesOut(all=all_statuses, pollable=pollable_statuses)
 
 
 @router.get(

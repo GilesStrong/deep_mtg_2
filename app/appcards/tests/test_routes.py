@@ -4,8 +4,10 @@ from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
 from appuser.models import User
 from django.test import TestCase
+from django.utils import timezone
 from ninja.errors import HttpError
 
 from appcards.constants.cards import HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
@@ -13,7 +15,7 @@ from appcards.models.card import Card, Rarity
 from appcards.models.deck import DailyDeckTheme, Deck, DeckCard
 from appcards.models.printing import Printing
 from appcards.routes.card import get_card, list_set_codes, list_tags
-from appcards.routes.deck import delete_deck, get_daily_theme, get_deck, get_summary_deck, update_deck
+from appcards.routes.deck import delete_deck, get_daily_theme, get_deck, get_summary_deck, list_decks, update_deck
 from appcards.serializers.deck import UpdateDeckIn
 
 _CARD_MODULE = "appcards.routes.card"
@@ -89,6 +91,38 @@ class CardRoutesTests(TestCase):
 
 class DeckRoutesTests(TestCase):
     """Tests for appcards deck routes."""
+
+    @patch("appcards.routes.deck.get_user_from_request")
+    def test_list_decks_uses_latest_build_per_deck(self, mock_get_user):
+        """
+        GIVEN multiple build tasks per deck with different update times
+        WHEN list_decks is called
+        THEN each deck summary uses the most recently updated task status and task_id
+        """
+        user = User.objects.create(google_id="owner-list-gid", verified=True)
+        mock_get_user.return_value = user
+
+        first_deck = Deck.objects.create(name="Deck One", user=user)
+        second_deck = Deck.objects.create(name="Deck Two", user=user)
+
+        now = timezone.now()
+
+        old_first = DeckBuildTask.objects.create(deck=first_deck, status=DeckBuildStatus.PENDING)
+        new_first = DeckBuildTask.objects.create(deck=first_deck, status=DeckBuildStatus.COMPLETED)
+        only_second = DeckBuildTask.objects.create(deck=second_deck, status=DeckBuildStatus.FAILED)
+
+        DeckBuildTask.objects.filter(id=old_first.id).update(updated_at=now - timedelta(hours=3))
+        DeckBuildTask.objects.filter(id=new_first.id).update(updated_at=now - timedelta(hours=1))
+        DeckBuildTask.objects.filter(id=only_second.id).update(updated_at=now - timedelta(hours=2))
+
+        result = list_decks(SimpleNamespace(auth=user))
+
+        by_id = {deck_summary.id: deck_summary for deck_summary in result}
+
+        self.assertEqual(by_id[first_deck.id].generation_status, DeckBuildStatus.COMPLETED)
+        self.assertEqual(by_id[first_deck.id].generation_task_id, new_first.id)
+        self.assertEqual(by_id[second_deck.id].generation_status, DeckBuildStatus.FAILED)
+        self.assertEqual(by_id[second_deck.id].generation_task_id, only_second.id)
 
     def test_get_summary_deck_includes_tags(self):
         """
