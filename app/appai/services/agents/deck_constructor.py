@@ -315,6 +315,22 @@ async def run_card_classifier_agent(deck_id: UUID, deck_description: str) -> Non
         output_type=output_type,
     )
 
+    @agent.output_validator
+    async def _validate_output(output: BaseModel) -> BaseModel:
+        output_dict = output.model_dump()
+        for card_id in card_ids:
+            role = output_dict[f"card_id_{card_id}_role"]
+            importance = output_dict[f"card_id_{card_id}_importance"]
+            if role not in CARD_ROLES:
+                raise ModelRetry(
+                    f"Invalid role for card ID {card_id}: {role}. Valid roles are: {', '.join(CARD_ROLES)}"
+                )
+            if importance not in CARD_IMPORTANCES:
+                raise ModelRetry(
+                    f"Invalid importance for card ID {card_id}: {importance}. Valid importances are: {', '.join(CARD_IMPORTANCES)}"
+                )
+        return output
+
     response = await agent.run(
         message,
         usage_limits=UsageLimits(

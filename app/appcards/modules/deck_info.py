@@ -13,7 +13,7 @@ def get_colors_from_deck(deck: Deck) -> set[str]:
         deck (Deck): The Deck instance for which to determine the color identity.
 
     Returns:
-        list[str]: A list of color names representing the deck's color identity.
+        set[str]: A set of color names representing the deck's color identity.
     """
 
     if deck.tags is not None:

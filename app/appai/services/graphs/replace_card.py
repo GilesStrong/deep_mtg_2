@@ -135,20 +135,20 @@ class SearchForReplacements(BaseNode[None, ReplacementDeps, None]):
             ),
             exclude_ids=self.exclude_ids,
         )
-        replacement_canditated: list[Card] = []
+        replacement_candidates: list[Card] = []
         for point in found_cards:
             try:
                 card = await Card.objects.aget(id=point.id)
-                replacement_canditated.append(card)
+                replacement_candidates.append(card)
             except Card.DoesNotExist:
                 continue
-        if len(replacement_canditated) == 0:
+        if len(replacement_candidates) == 0:
             logfire.warning(
                 f"No replacement candidates found for card {ctx.deps.card_to_replace.card.name} with filter {self.card_filter}"
             )
             return End(None)
 
-        return FilterReplacements(replacement_candidates=replacement_canditated)
+        return FilterReplacements(replacement_candidates=replacement_candidates)
 
 
 @beartype

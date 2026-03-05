@@ -69,7 +69,7 @@ class SetSwaps(BaseNode[DeckConstructionState, DeckBuildingDeps, None]):
 
         # Build filters
         deck = await Deck.objects.aget(id=ctx.deps.deck_id)
-        colors = get_colors_from_deck(deck)
+        colors = await sync_to_async(get_colors_from_deck)(deck)
         must = [
             MatchAnyCondition(key="set_codes", any=list(ctx.deps.available_set_codes)),
         ]
