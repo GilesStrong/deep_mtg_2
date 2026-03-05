@@ -5,6 +5,7 @@ from typing import Optional
 from uuid import UUID
 
 import logfire
+from app.app_settings import APP_SETTINGS
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
 from appcards.models.deck import Deck, DeckCard
 from appcards.modules.deck_info import get_colors_from_deck
@@ -90,7 +91,10 @@ class SetSwaps(BaseNode[DeckConstructionState, DeckBuildingDeps, None]):
         # run replacement
         semaphore = Semaphore(MAX_CONCURRENCY)
 
-        @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+        @retry(
+            stop=stop_after_attempt(APP_SETTINGS.DECK_BUILD_RETRY_LIMIT),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+        )
         async def _run_replacement_for_card(deck_card: DeckCard) -> None:
             async with semaphore:
                 await replace_card(

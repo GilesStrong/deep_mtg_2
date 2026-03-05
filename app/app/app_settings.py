@@ -106,6 +106,7 @@ class AuthSettings(BaseSettings):
 
 class LimitSettings(BaseSettings):
     DECK_BUILDS_PER_DAY: int
+    DECK_BUILD_RETRY_LIMIT: int
 
 
 class GuardrailSettings(BaseSettings):
