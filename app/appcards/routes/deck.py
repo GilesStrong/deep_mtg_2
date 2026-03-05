@@ -49,7 +49,7 @@ def list_decks(request: HttpRequest) -> list[GetSummaryDeckOut]:
     latest_builds = (
         DeckBuildTask.objects.filter(deck_id__in=deck_ids).order_by('deck_id', '-updated_at').distinct('deck_id')
     )
-    builds_by_deck_id = {str(build.deck_id): build for build in latest_builds}
+    builds_by_deck_id = {str(build.deck.id): build for build in latest_builds}
 
     decks = []
     for deck in all_decks:

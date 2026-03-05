@@ -251,7 +251,7 @@ class BuildDeckStatusRouteTests(TestCase):
         """
         mock_build_task.DoesNotExist = DeckBuildTaskModel.DoesNotExist
         mock_build_task.objects.get.return_value = SimpleNamespace(
-            id=_TASK_ID, deck_id=_DECK_ID, status=DeckBuildStatus.PENDING
+            id=_TASK_ID, deck=SimpleNamespace(id=_DECK_ID), status=DeckBuildStatus.PENDING
         )
         mock_get_user.return_value = SimpleNamespace(id=_USER_ID)
         mock_deck.objects.filter.return_value.exists.return_value = False
@@ -271,7 +271,7 @@ class BuildDeckStatusRouteTests(TestCase):
         WHEN check_deck_build_status is called
         THEN it returns the task status and deck_id
         """
-        build = SimpleNamespace(id=_TASK_ID, deck_id=_DECK_ID, status=DeckBuildStatus.COMPLETED)
+        build = SimpleNamespace(id=_TASK_ID, deck=SimpleNamespace(id=_DECK_ID), status=DeckBuildStatus.COMPLETED)
         mock_build_task.DoesNotExist = DeckBuildTaskModel.DoesNotExist
         mock_build_task.objects.get.return_value = build
         mock_get_user.return_value = SimpleNamespace(id=_USER_ID)

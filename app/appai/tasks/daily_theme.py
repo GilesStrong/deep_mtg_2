@@ -5,7 +5,6 @@ import logfire
 from app.utils import celery_task_context
 from appcards.constants.storage import THEME_COLLECTION_NAME
 from appcards.models.deck import DailyDeckTheme
-from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.upsert import create_collection_if_not_exists, upsert_documents
 from celery import Task, shared_task
 from django.db import transaction
@@ -24,7 +23,6 @@ from appai.services.agents.deck_theme import get_daily_deck_theme
     queue="llm",
     routing_key="llm",
 )
-@beartype
 def make_daily_theme(self: Task) -> None:
     """
     Generate and store a daily deck theme for Magic: The Gathering.

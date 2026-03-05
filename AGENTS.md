@@ -2,6 +2,9 @@
 All functions must have type annotations and docstrings
 Docstrings should follow the Google style guide
 
+# Linting
+Formatters will be run on all code automatically, so do not waste time on formatting and import ordering. Just write the code and let the linters fix the formatting.
+
 # Backend tests
 Tests should have GIVE/WHEN/THEN docstrings
 
