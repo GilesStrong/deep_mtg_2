@@ -11,6 +11,7 @@ _MODULE = "appai.modules.construct_deck"
 
 _USER_ID = UUID("12345678-1234-5678-1234-567812345678")
 _DECK_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+_BUILD_TASK_ID = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
 _DECK_DESCRIPTION = "A aggressive red deck focused on burn spells"
 
 
@@ -35,7 +36,7 @@ class ConstructDeckNewDeckTests(TestCase):
         new_deck = _make_deck(generation_history=None)
         mock_deck_cls.objects.acreate = AsyncMock(return_value=new_deck)
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID)
+        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, build_task_id=_BUILD_TASK_ID)
 
         mock_deck_cls.objects.acreate.assert_called_once_with(name="New Deck", user_id=_USER_ID)
         mock_graph.assert_awaited_once()
@@ -51,7 +52,7 @@ class ConstructDeckNewDeckTests(TestCase):
         new_deck = _make_deck(generation_history=None)
         mock_deck_cls.objects.acreate = AsyncMock(return_value=new_deck)
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID)
+        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, build_task_id=_BUILD_TASK_ID)
 
         mock_deck_cls.objects.aget.assert_not_called()
 
@@ -66,7 +67,9 @@ class ConstructDeckNewDeckTests(TestCase):
         new_deck = _make_deck(deck_id=_DECK_ID, generation_history=None)
         mock_deck_cls.objects.acreate = AsyncMock(return_value=new_deck)
 
-        result = await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID)
+        result = await construct_deck(
+            deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, build_task_id=_BUILD_TASK_ID
+        )
 
         self.assertIsNone(result)
 
@@ -85,7 +88,12 @@ class ConstructDeckExistingDeckTests(TestCase):
         existing_deck = _make_deck(generation_history=[])
         mock_deck_cls.objects.aget = AsyncMock(return_value=existing_deck)
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, deck_id=_DECK_ID)
+        await construct_deck(
+            deck_description=_DECK_DESCRIPTION,
+            user_id=_USER_ID,
+            deck_id=_DECK_ID,
+            build_task_id=_BUILD_TASK_ID,
+        )
 
         mock_deck_cls.objects.aget.assert_called_once_with(id=_DECK_ID)
 
@@ -100,7 +108,12 @@ class ConstructDeckExistingDeckTests(TestCase):
         existing_deck = _make_deck(generation_history=[])
         mock_deck_cls.objects.aget = AsyncMock(return_value=existing_deck)
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, deck_id=_DECK_ID)
+        await construct_deck(
+            deck_description=_DECK_DESCRIPTION,
+            user_id=_USER_ID,
+            deck_id=_DECK_ID,
+            build_task_id=_BUILD_TASK_ID,
+        )
 
         mock_deck_cls.objects.acreate.assert_not_called()
 
@@ -115,7 +128,12 @@ class ConstructDeckExistingDeckTests(TestCase):
         existing_deck = _make_deck(deck_id=_DECK_ID, generation_history=[])
         mock_deck_cls.objects.aget = AsyncMock(return_value=existing_deck)
 
-        result = await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, deck_id=_DECK_ID)
+        result = await construct_deck(
+            deck_description=_DECK_DESCRIPTION,
+            user_id=_USER_ID,
+            deck_id=_DECK_ID,
+            build_task_id=_BUILD_TASK_ID,
+        )
 
         self.assertIsNone(result)
 
@@ -134,7 +152,7 @@ class ConstructDeckGenerationHistoryTests(TestCase):
         deck = _make_deck(generation_history=None)
         mock_deck_cls.objects.acreate = AsyncMock(return_value=deck)
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID)
+        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, build_task_id=_BUILD_TASK_ID)
 
         mock_graph.assert_awaited_once()
         call_kwargs = mock_graph.call_args.kwargs
@@ -152,7 +170,7 @@ class ConstructDeckGenerationHistoryTests(TestCase):
         deck = _make_deck(generation_history=history)
         mock_deck_cls.objects.acreate = AsyncMock(return_value=deck)
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID)
+        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, build_task_id=_BUILD_TASK_ID)
 
         call_kwargs = mock_graph.call_args.kwargs
         self.assertEqual(call_kwargs["generation_history"], history)
@@ -169,7 +187,7 @@ class ConstructDeckGenerationHistoryTests(TestCase):
         deck = _make_deck(generation_history=history)
         mock_deck_cls.objects.acreate = AsyncMock(return_value=deck)
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID)
+        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, build_task_id=_BUILD_TASK_ID)
 
         call_kwargs = mock_graph.call_args.kwargs
         self.assertEqual(call_kwargs["generation_history"], history)
@@ -186,7 +204,7 @@ class ConstructDeckGenerationHistoryTests(TestCase):
         deck = _make_deck(generation_history=history)
         mock_deck_cls.objects.acreate = AsyncMock(return_value=deck)
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID)
+        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, build_task_id=_BUILD_TASK_ID)
 
         call_kwargs = mock_graph.call_args.kwargs
         self.assertEqual(call_kwargs["generation_history"], ["h1", "h4", "h5", "h6", "h7"])
@@ -203,7 +221,7 @@ class ConstructDeckGenerationHistoryTests(TestCase):
         deck = _make_deck(generation_history=history)
         mock_deck_cls.objects.acreate = AsyncMock(return_value=deck)
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID)
+        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, build_task_id=_BUILD_TASK_ID)
 
         call_kwargs = mock_graph.call_args.kwargs
         trimmed = call_kwargs["generation_history"]
@@ -226,7 +244,7 @@ class ConstructDeckGraphCallTests(TestCase):
         deck = _make_deck(generation_history=None)
         mock_deck_cls.objects.acreate = AsyncMock(return_value=deck)
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID)
+        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, build_task_id=_BUILD_TASK_ID)
 
         call_kwargs = mock_graph.call_args.kwargs
         self.assertEqual(call_kwargs["deck_description"], _DECK_DESCRIPTION)
@@ -243,7 +261,12 @@ class ConstructDeckGraphCallTests(TestCase):
         mock_deck_cls.objects.acreate = AsyncMock(return_value=deck)
         set_codes = {"MOM", "ONE", "BRO"}
 
-        await construct_deck(deck_description=_DECK_DESCRIPTION, user_id=_USER_ID, available_set_codes=set_codes)
+        await construct_deck(
+            deck_description=_DECK_DESCRIPTION,
+            user_id=_USER_ID,
+            build_task_id=_BUILD_TASK_ID,
+            available_set_codes=set_codes,
+        )
 
         call_kwargs = mock_graph.call_args.kwargs
         self.assertEqual(call_kwargs["available_set_codes"], set_codes)

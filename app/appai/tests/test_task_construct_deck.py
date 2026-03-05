@@ -50,6 +50,7 @@ class ConstructDeckTaskTests(TestCase):
             deck_description="mono-red aggro",
             deck_id=_DECK_ID,
             user_id=_USER_ID,
+            build_task_id=None,
             available_set_codes={"FDN", "BLB"},
         )
         mock_asyncio_run.assert_called_once()

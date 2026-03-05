@@ -10,6 +10,7 @@ from uuid import UUID
 from django.test import TestCase
 
 _MODULE = "appai.services.graphs.deck_construction"
+_BUILD_TASK_ID = UUID("99999999-9999-9999-9999-999999999999")
 
 
 def _load_deck_construction_module():
@@ -46,6 +47,7 @@ def _make_ctx(deck_id: UUID, deck_description: str, build_count: int = 0, genera
             deck_id=deck_id,
             deck_description=deck_description,
             available_set_codes={"FDN", "BLB"},
+            build_task_id=_BUILD_TASK_ID,
         ),
         state=SimpleNamespace(build_count=build_count, generation_history=generation_history or []),
     )
@@ -274,6 +276,7 @@ class ConstructDeckFunctionTests(TestCase):
                 deck_id=deck_id,
                 deck_description="Artifacts deck",
                 generation_history=["first pass"],
+                build_task_id=_BUILD_TASK_ID,
                 available_set_codes={"FDN"},
             )
 
@@ -281,6 +284,7 @@ class ConstructDeckFunctionTests(TestCase):
             deck_id=deck_id,
             deck_description="Artifacts deck",
             available_set_codes={"FDN"},
+            build_task_id=_BUILD_TASK_ID,
         )
         mock_graph_cls.assert_called_once()
         graph_obj.run.assert_awaited_once()
