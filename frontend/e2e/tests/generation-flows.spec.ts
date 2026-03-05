@@ -34,12 +34,15 @@ const deckDetail: DeckDetail = {
     short_summary: "Spell-heavy tempo deck",
     full_summary: "A red-blue spell deck for E2E validation.",
     set_codes: ["DMU", "WOE"],
+    tags: ["Tempo"],
     date_updated: "2026-02-01T10:00:00.000Z",
     creation_status: "COMPLETED",
     cards: [
-        [
-            2,
-            {
+        {
+            quantity: 2,
+            role: "Primary Engine",
+            importance: "Critical",
+            card_info: {
                 id: "card-1",
                 name: "Lightning Strike",
                 text: "Lightning Strike deals 3 damage to any target.",
@@ -60,8 +63,10 @@ const deckDetail: DeckDetail = {
                 toughness: null,
                 colors: ["R"],
                 keywords: [],
+                tags: ["Tempo"],
             },
-        ],
+            possible_replacements: [],
+        },
     ],
 };
 

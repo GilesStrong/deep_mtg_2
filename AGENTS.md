@@ -15,3 +15,6 @@ Run tests using bun, e.g.:
 ```
 cd /workspace/deep_mtg_2/frontend && bun run test --run
 ```
+
+# Frontend E2E tests
+These tests use Playwright. Do not try to run them youself. Ask the user to run them for you.

@@ -57,30 +57,26 @@ def _load_replace_card_module():
 
 
 class AddReplacementsNodeTests(TestCase):
-    async def test_adds_replacement_cards_and_saves(self):
+    async def test_adds_replacement_cards(self):
         """
         GIVEN replacement cards and a deck card
         WHEN AddReplacements.run executes
-        THEN each replacement card is linked and the deck card is saved
+        THEN replacement cards are refreshed with the provided candidates
         """
         module = _load_replace_card_module()
 
         replacement_one = MagicMock()
         replacement_two = MagicMock()
         card_to_replace = MagicMock()
-        card_to_replace.replacement_cards.add = MagicMock()
-        card_to_replace.asave = AsyncMock()
+        card_to_replace.replacement_cards.aclear = AsyncMock()
+        card_to_replace.replacement_cards.aadd = AsyncMock()
 
         ctx = SimpleNamespace(deps=SimpleNamespace(card_to_replace=card_to_replace))
         result = await module.AddReplacements(replacement_cards=[replacement_one, replacement_two]).run(ctx)
 
         self.assertEqual(result.__class__.__name__, "End")
-        self.assertEqual(card_to_replace.replacement_cards.add.call_count, 2)
-        self.assertEqual(
-            [call.args[0] for call in card_to_replace.replacement_cards.add.call_args_list],
-            [replacement_one, replacement_two],
-        )
-        card_to_replace.asave.assert_awaited_once_with(update_fields=["replacement_cards"])
+        card_to_replace.replacement_cards.aclear.assert_awaited_once_with()
+        card_to_replace.replacement_cards.aadd.assert_awaited_once_with(replacement_one, replacement_two)
 
 
 class FilterReplacementsNodeTests(TestCase):

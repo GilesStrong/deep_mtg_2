@@ -30,11 +30,10 @@ class ReplacementDeps(BaseModel):
 @dataclass
 class AddReplacements(BaseNode[None, ReplacementDeps, None]):
     """
-    A graph node that adds replacement cards to a given card and persists the changes.
+    A graph node that adds replacement cards to a given card.
 
     This node iterates over a list of replacement cards and associates each one
-    with the card designated for replacement. After all replacements have been
-    added, it asynchronously saves the updated card to the database.
+    with the card designated for replacement.
 
     Attributes:
         replacement_cards (list[Card]): A list of Card instances to be added
@@ -54,6 +53,7 @@ class AddReplacements(BaseNode[None, ReplacementDeps, None]):
     async def run(self, ctx: GraphRunContext[None, ReplacementDeps]) -> End[None]:
         await ctx.deps.card_to_replace.replacement_cards.aclear()
         await ctx.deps.card_to_replace.replacement_cards.aadd(*self.replacement_cards)
+
         return End(None)
 
 

@@ -22,5 +22,8 @@
     "F401,F841",
   ],
   // Give code actions enough time
-  "editor.codeActionsOnSaveTimeout": 3000
+  "editor.codeActionsOnSaveTimeout": 3000,
+  "chat.tools.terminal.autoApprove": {
+    "bun": true
+  }
 }
