@@ -226,7 +226,7 @@ describe("DashboardPage", () => {
             return 1 as unknown as ReturnType<typeof setInterval>;
         });
 
-        const clearIntervalSpy = vi.spyOn(global, "clearInterval").mockImplementation(() => {});
+        const clearIntervalSpy = vi.spyOn(global, "clearInterval").mockImplementation(() => { });
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
             if (url === "/api/app/ai/deck/statuses/") {
