@@ -18,6 +18,7 @@ EVERGREEN_KEYWORDS = {
     "Trample",
     "Vigilance",
     "Ward",
+    "Scry",
 }
 
 CURRENT_STANDARD_SET_CODES = {

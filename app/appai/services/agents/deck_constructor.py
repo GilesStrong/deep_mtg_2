@@ -18,7 +18,7 @@ from asgiref.sync import sync_to_async
 from pydantic import BaseModel, Field, create_model, field_validator
 from pydantic_ai import Agent, ModelRetry, UsageLimits
 
-from appai.constants.llm_models import TOOL_MODEL
+from appai.constants.llm_models import TOOL_MODEL_BASIC, TOOL_MODEL_THINKING
 from appai.constants.prompt_gotchas import GOTCHAS
 from appai.services.agents.deps import DeckBuildingDeps
 from appai.services.agents.tools.card_tools import inspect_card
@@ -55,7 +55,9 @@ You will not output the final deck directly. Instead, you will use the available
 
 You output will instead consist of summary aspects of the deck:
 ## Summary
-A long-form final summary of the deck, including its strategy, key cards, and how it meets the user's requirements.
+A long-form final summary of the deck, including its strategy, key cards.
+Do not refer to the user's original description in the summary, or mention changes that were made to an existing deck.
+Instead, this should be a standalone description of the deck that could be read and understood without reference to the user's original description or the previous state of the deck.
 
 ## Short summary
 A short, snappy catchline for the deck. ~15 words. Suitable for use when viewing multiple decks side by side to help distinguish them.
@@ -163,7 +165,7 @@ async def run_deck_constructor_agent(
 
     agent = Agent(
         system_prompt=DECK_CONSTRUCTION_SYSTEM_PROMPT,
-        model=TOOL_MODEL,
+        model=TOOL_MODEL_THINKING,
         deps_type=DeckBuildingDeps,
         tools=[
             list_deck_cards,
@@ -305,7 +307,7 @@ async def run_card_classifier_agent(deck_id: UUID, deck_description: str) -> Non
 
     agent = Agent(
         system_prompt=CARD_CLASSIFIER_SYSTEM_PROMPT,
-        model=TOOL_MODEL,
+        model=TOOL_MODEL_BASIC,
         tools=[],
         instrument=True,
         retries=0,
@@ -379,7 +381,7 @@ async def run_card_replacement_agent(
 
     agent = Agent(
         system_prompt=CARD_REPLACEMENT_SYSTEM_PROMPT,
-        model=TOOL_MODEL,
+        model=TOOL_MODEL_BASIC,
         tools=[],
         instrument=True,
         retries=0,

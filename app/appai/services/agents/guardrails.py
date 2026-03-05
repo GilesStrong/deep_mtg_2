@@ -99,7 +99,6 @@ def is_request_relevant(user_request: str, context: str, user: User) -> bool:
     Side-Effects:
         If the user's request is deemed too irrelevant, the user will be struck with a warning.
     """
-
     if user.warning_count >= APP_SETTINGS.N_WARNINGS_BEFORE_BLOCK:
         return False
 

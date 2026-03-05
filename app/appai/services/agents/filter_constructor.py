@@ -13,7 +13,7 @@ from appsearch.services.qdrant.search_dsl import (
 )
 from pydantic_ai import Agent, ModelRetry
 
-from appai.constants.llm_models import TOOL_MODEL
+from appai.constants.llm_models import TOOL_MODEL_BASIC
 
 METADATA_FILTER_FIELDS = [
     'subtypes',
@@ -204,7 +204,7 @@ async def filter_constructor(query: str) -> Filter:
     """
 
     agent = Agent(
-        model=TOOL_MODEL,
+        model=TOOL_MODEL_BASIC,
         system_prompt=FILTER_CONSTRUCTION_PROMPT,
         output_retries=10,
         output_type=Filter,

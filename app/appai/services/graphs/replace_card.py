@@ -8,7 +8,6 @@ from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.search import run_query_from_dsl
 from appsearch.services.qdrant.search_dsl import Filter, Query
 from asgiref.sync import sync_to_async
-from django.db import transaction
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_graph import BaseNode, End, Graph, GraphRunContext
 
@@ -53,11 +52,8 @@ class AddReplacements(BaseNode[None, ReplacementDeps, None]):
     replacement_cards: list[Card]
 
     async def run(self, ctx: GraphRunContext[None, ReplacementDeps]) -> End[None]:
-        with transaction.atomic():
-            ctx.deps.card_to_replace.replacement_cards.clear()
-            for replacement_card in self.replacement_cards:
-                await ctx.deps.card_to_replace.replacement_cards.aadd(replacement_card)
-            await ctx.deps.card_to_replace.asave(update_fields=['replacement_cards'])
+        await ctx.deps.card_to_replace.replacement_cards.aclear()
+        await ctx.deps.card_to_replace.replacement_cards.aadd(*self.replacement_cards)
         return End(None)
 
 
