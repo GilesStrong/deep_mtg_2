@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -24,12 +24,20 @@ const ROLE_DISPLAY_ORDER = [
   "Land",
 ] as const;
 const IMPORTANCE_DISPLAY_ORDER = ["Critical", "High Synergy", "Functional", "Generic"] as const;
+const POLLABLE_BUILD_STATUSES = new Set([
+  "PENDING",
+  "IN_PROGRESS",
+  "BUILDING_DECK",
+  "CLASSIFYING_DECK_CARDS",
+  "FINDING_REPLACEMENT_CARDS",
+]);
 const roleOrderIndex = new Map<string, number>(
   ROLE_DISPLAY_ORDER.map((role, index) => [role, index])
 );
 const importanceOrderIndex = new Map<string, number>(
   IMPORTANCE_DISPLAY_ORDER.map((importance, index) => [importance, index])
 );
+const TOAST_DURATION_MS = 4000;
 
 interface CardInfo {
   id: string;
@@ -90,6 +98,57 @@ export default function DeckPage() {
   const [arenaImportCopied, setArenaImportCopied] = useState(false);
   const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
   const [replacementModalCard, setReplacementModalCard] = useState<DeckCard | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<number | null>(null);
+
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    if (toastTimeoutRef.current !== null) {
+      window.clearTimeout(toastTimeoutRef.current);
+    }
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimeoutRef.current = null;
+    }, TOAST_DURATION_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current !== null) {
+        window.clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const parseApiError = useCallback(async (response: Response, fallbackMessage: string): Promise<string> => {
+    const responseText = await response.text();
+    if (!responseText) {
+      return fallbackMessage;
+    }
+
+    try {
+      const data = JSON.parse(responseText) as {
+        detail?: string | Array<{ msg?: string }>;
+        message?: string;
+        error?: string;
+      };
+
+      if (typeof data.detail === "string") {
+        return data.detail;
+      }
+
+      if (Array.isArray(data.detail)) {
+        const firstMessage = data.detail.find((item) => item?.msg)?.msg;
+        if (firstMessage) {
+          return firstMessage;
+        }
+      }
+
+      return data.message ?? data.error ?? fallbackMessage;
+    } catch {
+      return responseText.trim() || fallbackMessage;
+    }
+  }, []);
 
   const fetchDeck = useCallback(async () => {
     try {
@@ -298,7 +357,11 @@ export default function DeckPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to update deck");
+        const errorMessage = await parseApiError(response, "Failed to update deck");
+        if (response.status === 409) {
+          showToast(errorMessage);
+        }
+        throw new Error(errorMessage);
       }
 
       await fetchDeck();
@@ -327,7 +390,11 @@ export default function DeckPage() {
       });
 
       if (!response.ok && response.status !== 204) {
-        throw new Error("Failed to delete deck");
+        const errorMessage = await parseApiError(response, "Failed to delete deck");
+        if (response.status === 409) {
+          showToast(errorMessage);
+        }
+        throw new Error(errorMessage);
       }
 
       router.push("/dashboard");
@@ -350,7 +417,9 @@ export default function DeckPage() {
   const avatarUrl = getAvatarUrlFromSession(session);
 
   const totalCards = deck?.cards.reduce((sum, card) => sum + card.qty, 0) || 0;
-  const isDeckBuilding = deck?.creation_status === "PENDING" || deck?.creation_status === "IN_PROGRESS";
+  const isDeckBuilding = deck?.creation_status !== null && deck?.creation_status !== undefined
+    ? POLLABLE_BUILD_STATUSES.has(deck.creation_status)
+    : false;
 
   const cardsByRole = useMemo(() => {
     if (!deck) {
@@ -552,7 +621,7 @@ export default function DeckPage() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       rows={2}
-                      disabled={isSaving || isDeleting}
+                      disabled={isDeckBuilding || isSaving || isDeleting}
                     />
                   </div>
 
@@ -563,7 +632,7 @@ export default function DeckPage() {
                       value={shortSummary}
                       onChange={(e) => setShortSummary(e.target.value)}
                       rows={3}
-                      disabled={isSaving || isDeleting}
+                      disabled={isDeckBuilding || isSaving || isDeleting}
                     />
                   </div>
 
@@ -574,7 +643,7 @@ export default function DeckPage() {
                       value={fullSummary}
                       onChange={(e) => setFullSummary(e.target.value)}
                       rows={6}
-                      disabled={isSaving || isDeleting}
+                      disabled={isDeckBuilding || isSaving || isDeleting}
                     />
                   </div>
 
@@ -730,6 +799,12 @@ export default function DeckPage() {
           )}
         </div>
       </main>
+
+      {toastMessage ? (
+        <div className="fixed right-4 top-4 z-50 max-w-sm rounded border bg-card px-4 py-3 text-sm shadow-sm" role="status" aria-live="polite">
+          {toastMessage}
+        </div>
+      ) : null}
 
       {replacementModalCard ? (
         <div

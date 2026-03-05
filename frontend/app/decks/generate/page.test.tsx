@@ -39,10 +39,10 @@ const mockJsonResponse = (data: unknown): Response =>
     text: vi.fn().mockResolvedValue(JSON.stringify(data)),
 } as unknown as Response);
 
-const mockFailedResponse = (errorBody: unknown): Response =>
+const mockFailedResponse = (errorBody: unknown, status = 400): Response =>
 ({
     ok: false,
-    status: 400,
+    status,
     json: vi.fn().mockResolvedValue(errorBody),
     text: vi.fn().mockResolvedValue(JSON.stringify(errorBody)),
 } as unknown as Response);
@@ -276,6 +276,49 @@ describe("GenerateDeckPage", () => {
         await user.click(screen.getByRole("button", { name: "Submit Generation Task" }));
 
         expect(await screen.findByText("Prompt failed safety checks")).toBeInTheDocument();
+    });
+
+    it("shows toast when regeneration is blocked by in-progress generation", async () => {
+        const user = userEvent.setup();
+
+        mockUseSearchParams.mockReturnValue({
+            get: (key: string) => (key === "deckId" ? "deck-1" : null),
+        });
+
+        sessionStorage.setItem(
+            "deep-mtg.regenerate-nav",
+            JSON.stringify({ deckId: "deck-1", createdAt: Date.now() })
+        );
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["BRO", "ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 2 });
+            }
+
+            if (url === "/api/app/cards/deck/deck-1/") {
+                return mockJsonResponse({ id: "deck-1", name: "Azorius Control" });
+            }
+
+            if (url === "/api/app/ai/deck/" && init?.method === "POST") {
+                return mockFailedResponse({ detail: "Deck cannot be regenerated while generation is in progress" }, 409);
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+
+        expect(await screen.findByText("Target deck: Azorius Control")).toBeInTheDocument();
+        await user.type(screen.getByLabelText("Prompt"), "Blue white control deck with sweepers and card advantage");
+        await user.click(screen.getByRole("button", { name: "Submit Generation Task" }));
+
+        expect(await screen.findByRole("status")).toHaveTextContent(
+            "Deck cannot be regenerated while generation is in progress"
+        );
     });
 
     it("shows regeneration target deck name instead of deck id", async () => {

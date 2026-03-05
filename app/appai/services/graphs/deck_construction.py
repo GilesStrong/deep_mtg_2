@@ -98,7 +98,7 @@ class SetSwaps(BaseNode[DeckConstructionState, DeckBuildingDeps, None]):
         async def _run_replacement_for_card(deck_card: DeckCard) -> None:
             async with semaphore:
                 await replace_card(
-                    deck_strategy=ctx.deps.deck_description,
+                    deck_strategy=deck.llm_summary or ctx.deps.deck_description,
                     deck_card_to_replace=deck_card,
                     card_filter=search_filter,
                     exclude_ids=existing_card_str_ids,

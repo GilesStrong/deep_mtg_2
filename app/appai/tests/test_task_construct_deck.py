@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 from django.test import TestCase
@@ -30,14 +30,15 @@ class ConstructDeckTaskTests(TestCase):
         mock_build_task.objects.filter.return_value = queryset
 
         with patch(f"{_MODULE}._construct_deck", new=MagicMock()) as mock_construct_deck:
-            construct_deck(
-                deck_description="mono-red aggro",
-                deck_id=str(_DECK_ID),
-                user_id=str(_USER_ID),
-                available_set_codes=["FDN", "BLB"],
-            )
+            with patch.object(construct_deck.request, "id", str(_TASK_ID)):
+                construct_deck(
+                    deck_description="mono-red aggro",
+                    deck_id=str(_DECK_ID),
+                    user_id=str(_USER_ID),
+                    available_set_codes=["FDN", "BLB"],
+                )
 
-        mock_build_task.objects.filter.assert_called_with(id=ANY)
+        mock_build_task.objects.filter.assert_called_with(id=str(_TASK_ID))
         self.assertEqual(
             queryset.update.call_args_list[0].kwargs,
             {"status": DeckBuildStatus.IN_PROGRESS},
@@ -50,7 +51,7 @@ class ConstructDeckTaskTests(TestCase):
             deck_description="mono-red aggro",
             deck_id=_DECK_ID,
             user_id=_USER_ID,
-            build_task_id=None,
+            build_task_id=_TASK_ID,
             available_set_codes={"FDN", "BLB"},
         )
         mock_asyncio_run.assert_called_once()
@@ -67,13 +68,14 @@ class ConstructDeckTaskTests(TestCase):
         mock_build_task.objects.filter.return_value = queryset
 
         with patch(f"{_MODULE}._construct_deck", new=MagicMock()) as mock_construct_deck:
-            with self.assertRaises(RuntimeError):
-                construct_deck(
-                    deck_description="mono-red aggro",
-                    deck_id=str(_DECK_ID),
-                    user_id=str(_USER_ID),
-                    available_set_codes=None,
-                )
+            with patch.object(construct_deck.request, "id", str(_TASK_ID)):
+                with self.assertRaises(RuntimeError):
+                    construct_deck(
+                        deck_description="mono-red aggro",
+                        deck_id=str(_DECK_ID),
+                        user_id=str(_USER_ID),
+                        available_set_codes=None,
+                    )
 
         self.assertIn(
             {"status": DeckBuildStatus.FAILED},

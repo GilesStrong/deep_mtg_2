@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from appai.constants.build_statuses import is_pollable_build_status
 from appai.models.deck_build import DeckBuildTask
 from appauth.modules.auth import get_user_from_request
 from django.http import HttpRequest
@@ -231,6 +232,9 @@ def delete_deck(
     deck = path_params.deck
     if deck.user.id != user.id:
         raise HttpError(403, "You do not have permission to access this deck")
+    latest_build = _get_latest_build(deck.id)
+    if latest_build is not None and is_pollable_build_status(latest_build.status):
+        raise HttpError(409, "Deck cannot be deleted while generation is in progress")
     deck.delete()
     return None
 
@@ -262,6 +266,9 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
     user = get_user_from_request(request)
     if deck.user.id != user.id:
         raise HttpError(403, "You do not have permission to access this deck")
+    latest_build = _get_latest_build(deck.id)
+    if latest_build is not None and is_pollable_build_status(latest_build.status):
+        raise HttpError(409, "Deck cannot be edited while generation is in progress")
     if payload.name is not None:
         deck.name = payload.name
     if payload.short_summary is not None:
@@ -269,7 +276,6 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
     if payload.full_summary is not None:
         deck.llm_summary = payload.full_summary
     deck.save()
-    latest_build = _get_latest_build(deck.id)
     creation_status = latest_build.status if latest_build else None
 
     deck_cards = list(

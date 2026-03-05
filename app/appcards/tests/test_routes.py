@@ -167,6 +167,22 @@ class DeckRoutesTests(TestCase):
         self.assertIsNone(result)
         self.assertFalse(Deck.objects.filter(id=deck.id).exists())
 
+    def test_delete_deck_blocks_when_latest_build_is_pollable(self):
+        """
+        GIVEN a deck with an active pollable build task
+        WHEN delete_deck is called
+        THEN it raises HttpError 409 and does not delete the deck
+        """
+        user = User.objects.create(google_id="delete-blocked-gid", verified=True)
+        deck = Deck.objects.create(name="Cannot Delete Yet", user=user)
+        DeckBuildTask.objects.create(deck=deck, status=DeckBuildStatus.IN_PROGRESS)
+
+        with self.assertRaises(HttpError) as ctx:
+            delete_deck(SimpleNamespace(auth=user), SimpleNamespace(deck=deck))
+
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertTrue(Deck.objects.filter(id=deck.id).exists())
+
     def test_get_daily_theme_returns_fallback_when_no_themes_exist(self):
         """
         GIVEN no DailyDeckTheme records exist
@@ -243,3 +259,22 @@ class DeckRoutesTests(TestCase):
         self.assertEqual(len(response.cards), 1)
         self.assertEqual(response.cards[0].card_info.name, "Counterspell")
         self.assertEqual([candidate.name for candidate in response.cards[0].possible_replacements], ["Negate"])
+
+    def test_update_deck_blocks_when_latest_build_is_pollable(self):
+        """
+        GIVEN an owned deck with an active pollable build status
+        WHEN update_deck is called
+        THEN it raises HttpError 409 to prevent editing during generation
+        """
+        user = User.objects.create(google_id="deck-update-blocked-gid", verified=True)
+        deck = Deck.objects.create(name="In Progress Deck", user=user)
+        DeckBuildTask.objects.create(deck=deck, status=DeckBuildStatus.BUILDING_DECK)
+
+        with self.assertRaises(HttpError) as ctx:
+            update_deck(
+                SimpleNamespace(auth=user),
+                SimpleNamespace(deck=deck),
+                UpdateDeckIn(name="Should Not Save"),
+            )
+
+        self.assertEqual(ctx.exception.status_code, 409)

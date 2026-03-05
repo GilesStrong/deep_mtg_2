@@ -91,7 +91,7 @@ class FilterReplacements(BaseNode[None, ReplacementDeps, None]):
         )
         if len(filtered_candidate_ids) == 0:
             logfire.warning(
-                f"No valid replacements found for card {ctx.deps.card_to_replace.card.name} with strategy {ctx.deps.deck_strategy} among candidates {[card.name for card in self.replacement_candidates]}"
+                f"No valid replacements found for card {ctx.deps.card_to_replace.card.name} among candidates {[card.name for card in self.replacement_candidates]}"
             )
             return End(None)
         filtered_candidates = [card for card in self.replacement_candidates if card.id in filtered_candidate_ids]

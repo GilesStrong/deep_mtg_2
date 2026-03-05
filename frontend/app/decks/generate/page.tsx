@@ -28,6 +28,7 @@ const BUILD_STATUS_TIMEOUT_MS = 120_000;
 const PROMPT_MIN_LENGTH = 20;
 const PROMPT_MAX_LENGTH = 3000;
 const DAILY_THEME_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
+const TOAST_DURATION_MS = 4000;
 
 function GenerateDeckPageContent() {
     const { data: session } = useSession();
@@ -51,6 +52,7 @@ function GenerateDeckPageContent() {
     const [generationError, setGenerationError] = useState<string | null>(null);
     const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
     const [dailyTheme, setDailyTheme] = useState<string | null>(null);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     const parseApiError = async (response: Response, fallbackMessage: string): Promise<string> => {
         const responseText = await response.text();
@@ -85,6 +87,13 @@ function GenerateDeckPageContent() {
             return responseText.trim() || fallbackMessage;
         }
     };
+
+    const showToast = useCallback((message: string): void => {
+        setToastMessage(message);
+        window.setTimeout(() => {
+            setToastMessage((current) => (current === message ? null : current));
+        }, TOAST_DURATION_MS);
+    }, []);
 
     const userInitials =
         session?.user?.name
@@ -365,7 +374,11 @@ function GenerateDeckPageContent() {
             });
 
             if (!response.ok) {
-                throw new Error(await parseApiError(response, "Failed to start deck generation"));
+                const errorMessage = await parseApiError(response, "Failed to start deck generation");
+                if (response.status === 409) {
+                    showToast(errorMessage);
+                }
+                throw new Error(errorMessage);
             }
 
             const data = (await response.json()) as { task_id: string };
@@ -513,7 +526,7 @@ function GenerateDeckPageContent() {
                                                 );
                                             })}
                                         </div>
-                                        <p className="text-xs text-muted-foreground">You can deselect all set codes, but generation requires at least one selected set code.</p>
+                                        <p className="text-xs text-muted-foreground">Generation requires at least one selected set code.</p>
                                     </div>
                                 )}
                             </div>
@@ -551,6 +564,12 @@ function GenerateDeckPageContent() {
                     </Card>
                 </div>
             </main>
+
+            {toastMessage ? (
+                <div className="fixed right-4 top-4 z-50 max-w-sm rounded border bg-card px-4 py-3 text-sm shadow-sm" role="status" aria-live="polite">
+                    {toastMessage}
+                </div>
+            ) : null}
         </div>
     );
 }

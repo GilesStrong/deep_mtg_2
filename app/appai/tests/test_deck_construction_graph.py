@@ -193,6 +193,7 @@ class SetSwapsNodeTests(TestCase):
         mock_deck_card_cls.objects.filter.side_effect = [first_queryset, second_queryset]
 
         deck = MagicMock()
+        deck.llm_summary = None
         mock_deck_cls.objects.aget = AsyncMock(return_value=deck)
 
         ctx = _make_ctx(
