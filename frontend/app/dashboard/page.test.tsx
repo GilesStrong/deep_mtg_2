@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -215,12 +215,18 @@ describe("DashboardPage", () => {
     });
 
     it("polls build status for BUILDING_DECK generation state", async () => {
+        let deckFetchCount = 0;
+        let intervalCallback: (() => Promise<void> | void) | undefined;
+
         const setIntervalSpy = vi.spyOn(global, "setInterval").mockImplementation((callback: TimerHandler) => {
             if (typeof callback === "function") {
-                void callback();
+                intervalCallback = callback as () => Promise<void> | void;
             }
+
             return 1 as unknown as ReturnType<typeof setInterval>;
         });
+
+        const clearIntervalSpy = vi.spyOn(global, "clearInterval").mockImplementation(() => {});
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
             if (url === "/api/app/ai/deck/statuses/") {
@@ -249,6 +255,8 @@ describe("DashboardPage", () => {
             }
 
             if (url === "/api/app/cards/deck/") {
+                deckFetchCount += 1;
+
                 return mockJsonResponse([
                     {
                         id: "deck-1",
@@ -257,7 +265,7 @@ describe("DashboardPage", () => {
                         set_codes: ["DMU"],
                         tags: ["Control", "Tempo"],
                         date_updated: "2026-02-01T10:00:00.000Z",
-                        generation_status: "BUILDING_DECK",
+                        generation_status: deckFetchCount === 1 ? "BUILDING_DECK" : "COMPLETED",
                         generation_task_id: "task-1",
                     },
                 ]);
@@ -273,10 +281,15 @@ describe("DashboardPage", () => {
         render(<DashboardPage />);
         expect(await screen.findByText("Izzet Spells")).toBeInTheDocument();
 
+        await act(async () => {
+            await intervalCallback?.();
+        });
+
         await waitFor(() => {
             expect(mockBackendFetch).toHaveBeenCalledWith(expect.anything(), "/api/app/ai/deck/build_status/task-1/");
         });
 
         setIntervalSpy.mockRestore();
+        clearIntervalSpy.mockRestore();
     });
 });
