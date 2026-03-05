@@ -1,4 +1,3 @@
-from datetime import datetime
 from timeit import default_timer
 
 import logfire
@@ -8,6 +7,7 @@ from appcards.models.deck import DailyDeckTheme
 from appsearch.services.qdrant.upsert import create_collection_if_not_exists, upsert_documents
 from celery import Task, shared_task
 from django.db import transaction
+from django.utils import timezone
 from qdrant_client.http import models as qm
 
 from appai.modules.dense_embedding import dense_embed
@@ -37,7 +37,7 @@ def make_daily_theme(self: Task) -> None:
     Raises:
         RuntimeError: If an error occurs during the theme generation process.
     """
-    if DailyDeckTheme.objects.filter(date=datetime.now().date()).exists():
+    if DailyDeckTheme.objects.filter(date=timezone.now().date()).exists():
         return
 
     with celery_task_context():

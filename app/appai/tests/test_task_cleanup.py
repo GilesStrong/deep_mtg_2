@@ -45,14 +45,14 @@ class CleanupOldDeckBuildTasksTests(TestCase):
             rarity=Rarity.COMMON,
         )
 
-    @patch(f"{_MODULE}.datetime")
-    def test_marks_only_old_in_progress_tasks_failed(self, mock_datetime):
+    @patch(f"{_MODULE}.timezone.now")
+    def test_marks_only_old_in_progress_tasks_failed(self, mock_now):
         """
         GIVEN deck build tasks with mixed statuses and ages
         WHEN cleanup_old_deck_build_tasks runs
         THEN only tasks in in-progress statuses older than 2 hours are marked FAILED
         """
-        mock_datetime.now.return_value = _FIXED_NOW
+        mock_now.return_value = _FIXED_NOW
 
         user = self._create_user("tasks")
         deck = Deck.objects.create(name="Cleanup Deck", user=user)
@@ -81,14 +81,14 @@ class CleanupOldDeckBuildTasksTests(TestCase):
         self.assertEqual(recent_in_progress.status, DeckBuildStatus.IN_PROGRESS)
         self.assertEqual(stale_completed.status, DeckBuildStatus.COMPLETED)
 
-    @patch(f"{_MODULE}.datetime")
-    def test_deletes_only_old_empty_invalid_decks(self, mock_datetime):
+    @patch(f"{_MODULE}.timezone.now")
+    def test_deletes_only_old_empty_invalid_decks(self, mock_now):
         """
         GIVEN decks with mixed validity, age, and card presence
         WHEN cleanup_old_deck_build_tasks runs
         THEN only invalid decks older than 1 day with no cards are deleted
         """
-        mock_datetime.now.return_value = _FIXED_NOW
+        mock_now.return_value = _FIXED_NOW
 
         user = self._create_user("decks")
         card = self._create_card("Cleanup Card")

@@ -1,4 +1,5 @@
-from uuid import uuid4
+from typing import TYPE_CHECKING
+from uuid import UUID, uuid4
 
 from appcards.models.deck import Deck
 from django.db import models
@@ -22,5 +23,8 @@ class DeckBuildTask(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    if TYPE_CHECKING:
+        deck_id: UUID
+
     def __str__(self) -> str:
-        return f"DeckBuildTask(id={self.id}, deck_id={self.deck.id}, status={self.status})"
+        return f"DeckBuildTask(id={self.id}, deck_id={self.deck_id}, status={self.status})"

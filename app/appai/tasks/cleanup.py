@@ -1,8 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import logfire
 from appcards.models.deck import Deck
 from celery import Task, shared_task
+from django.utils import timezone
 
 from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
 
@@ -25,7 +26,7 @@ def cleanup_old_deck_build_tasks(self: Task) -> None:
         DeckBuildStatus.FINDING_REPLACEMENT_CARDS,
     ]
     old_tasks = DeckBuildTask.objects.filter(
-        status__in=in_progress_statuses, updated_at__lt=datetime.now() - timedelta(hours=2)
+        status__in=in_progress_statuses, updated_at__lt=timezone.now() - timedelta(hours=2)
     )
     old_task_count = old_tasks.count()
     old_tasks.update(status=DeckBuildStatus.FAILED)
@@ -33,7 +34,7 @@ def cleanup_old_deck_build_tasks(self: Task) -> None:
 
     # Cleanup empty failed decks
     old_failed_decks = Deck.objects.filter(
-        valid=False, created_at__lt=datetime.now() - timedelta(days=1), cards__isnull=True
+        valid=False, created_at__lt=timezone.now() - timedelta(days=1), cards__isnull=True
     )
     old_failed_deck_count = old_failed_decks.count()
     old_failed_decks.delete()
