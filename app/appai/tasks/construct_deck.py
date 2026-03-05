@@ -46,6 +46,7 @@ def construct_deck(
                         deck_description=deck_description,
                         deck_id=deck_uuid,
                         user_id=UUID(user_id),
+                        build_task_id=self.request.id,
                         available_set_codes=set(available_set_codes) if available_set_codes else None,
                     )
                 )

@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from pydantic_graph import BaseNode, End, Graph, GraphRunContext
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
 from appai.services.agents.deck_constructor import run_card_classifier_agent, run_deck_constructor_agent
 from appai.services.agents.deps import DeckBuildingDeps
 from appai.services.graphs.replace_card import replace_card
@@ -56,6 +57,9 @@ class SetSwaps(BaseNode[DeckConstructionState, DeckBuildingDeps, None]):
     """
 
     async def run(self, ctx: GraphRunContext[DeckConstructionState, DeckBuildingDeps]) -> End[None]:
+        await DeckBuildTask.objects.filter(id=ctx.deps.build_task_id).aupdate(
+            status=DeckBuildStatus.FINDING_REPLACEMENT_CARDS
+        )
         # Get deck cards
         deck_cards: list[DeckCard] = await sync_to_async(list)(  # type: ignore [call-arg]
             DeckCard.objects.filter(deck_id=ctx.deps.deck_id).select_related('card', 'deck')
@@ -119,6 +123,9 @@ class ClassifyCards(BaseNode[DeckConstructionState, DeckBuildingDeps]):
     """
 
     async def run(self, ctx: GraphRunContext[DeckConstructionState, DeckBuildingDeps]) -> SetSwaps:
+        await DeckBuildTask.objects.filter(id=ctx.deps.build_task_id).aupdate(
+            status=DeckBuildStatus.CLASSIFYING_DECK_CARDS
+        )
         await run_card_classifier_agent(deck_id=ctx.deps.deck_id, deck_description=ctx.deps.deck_description)
         return SetSwaps()
 
@@ -182,6 +189,7 @@ class BuildDeck(BaseNode[DeckConstructionState, DeckBuildingDeps]):
     """
 
     async def run(self, ctx: GraphRunContext[DeckConstructionState, DeckBuildingDeps]) -> ValidateDeck:
+        await DeckBuildTask.objects.filter(id=ctx.deps.build_task_id).aupdate(status=DeckBuildStatus.BUILDING_DECK)
         await run_deck_constructor_agent(
             deck_id=ctx.deps.deck_id,
             deck_description=ctx.deps.deck_description,
@@ -194,7 +202,12 @@ class BuildDeck(BaseNode[DeckConstructionState, DeckBuildingDeps]):
 
 @beartype
 async def construct_deck(
-    deck_id: UUID, deck_description: str, generation_history: list[str], available_set_codes: Optional[set[str]] = None
+    *,
+    deck_id: UUID,
+    deck_description: str,
+    generation_history: list[str],
+    build_task_id: UUID,
+    available_set_codes: Optional[set[str]] = None,
 ) -> None:
     """
     Asynchronously constructs a Magic: The Gathering deck based on a given description.
@@ -208,12 +221,10 @@ async def construct_deck(
             the deck-building process.
         generation_history (list[str]): A list of previous generation attempts or history
             entries to inform the construction process.
+        build_task_id (UUID): The unique identifier of the build task associated with this deck construction.
         available_set_codes (Optional[set[str]]): A set of MTG set codes representing the
             card sets available for deck construction. Defaults to the current Standard
             legal set codes if not provided.
-
-    Returns:
-        None
 
     Workflow:
         The deck construction follows a graph-based pipeline consisting of the following nodes:
@@ -226,6 +237,7 @@ async def construct_deck(
         deck_id=deck_id,
         deck_description=deck_description,
         available_set_codes=available_set_codes or set(CURRENT_STANDARD_SET_CODES),
+        build_task_id=build_task_id,
     )
     state = DeckConstructionState(build_count=0, generation_history=generation_history)
 

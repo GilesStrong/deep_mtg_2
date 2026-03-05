@@ -185,6 +185,7 @@ async def run_deck_constructor_agent(
         deck_id=deck_id,
         deck_description=deck_description,
         available_set_codes=available_set_codes if available_set_codes is not None else CURRENT_STANDARD_SET_CODES,
+        build_task_id=None,
     )
 
     deck = await Deck.objects.aget(id=deck_id)
