@@ -131,7 +131,7 @@ class NewTheme(BaseModel):
 
 
 @beartype
-async def find_similar_themes(ctx: RunContext[DeckBuildingDeps], proposed_theme: NewTheme) -> list[Theme]:
+async def find_similar_themes(proposed_theme: NewTheme) -> list[Theme]:
     """
     Searches for deck themes similar to a proposed theme.
 

@@ -10,3 +10,4 @@ class DeckBuildingDeps(BaseModel):
         default_factory=lambda: set(CURRENT_STANDARD_SET_CODES),
         description="The set codes that the deck is allowed to include cards from",
     )
+    deck_description: str = Field(..., description="A natural language description of the desired deck")

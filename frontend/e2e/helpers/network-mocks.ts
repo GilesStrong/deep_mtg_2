@@ -71,9 +71,16 @@ type DeckDetail = {
     short_summary: string | null;
     full_summary: string | null;
     set_codes: string[];
+    tags?: string[];
     date_updated: string;
     creation_status: string | null;
-    cards: Array<[number, DeckCardResponse]>;
+    cards: Array<{
+        quantity: number;
+        role?: string | null;
+        importance?: string | null;
+        card_info: DeckCardResponse;
+        possible_replacements?: DeckCardResponse[];
+    }>;
 };
 
 type GenerationResponse = {

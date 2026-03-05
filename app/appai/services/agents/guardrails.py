@@ -8,7 +8,7 @@ from django.db.models import F
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
-from appai.constants.llm_models import TOOL_MODEL
+from appai.constants.llm_models import TEXT_MODEL
 
 
 def get_guardrail_system_prompt(context: str) -> str:
@@ -72,7 +72,7 @@ def guardrail_agent(user_request: str, context: str) -> RelevancyScore:
     """
 
     agent = Agent(
-        model=TOOL_MODEL,
+        model=TEXT_MODEL,
         system_prompt=get_guardrail_system_prompt(context),
         output_retries=5,
         output_type=RelevancyScore,
@@ -99,7 +99,6 @@ def is_request_relevant(user_request: str, context: str, user: User) -> bool:
     Side-Effects:
         If the user's request is deemed too irrelevant, the user will be struck with a warning.
     """
-
     if user.warning_count >= APP_SETTINGS.N_WARNINGS_BEFORE_BLOCK:
         return False
 

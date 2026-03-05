@@ -3,15 +3,22 @@ from typing import Optional
 from uuid import UUID
 
 from app.app_settings import APP_SETTINGS
-from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
+from appcards.constants.cards import CARD_IMPORTANCES, CARD_ROLES, CURRENT_STANDARD_SET_CODES
 from appcards.constants.decks import DECK_CLASSIFICATIONS, GROUPED_DECK_CLASSIFICATIONS
-from appcards.models.deck import MAX_DECK_NAME_LENGTH, SHORT_SUMMARY_LENGTH_LIMIT, SUMMARY_LENGTH_LIMIT, Deck
+from appcards.models.card import Card
+from appcards.models.deck import (
+    MAX_DECK_NAME_LENGTH,
+    SHORT_SUMMARY_LENGTH_LIMIT,
+    SUMMARY_LENGTH_LIMIT,
+    Deck,
+    DeckCard,
+)
 from appcore.modules.beartype import beartype
 from asgiref.sync import sync_to_async
-from pydantic import BaseModel, Field, field_validator
-from pydantic_ai import Agent, UsageLimits
+from pydantic import BaseModel, Field, create_model, field_validator
+from pydantic_ai import Agent, ModelRetry, UsageLimits
 
-from appai.constants.llm_models import TOOL_MODEL
+from appai.constants.llm_models import TOOL_MODEL_BASIC, TOOL_MODEL_THINKING
 from appai.constants.prompt_gotchas import GOTCHAS
 from appai.services.agents.deps import DeckBuildingDeps
 from appai.services.agents.tools.card_tools import inspect_card
@@ -48,7 +55,9 @@ You will not output the final deck directly. Instead, you will use the available
 
 You output will instead consist of summary aspects of the deck:
 ## Summary
-A long-form final summary of the deck, including its strategy, key cards, and how it meets the user's requirements.
+A long-form final summary of the deck, including its strategy, key cards.
+Do not refer to the user's original description in the summary, or mention changes that were made to an existing deck.
+Instead, this should be a standalone description of the deck that could be read and understood without reference to the user's original description or the previous state of the deck.
 
 ## Short summary
 A short, snappy catchline for the deck. ~15 words. Suitable for use when viewing multiple decks side by side to help distinguish them.
@@ -156,7 +165,7 @@ async def run_deck_constructor_agent(
 
     agent = Agent(
         system_prompt=DECK_CONSTRUCTION_SYSTEM_PROMPT,
-        model=TOOL_MODEL,
+        model=TOOL_MODEL_THINKING,
         deps_type=DeckBuildingDeps,
         tools=[
             list_deck_cards,
@@ -174,6 +183,7 @@ async def run_deck_constructor_agent(
     )
     deps = DeckBuildingDeps(
         deck_id=deck_id,
+        deck_description=deck_description,
         available_set_codes=available_set_codes if available_set_codes is not None else CURRENT_STANDARD_SET_CODES,
     )
 
@@ -211,5 +221,222 @@ async def run_deck_constructor_agent(
     if deck.generation_history is None:
         deck.generation_history = []
     deck.generation_history.append(deck_description)
-    await sync_to_async(deck.save)()
+    await deck.asave()
+    return response.output
+
+
+CARD_CLASSIFIER_SYSTEM_PROMPT = f"""
+# Overiew
+You are an expert Magic: The Gathering deck builder.
+You have just finished constructing a deck, and are now in the process of explaining the roles of the card choices in the deck.
+For each card in the deck, classify the card based on its role in the deck, and how replacebable it is with other cards that serve a similar role.
+
+# Input
+You will be provided with:
+- The deck description, explaining the strategy of the deck
+- The list of the cards in the deck, along with their quantities and details.
+
+# Output
+For each card in the deck, classify the card based on its role in the deck, and how replaceable it is with other cards that serve a similar role.
+The classification should be based on the following categories:
+{json.dumps(CARD_ROLES, indent=2, ensure_ascii=False)}
+The importance of each card should be based on the following categories:
+{json.dumps(CARD_IMPORTANCES, indent=2, ensure_ascii=False)}
+
+# Considerations
+Identify the win conditions and key synergies within the deck based on the deck description and the cards included in the deck.
+Consider how unique the cards are in their role within the deck, and how easily they could be replaced by other cards that serve a similar function.
+
+{GOTCHAS}
+"""
+
+
+@beartype
+async def run_card_classifier_agent(deck_id: UUID, deck_description: str) -> None:
+    """
+    Classifies cards in a deck by their role and importance using an AI agent.
+
+    This function fetches all cards associated with a given deck, formats them
+    into a structured message, and runs an AI classification agent to determine
+    each card's role and importance within the context of the deck's strategy.
+    The results are then persisted back to the database.
+
+    Args:
+        deck_id (UUID): The unique identifier of the deck whose cards will be classified.
+        deck_description (str): A natural language description of the deck's strategy
+            and goals, used to provide context for the classification.
+
+    Returns:
+        None
+
+    Raises:
+        UsageLimitExceeded: If the agent exceeds the configured limits for requests,
+            input tokens, or output tokens during classification.
+        ValidationError: If the agent's output does not conform to the dynamically
+            generated Pydantic model after the maximum number of output retries.
+    """
+    deck_cards: list[DeckCard] = await sync_to_async(list)(  # type: ignore [call-arg]
+        DeckCard.objects.filter(deck_id=deck_id).select_related('card', 'deck')
+    )
+
+    card_ids: list[str] = []
+    card_list: list[str] = []
+    model_args: dict[str, type] = {}
+    for i, deck_card in enumerate(deck_cards):
+        card_id = f"{i:02d}"  # Save a few tokens using idex over UUID
+        card_ids.append(card_id)
+        card_list.append(
+            f"""
+# {deck_card.quantity}x {deck_card.card.name} -- card ID: {card_id}:
+## Tags:{deck_card.card.tags}
+## LLM Summary:
+# {deck_card.card.llm_summary}
+"""
+        )
+        model_args[f"card_id_{card_id}_role"] = str
+        model_args[f"card_id_{card_id}_importance"] = str
+
+    output_type = create_model(  # type: ignore [call-overload]
+        "CardClassificationOutput",
+        __base__=BaseModel,
+        __config__=None,
+        **model_args,  # type: ignore [call-arg]
+    )
+
+    message = f"# Deck description\n{deck_description}\n\n# Cards in deck\n{''.join(card_list)}"
+
+    agent = Agent(
+        system_prompt=CARD_CLASSIFIER_SYSTEM_PROMPT,
+        model=TOOL_MODEL_BASIC,
+        tools=[],
+        instrument=True,
+        retries=0,
+        output_retries=10,
+        output_type=output_type,
+    )
+
+    @agent.output_validator
+    async def _validate_output(output: BaseModel) -> BaseModel:
+        output_dict = output.model_dump()
+        for card_id in card_ids:
+            role = output_dict[f"card_id_{card_id}_role"]
+            importance = output_dict[f"card_id_{card_id}_importance"]
+            if role not in CARD_ROLES:
+                raise ModelRetry(
+                    f"Invalid role for card ID {card_id}: {role}. Valid roles are: {', '.join(CARD_ROLES)}"
+                )
+            if importance not in CARD_IMPORTANCES:
+                raise ModelRetry(
+                    f"Invalid importance for card ID {card_id}: {importance}. Valid importances are: {', '.join(CARD_IMPORTANCES)}"
+                )
+        return output
+
+    response = await agent.run(
+        message,
+        usage_limits=UsageLimits(
+            request_limit=APP_SETTINGS.MAX_AGENT_CALLS_PER_TASK,
+            input_tokens_limit=APP_SETTINGS.MAX_AGENT_INPUT_TOKENS,
+            output_tokens_limit=APP_SETTINGS.MAX_AGENT_OUTPUT_TOKENS,
+        ),
+    )
+
+    classifications = response.output.model_dump()
+    for card_id in card_ids:
+        role = classifications.get(f"card_id_{card_id}_role")
+        importance = classifications.get(f"card_id_{card_id}_importance")
+        if role is not None and importance is not None:
+            index = int(card_id)
+            deck_card = deck_cards[index]
+            deck_card.role = role
+            deck_card.importance = importance
+            await deck_card.asave(update_fields=["role", "importance"])
+
+
+CARD_REPLACEMENT_SYSTEM_PROMPT = """
+# Overview
+You are an expert Magic: The Gathering deck builder.
+Given an existing deck, and a specific card in that deck, your role is to search for potential replacement cards that could be swapped in place of the specified card, and classify how good of a replacement each card is based on how well it fits the role of the original card in the deck, and how well it synergises with the rest of the deck.
+
+# Input
+You will be provided with:
+- The deck description, explaining the strategy of the deck.
+- The specific card to be replaced, along with its role and importance in the deck.
+- A set of potential replacement cards, along with their details.
+
+# Output
+Given the set of potential replacement cards, return the list of card IDs that would be good replacements.
+If there are no suitable replacements, return an empty list.
+"""
+
+
+@beartype
+async def run_card_replacement_agent(
+    deck_strategy: str, card_to_replace: DeckCard, potential_replacements: list[Card]
+) -> list[UUID]:
+    """
+    Runs an AI agent to select replacement cards for a given card in a Magic: The Gathering deck.
+
+    This agent analyzes the deck strategy and the card to be replaced, then selects
+    appropriate replacements from a list of potential candidates. The agent validates
+    that all returned card IDs are present in the provided list of potential replacements,
+    retrying if invalid IDs are returned.
+
+    Args:
+        deck_strategy (str): A description of the deck's overall strategy and goals,
+            used to guide the replacement selection.
+        card_to_replace (DeckCard): The card that needs to be replaced, including its
+            role, importance, tags, and LLM-generated summary within the deck context.
+        potential_replacements (list[Card]): A list of candidate cards that could
+            replace the original card, each containing tags and an LLM-generated summary.
+
+    Returns:
+        list[UUID]: A list of UUIDs representing the selected replacement cards from
+            the potential_replacements list, ordered by suitability.
+    """
+    valid_uuids = [card.id for card in potential_replacements]
+
+    agent = Agent(
+        system_prompt=CARD_REPLACEMENT_SYSTEM_PROMPT,
+        model=TOOL_MODEL_BASIC,
+        tools=[],
+        instrument=True,
+        retries=0,
+        output_retries=10,
+        output_type=list[UUID],
+    )
+
+    @agent.output_validator
+    async def _validate_output(output: list[UUID]) -> list[UUID]:
+        for card_id in output:
+            if card_id not in valid_uuids:
+                raise ModelRetry(
+                    f"Invalid card ID in output: {card_id}. Valid card IDs are: {', '.join(str(uuid) for uuid in valid_uuids)}"
+                )
+        return output
+
+    card_list = "\n".join(
+        f"""## {card.name} -- card ID: {card.id}:
+### Tags:{card.tags}
+### LLM Summary:
+{card.llm_summary}
+"""
+        for card in potential_replacements
+    )
+    message = f"""
+# Deck strategy
+{deck_strategy}
+
+# Card to replace
+{card_to_replace.quantity}x {card_to_replace.card.name}
+## Details
+Role: {card_to_replace.role}
+Importance: {card_to_replace.importance}
+Tags: {card_to_replace.card.tags}
+## LLM Summary:
+{card_to_replace.card.llm_summary}
+
+# Potential replacements
+{card_list}
+"""
+    response = await agent.run(message)
     return response.output

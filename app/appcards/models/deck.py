@@ -21,6 +21,9 @@ class DeckCard(models.Model):
     deck = models.ForeignKey('Deck', on_delete=models.CASCADE, related_name='deckcard_set')
     card = models.ForeignKey(Card, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
+    role = models.CharField(max_length=32, blank=True, null=True)
+    importance = models.CharField(max_length=32, blank=True, null=True)
+    replacement_cards = models.ManyToManyField(Card, related_name='replacement_for', blank=True)
 
     class Meta:
         unique_together = ('deck', 'card')

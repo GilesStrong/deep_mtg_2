@@ -132,6 +132,7 @@ class BuildDeckRouteTests(TestCase):
         self.assertEqual(ctx.exception.status_code, 400)
 
     @patch(f"{_MODULE}.BuildDeckPostOut", side_effect=lambda **kwargs: SimpleNamespace(**kwargs))
+    @patch(f"{_MODULE}.logfire.info")
     @patch(f"{_MODULE}.construct_deck")
     @patch(f"{_MODULE}.DeckBuildTask")
     @patch(f"{_MODULE}.Deck")
@@ -150,6 +151,7 @@ class BuildDeckRouteTests(TestCase):
         mock_deck,
         mock_build_task,
         mock_construct_deck,
+        _mock_logfire_info,
         _,
     ):
         """
@@ -177,6 +179,8 @@ class BuildDeckRouteTests(TestCase):
         mock_construct_deck.apply_async.assert_called_once()
 
     @patch(f"{_MODULE}.BuildDeckPostOut", side_effect=lambda **kwargs: SimpleNamespace(**kwargs))
+    @patch(f"{_MODULE}.logfire.info")
+    @patch(f"{_MODULE}.logfire.error")
     @patch(f"{_MODULE}.construct_deck")
     @patch(f"{_MODULE}.DeckBuildTask")
     @patch(f"{_MODULE}.Deck")
@@ -195,6 +199,8 @@ class BuildDeckRouteTests(TestCase):
         mock_deck,
         mock_build_task,
         mock_construct_deck,
+        _mock_logfire_error,
+        _mock_logfire_info,
         _,
     ):
         """

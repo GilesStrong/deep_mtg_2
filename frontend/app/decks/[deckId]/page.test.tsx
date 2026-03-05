@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -75,29 +75,146 @@ describe("DeckPage", () => {
                     date_updated: "2026-02-01T10:00:00.000Z",
                     creation_status: "COMPLETED",
                     cards: [
-                        [2, {
-                            id: "card-1",
-                            name: "Sunfall",
-                            text: "Exile all creatures.",
-                            llm_summary: null,
-                            types: ["Sorcery"],
-                            subtypes: [],
-                            supertypes: [],
-                            set_codes: ["ONE"],
-                            rarity: "Rare",
-                            converted_mana_cost: 5,
-                            mana_cost_colorless: 3,
-                            mana_cost_white: 2,
-                            mana_cost_blue: 0,
-                            mana_cost_black: 0,
-                            mana_cost_red: 0,
-                            mana_cost_green: 0,
-                            power: null,
-                            toughness: null,
-                            colors: ["W"],
-                            keywords: [],
-                            tags: ["Control", "Removal"],
-                        }],
+                        {
+                            quantity: 2,
+                            role: "Primary Engine",
+                            importance: "Critical",
+                            card_info: {
+                                id: "card-1",
+                                name: "Sunfall",
+                                text: "Exile all creatures.",
+                                llm_summary: null,
+                                types: ["Sorcery"],
+                                subtypes: [],
+                                supertypes: [],
+                                set_codes: ["ONE"],
+                                rarity: "Rare",
+                                converted_mana_cost: 5,
+                                mana_cost_colorless: 3,
+                                mana_cost_white: 2,
+                                mana_cost_blue: 0,
+                                mana_cost_black: 0,
+                                mana_cost_red: 0,
+                                mana_cost_green: 0,
+                                power: null,
+                                toughness: null,
+                                colors: ["W"],
+                                keywords: [],
+                                tags: ["Control", "Removal"],
+                            },
+                            possible_replacements: [
+                                {
+                                    id: "card-2",
+                                    name: "Day of Judgment",
+                                    text: "Destroy all creatures.",
+                                    llm_summary: "Lower-ceiling board wipe.",
+                                    types: ["Sorcery"],
+                                    subtypes: [],
+                                    supertypes: [],
+                                    set_codes: ["M11"],
+                                    rarity: "Rare",
+                                    converted_mana_cost: 4,
+                                    mana_cost_colorless: 2,
+                                    mana_cost_white: 2,
+                                    mana_cost_blue: 0,
+                                    mana_cost_black: 0,
+                                    mana_cost_red: 0,
+                                    mana_cost_green: 0,
+                                    power: null,
+                                    toughness: null,
+                                    colors: ["W"],
+                                    keywords: [],
+                                    tags: ["Replacement"],
+                                },
+                            ],
+                        },
+                        {
+                            quantity: 1,
+                            role: "Primary Engine",
+                            importance: "Generic",
+                            card_info: {
+                                id: "card-3",
+                                name: "Silver Scrutiny",
+                                text: "You may cast this spell as though it had flash if X is 3 or less.",
+                                llm_summary: null,
+                                types: ["Sorcery"],
+                                subtypes: [],
+                                supertypes: [],
+                                set_codes: ["BRO"],
+                                rarity: "Rare",
+                                converted_mana_cost: 3,
+                                mana_cost_colorless: 2,
+                                mana_cost_white: 0,
+                                mana_cost_blue: 1,
+                                mana_cost_black: 0,
+                                mana_cost_red: 0,
+                                mana_cost_green: 0,
+                                power: null,
+                                toughness: null,
+                                colors: ["U"],
+                                keywords: [],
+                                tags: ["Draw"],
+                            },
+                            possible_replacements: [],
+                        },
+                        {
+                            quantity: 1,
+                            role: "Support",
+                            importance: "Functional",
+                            card_info: {
+                                id: "card-4",
+                                name: "Make Disappear",
+                                text: "Counter target spell unless its controller pays {2}.",
+                                llm_summary: null,
+                                types: ["Instant"],
+                                subtypes: [],
+                                supertypes: [],
+                                set_codes: ["SNC"],
+                                rarity: "Common",
+                                converted_mana_cost: 2,
+                                mana_cost_colorless: 1,
+                                mana_cost_white: 0,
+                                mana_cost_blue: 1,
+                                mana_cost_black: 0,
+                                mana_cost_red: 0,
+                                mana_cost_green: 0,
+                                power: null,
+                                toughness: null,
+                                colors: ["U"],
+                                keywords: [],
+                                tags: ["Interaction"],
+                            },
+                            possible_replacements: [],
+                        },
+                        {
+                            quantity: 24,
+                            role: "Land",
+                            importance: "Generic",
+                            card_info: {
+                                id: "card-5",
+                                name: "Island",
+                                text: "({T}: Add {U}.)",
+                                llm_summary: null,
+                                types: ["Land"],
+                                subtypes: ["Island"],
+                                supertypes: ["Basic"],
+                                set_codes: ["FDN"],
+                                rarity: "Common",
+                                converted_mana_cost: 0,
+                                mana_cost_colorless: 0,
+                                mana_cost_white: 0,
+                                mana_cost_blue: 0,
+                                mana_cost_black: 0,
+                                mana_cost_red: 0,
+                                mana_cost_green: 0,
+                                power: null,
+                                toughness: null,
+                                colors: [],
+                                keywords: [],
+                                tags: ["Land"],
+                            },
+                            possible_replacements: [],
+                        },
                     ],
                 });
             }
@@ -212,8 +329,62 @@ describe("DeckPage", () => {
         await user.click(screen.getByRole("button", { name: /Sunfall/i }));
 
         expect(screen.getByText("Tags:")).toBeInTheDocument();
-        expect(screen.getByRole("list")).toBeInTheDocument();
-        expect(screen.getByText("Control")).toBeInTheDocument();
-        expect(screen.getByText("Removal")).toBeInTheDocument();
+        const tagsList = screen.getByRole("list");
+        expect(tagsList).toBeInTheDocument();
+        expect(within(tagsList).getByText("Control")).toBeInTheDocument();
+        expect(within(tagsList).getByText("Removal")).toBeInTheDocument();
+    });
+
+    it("shows role grouping and card importance in uncollapsed card rows", async () => {
+        render(<DeckPage />);
+
+        expect(await screen.findByText("Deck Details")).toBeInTheDocument();
+        expect(screen.getByText("Primary Engine")).toBeInTheDocument();
+        expect(screen.getByText("Importance: Critical")).toBeInTheDocument();
+    });
+
+    it("orders role groups and card importance descending within groups", async () => {
+        render(<DeckPage />);
+
+        expect(await screen.findByText("Deck Details")).toBeInTheDocument();
+
+        const roleHeadings = screen
+            .getAllByRole("heading", { level: 3 })
+            .map((heading) => heading.textContent)
+            .filter((heading) => heading !== "Deck Details");
+        expect(roleHeadings).toEqual(["Primary Engine", "Support", "Land"]);
+
+        const primaryEngineSection = screen.getByRole("heading", { level: 3, name: "Primary Engine" }).parentElement;
+        expect(primaryEngineSection).toBeTruthy();
+
+        const primaryEngineImportanceLabels = within(primaryEngineSection as HTMLElement).getAllByText(/Importance:/i);
+        expect(primaryEngineImportanceLabels[0]).toHaveTextContent("Importance: Critical");
+        expect(primaryEngineImportanceLabels[1]).toHaveTextContent("Importance: Generic");
+    });
+
+    it("opens and closes replacements modal by overlay click and Escape", async () => {
+        const user = userEvent.setup();
+
+        render(<DeckPage />);
+        expect(await screen.findByText("Deck Details")).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: /View replacements/i }));
+
+        expect(screen.getByRole("dialog", { name: /Replacement cards for Sunfall/i })).toBeInTheDocument();
+        expect(screen.getByText("Day of Judgment")).toBeInTheDocument();
+
+        await user.click(screen.getByText("Replacement Cards"));
+        expect(screen.getByRole("dialog", { name: /Replacement cards for Sunfall/i })).toBeInTheDocument();
+
+        await user.keyboard("{Escape}");
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog", { name: /Replacement cards for Sunfall/i })).not.toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: /View replacements/i }));
+        await user.click(screen.getByRole("dialog", { name: /Replacement cards for Sunfall/i }).parentElement as HTMLElement);
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog", { name: /Replacement cards for Sunfall/i })).not.toBeInTheDocument();
+        });
     });
 });

@@ -33,12 +33,15 @@ const deckDetail: DeckDetail = {
     short_summary: "Control shell with board wipes and card draw",
     full_summary: "Long summary for e2e tests.",
     set_codes: ["ONE", "DMU"],
+    tags: ["Control"],
     date_updated: "2026-02-15T10:00:00.000Z",
     creation_status: "COMPLETED",
     cards: [
-        [
-            2,
-            {
+        {
+            quantity: 2,
+            role: "Interaction",
+            importance: "Critical",
+            card_info: {
                 id: "card-deck-1",
                 name: "Sunfall",
                 text: "Exile all creatures.",
@@ -61,10 +64,13 @@ const deckDetail: DeckDetail = {
                 keywords: [],
                 tags: ["Control", "BoardWipe"],
             },
-        ],
-        [
-            1,
-            {
+            possible_replacements: [],
+        },
+        {
+            quantity: 1,
+            role: "Primary Engine",
+            importance: "High Synergy",
+            card_info: {
                 id: "card-deck-2",
                 name: "Memory Deluge",
                 text: "Look at the top X cards...",
@@ -87,7 +93,8 @@ const deckDetail: DeckDetail = {
                 keywords: [],
                 tags: ["Control"],
             },
-        ],
+            possible_replacements: [],
+        },
     ],
 };
 

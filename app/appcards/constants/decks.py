@@ -1,5 +1,7 @@
 from functools import lru_cache
 
+from appcards.models.card import ManaColorEnum
+
 GROUPED_DECK_CLASSIFICATIONS = {
     "Archetype": {
         "Aggro": "A proactive deck focused on winning quickly through early pressure.",
@@ -106,3 +108,70 @@ def _get_flat_deck_classifications() -> dict[str, str]:
 
 
 DECK_CLASSIFICATIONS = _get_flat_deck_classifications()
+
+
+COLOR_IDENTITY_TO_COLORS: dict[str, list[str]] = {
+    "Colorless": [],
+    "MonoWhite": [ManaColorEnum.WHITE.value],
+    "MonoBlue": [ManaColorEnum.BLUE.value],
+    "MonoBlack": [ManaColorEnum.BLACK.value],
+    "MonoRed": [ManaColorEnum.RED.value],
+    "MonoGreen": [ManaColorEnum.GREEN.value],
+    "Azorius": [ManaColorEnum.WHITE.value, ManaColorEnum.BLUE.value],
+    "Dimir": [ManaColorEnum.BLUE.value, ManaColorEnum.BLACK.value],
+    "Rakdos": [ManaColorEnum.BLACK.value, ManaColorEnum.RED.value],
+    "Gruul": [ManaColorEnum.RED.value, ManaColorEnum.GREEN.value],
+    "Selesnya": [ManaColorEnum.GREEN.value, ManaColorEnum.WHITE.value],
+    "Orzhov": [ManaColorEnum.WHITE.value, ManaColorEnum.BLACK.value],
+    "Izzet": [ManaColorEnum.BLUE.value, ManaColorEnum.RED.value],
+    "Golgari": [ManaColorEnum.BLACK.value, ManaColorEnum.GREEN.value],
+    "Boros": [ManaColorEnum.RED.value, ManaColorEnum.WHITE.value],
+    "Simic": [ManaColorEnum.GREEN.value, ManaColorEnum.BLUE.value],
+    "Esper": [ManaColorEnum.WHITE.value, ManaColorEnum.BLUE.value, ManaColorEnum.BLACK.value],
+    "Grixis": [ManaColorEnum.BLUE.value, ManaColorEnum.BLACK.value, ManaColorEnum.RED.value],
+    "Jund": [ManaColorEnum.BLACK.value, ManaColorEnum.RED.value, ManaColorEnum.GREEN.value],
+    "Naya": [ManaColorEnum.RED.value, ManaColorEnum.GREEN.value, ManaColorEnum.WHITE.value],
+    "Bant": [ManaColorEnum.GREEN.value, ManaColorEnum.WHITE.value, ManaColorEnum.BLUE.value],
+    "Abzan": [ManaColorEnum.WHITE.value, ManaColorEnum.BLACK.value, ManaColorEnum.GREEN.value],
+    "Jeskai": [ManaColorEnum.BLUE.value, ManaColorEnum.RED.value, ManaColorEnum.WHITE.value],
+    "Sultai": [ManaColorEnum.BLACK.value, ManaColorEnum.GREEN.value, ManaColorEnum.BLUE.value],
+    "Mardu": [ManaColorEnum.RED.value, ManaColorEnum.WHITE.value, ManaColorEnum.BLACK.value],
+    "Temur": [ManaColorEnum.GREEN.value, ManaColorEnum.BLUE.value, ManaColorEnum.RED.value],
+    "FourColorNonWhite": [
+        ManaColorEnum.BLUE.value,
+        ManaColorEnum.BLACK.value,
+        ManaColorEnum.RED.value,
+        ManaColorEnum.GREEN.value,
+    ],
+    "FourColorNonBlue": [
+        ManaColorEnum.WHITE.value,
+        ManaColorEnum.BLACK.value,
+        ManaColorEnum.RED.value,
+        ManaColorEnum.GREEN.value,
+    ],
+    "FourColorNonBlack": [
+        ManaColorEnum.WHITE.value,
+        ManaColorEnum.BLUE.value,
+        ManaColorEnum.RED.value,
+        ManaColorEnum.GREEN.value,
+    ],
+    "FourColorNonRed": [
+        ManaColorEnum.WHITE.value,
+        ManaColorEnum.BLUE.value,
+        ManaColorEnum.BLACK.value,
+        ManaColorEnum.GREEN.value,
+    ],
+    "FourColorNonGreen": [
+        ManaColorEnum.WHITE.value,
+        ManaColorEnum.BLUE.value,
+        ManaColorEnum.BLACK.value,
+        ManaColorEnum.RED.value,
+    ],
+    "FiveColor": [
+        ManaColorEnum.WHITE.value,
+        ManaColorEnum.BLUE.value,
+        ManaColorEnum.BLACK.value,
+        ManaColorEnum.RED.value,
+        ManaColorEnum.GREEN.value,
+    ],
+}

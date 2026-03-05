@@ -14,9 +14,10 @@ _CLIENT_MODULE = "appsearch.services.qdrant.client"
 class UpsertServiceTests(TestCase):
     """Tests for qdrant upsert helpers."""
 
+    @patch(f"{_UPSERT_MODULE}.print")
     @patch(f"{_UPSERT_MODULE}.APP_SETTINGS")
     @patch(f"{_UPSERT_MODULE}.QDRANT_CLIENT")
-    def test_create_collection_when_missing(self, mock_client, mock_settings):
+    def test_create_collection_when_missing(self, mock_client, mock_settings, _mock_print):
         """
         GIVEN a collection name not present in Qdrant
         WHEN create_collection_if_not_exists is called

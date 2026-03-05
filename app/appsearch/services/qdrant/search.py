@@ -17,6 +17,22 @@ def run_query(
     query_filter: Optional[qm.Filter],
     limit: int = 10,
 ) -> list[qm.ScoredPoint]:
+    """
+    Execute a vector similarity search query against a Qdrant collection.
+
+    Args:
+        collection_name (str): The name of the Qdrant collection to query.
+        query_vector (Optional[list[float]]): The vector to use for similarity search.
+            If None, the query will be performed without vector similarity.
+        query_filter (Optional[qm.Filter]): Optional Qdrant filter to apply to the query,
+            allowing to narrow down results based on payload conditions.
+        limit (int, optional): Maximum number of results to return. Defaults to 10.
+
+    Returns:
+        list[qm.ScoredPoint]: A list of scored points from the Qdrant collection,
+            each containing the point's ID, score, and payload. Vectors are not included
+            in the returned results.
+    """
     log_message = f"Running query on collection '{collection_name}' with limit {limit}"
     if query_filter:
         log_message += f", using query_filter: {query_filter.model_dump_json(indent=2, ensure_ascii=False)}"
@@ -44,6 +60,28 @@ def run_query(
 def run_query_from_dsl(
     dsl_query: DSLQuery, exclude_ids: Optional[list[str]] = None, include_ids: Optional[list[str]] = None
 ) -> list[qm.ScoredPoint]:
+    """
+    Execute a Qdrant search query from a DSL (Domain Specific Language) query object.
+
+    This function converts a DSLQuery object into a Qdrant search query, handling
+    vector embedding, filter construction, and optional inclusion/exclusion of
+    specific document IDs.
+
+    Args:
+        dsl_query (DSLQuery): The DSL query object containing:
+            - query_string: Optional text to be converted to a dense vector embedding
+            - filter: Optional filter conditions to apply to the search
+            - collection_name: The name of the Qdrant collection to search
+            - limit: Maximum number of results to return
+        exclude_ids (Optional[list[str]]): List of document IDs to exclude from
+            search results. Defaults to None.
+        include_ids (Optional[list[str]]): List of document IDs that must be
+            included in search results. Defaults to None.
+
+    Returns:
+        list[qm.ScoredPoint]: A list of scored points from the Qdrant search,
+            ordered by relevance score.
+    """
     query_vector = dense_embed(dsl_query.query_string) if dsl_query.query_string else None
     query_filter = dsl_query.filter.to_qdrant() if dsl_query.filter else None
 

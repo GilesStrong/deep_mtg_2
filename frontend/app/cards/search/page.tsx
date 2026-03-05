@@ -244,7 +244,13 @@ export default function CardSearchPage() {
                 const data = (await response.json()) as {
                     short_summary: string | null;
                     set_codes: string[];
-                    cards: [number, { colors: string[]; tags?: string[]; set_codes: string[] }][];
+                    cards: Array<
+                        | [number, { colors: string[]; tags?: string[]; set_codes: string[] }]
+                        | {
+                              quantity: number;
+                              card_info: { colors: string[]; tags?: string[]; set_codes: string[] };
+                          }
+                    >;
                 };
 
                 const summary = data.short_summary?.trim() ?? "";
@@ -256,7 +262,9 @@ export default function CardSearchPage() {
                 const deckColors = new Set<string>();
                 const deckTags = new Set<string>();
 
-                for (const [, card] of data.cards) {
+                for (const rawCardEntry of data.cards) {
+                    const card = Array.isArray(rawCardEntry) ? rawCardEntry[1] : rawCardEntry.card_info;
+
                     for (const color of card.colors) {
                         if (COLOR_FILTERS.some((filterColor) => filterColor.code === color)) {
                             deckColors.add(color);

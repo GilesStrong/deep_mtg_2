@@ -6,7 +6,7 @@ from appcards.models.deck import Deck
 from appcore.modules.beartype import beartype
 from pydantic import BaseModel, Field
 
-from appai.services.agents.deck_constructor import run_deck_constructor_agent
+from appai.services.graphs.deck_construction import construct_deck as construct_deck_graph
 
 
 class DeckConstructorResults(BaseModel):
@@ -22,7 +22,7 @@ class DeckConstructorResults(BaseModel):
 @beartype
 async def construct_deck(
     deck_description: str, user_id: UUID, deck_id: Optional[UUID] = None, available_set_codes: Optional[set[str]] = None
-) -> DeckConstructorResults:
+) -> None:
     """
     Constructs or updates a Magic: The Gathering deck based on a given description.
 
@@ -39,12 +39,6 @@ async def construct_deck(
         available_set_codes (Optional[set[str]]): A set of MTG set codes to restrict
             card selection to specific sets. If None, the current standard-legal sets are considered.
             Defaults to None.
-
-    Returns:
-        DeckConstructorResults: An object containing:
-            - deck_id: The UUID of the created or updated deck.
-            - deck_summary: A detailed summary of the constructed deck.
-            - deck_short_summary: A brief summary of the constructed deck.
 
     Raises:
         Deck.DoesNotExist: If a deck_id is provided but no matching deck is found
@@ -69,12 +63,9 @@ async def construct_deck(
         generation_history = (
             generation_history[:1] + generation_history[-4:]
         )  # Always keep the first entry, and the most recent 4 entries
-    response = await run_deck_constructor_agent(
+    await construct_deck_graph(
         deck_id=deck.id,
         deck_description=deck_description,
         generation_history=generation_history,
         available_set_codes=available_set_codes,
-    )
-    return DeckConstructorResults(
-        deck_id=deck.id, deck_summary=response.summary, deck_short_summary=response.short_summary
     )

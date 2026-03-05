@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from appcards.constants.storage import THEME_COLLECTION_NAME
 from django.test import TestCase
@@ -46,7 +46,6 @@ class SearchForThemesToolTests(TestCase):
         ]
 
         result = await find_similar_themes(
-            ctx=MagicMock(),
             proposed_theme=NewTheme(description="Artifacts are recurred from graveyard for value."),
         )
 
@@ -63,7 +62,6 @@ class SearchForThemesToolTests(TestCase):
         THEN it runs the search against the theme collection with limit=5 and no filter
         """
         await find_similar_themes(
-            ctx=MagicMock(),
             proposed_theme=NewTheme(description="Token go-wide strategy with anthem effects."),
         )
 
