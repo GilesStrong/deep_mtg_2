@@ -14,11 +14,26 @@ import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
 import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 const REGENERATE_NAV_MARKER_KEY = "deep-mtg.regenerate-nav";
+const ROLE_DISPLAY_ORDER = [
+  "WinCon",
+  "Primary Engine",
+  "Interaction",
+  "Ramp & Card Advantage",
+  "Support",
+  "Flex & filler",
+  "Land",
+] as const;
+const IMPORTANCE_DISPLAY_ORDER = ["Critical", "High Synergy", "Functional", "Generic"] as const;
+const roleOrderIndex = new Map<string, number>(
+  ROLE_DISPLAY_ORDER.map((role, index) => [role, index])
+);
+const importanceOrderIndex = new Map<string, number>(
+  IMPORTANCE_DISPLAY_ORDER.map((importance, index) => [importance, index])
+);
 
-interface DeckCard {
+interface CardInfo {
   id: string;
   name: string;
-  qty: number;
   text: string;
   llm_summary: string | null;
   types: string[];
@@ -38,6 +53,13 @@ interface DeckCard {
   colors: string[];
   keywords: string[];
   tags: string[];
+}
+
+interface DeckCard extends CardInfo {
+  qty: number;
+  role: string;
+  importance: string;
+  possible_replacements: CardInfo[];
 }
 
 interface Deck {
@@ -67,6 +89,7 @@ export default function DeckPage() {
   const [isArenaImportExpanded, setIsArenaImportExpanded] = useState(false);
   const [arenaImportCopied, setArenaImportCopied] = useState(false);
   const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
+  const [replacementModalCard, setReplacementModalCard] = useState<DeckCard | null>(null);
 
   const fetchDeck = useCallback(async () => {
     try {
@@ -83,30 +106,82 @@ export default function DeckPage() {
         tags?: string[];
         date_updated: string;
         creation_status: string | null;
-        cards: [number, {
-          id: string;
-          name: string;
-          text: string;
-          llm_summary: string | null;
-          types: string[];
-          subtypes: string[];
-          supertypes: string[];
-          set_codes: string[];
-          rarity: string;
-          converted_mana_cost: number;
-          mana_cost_colorless: number;
-          mana_cost_white: number;
-          mana_cost_blue: number;
-          mana_cost_black: number;
-          mana_cost_red: number;
-          mana_cost_green: number;
-          power: string | null;
-          toughness: string | null;
-          colors: string[];
-          keywords: string[];
-          tags?: string[];
-        }][];
+        cards: {
+          quantity: number;
+          role?: string | null;
+          importance?: string | null;
+          card_info: {
+            id: string;
+            name: string;
+            text: string;
+            llm_summary: string | null;
+            types: string[];
+            subtypes: string[];
+            supertypes: string[];
+            set_codes: string[];
+            rarity: string;
+            converted_mana_cost: number;
+            mana_cost_colorless: number;
+            mana_cost_white: number;
+            mana_cost_blue: number;
+            mana_cost_black: number;
+            mana_cost_red: number;
+            mana_cost_green: number;
+            power: string | null;
+            toughness: string | null;
+            colors: string[];
+            keywords: string[];
+            tags?: string[];
+          };
+          possible_replacements?: {
+            id: string;
+            name: string;
+            text: string;
+            llm_summary: string | null;
+            types: string[];
+            subtypes: string[];
+            supertypes: string[];
+            set_codes: string[];
+            rarity: string;
+            converted_mana_cost: number;
+            mana_cost_colorless: number;
+            mana_cost_white: number;
+            mana_cost_blue: number;
+            mana_cost_black: number;
+            mana_cost_red: number;
+            mana_cost_green: number;
+            power: string | null;
+            toughness: string | null;
+            colors: string[];
+            keywords: string[];
+            tags?: string[];
+          }[];
+        }[];
       };
+
+      const mapCardInfo = (cardInfo: CardInfo): CardInfo => ({
+        id: cardInfo.id,
+        name: cardInfo.name,
+        text: cardInfo.text,
+        llm_summary: cardInfo.llm_summary,
+        types: cardInfo.types,
+        subtypes: cardInfo.subtypes,
+        supertypes: cardInfo.supertypes,
+        set_codes: cardInfo.set_codes,
+        rarity: cardInfo.rarity,
+        converted_mana_cost: cardInfo.converted_mana_cost,
+        mana_cost_colorless: cardInfo.mana_cost_colorless,
+        mana_cost_white: cardInfo.mana_cost_white,
+        mana_cost_blue: cardInfo.mana_cost_blue,
+        mana_cost_black: cardInfo.mana_cost_black,
+        mana_cost_red: cardInfo.mana_cost_red,
+        mana_cost_green: cardInfo.mana_cost_green,
+        power: cardInfo.power,
+        toughness: cardInfo.toughness,
+        colors: cardInfo.colors,
+        keywords: cardInfo.keywords,
+        tags: cardInfo.tags ?? [],
+      });
 
       const mappedDeck: Deck = {
         id: data.id,
@@ -117,29 +192,12 @@ export default function DeckPage() {
         tags: data.tags ?? [],
         date_updated: data.date_updated,
         creation_status: data.creation_status,
-        cards: data.cards.map(([qty, cardInfo]) => ({
-          id: cardInfo.id,
-          qty,
-          name: cardInfo.name,
-          text: cardInfo.text,
-          llm_summary: cardInfo.llm_summary,
-          types: cardInfo.types,
-          subtypes: cardInfo.subtypes,
-          supertypes: cardInfo.supertypes,
-          set_codes: cardInfo.set_codes,
-          rarity: cardInfo.rarity,
-          converted_mana_cost: cardInfo.converted_mana_cost,
-          mana_cost_colorless: cardInfo.mana_cost_colorless,
-          mana_cost_white: cardInfo.mana_cost_white,
-          mana_cost_blue: cardInfo.mana_cost_blue,
-          mana_cost_black: cardInfo.mana_cost_black,
-          mana_cost_red: cardInfo.mana_cost_red,
-          mana_cost_green: cardInfo.mana_cost_green,
-          power: cardInfo.power,
-          toughness: cardInfo.toughness,
-          colors: cardInfo.colors,
-          keywords: cardInfo.keywords,
-          tags: cardInfo.tags ?? [],
+        cards: data.cards.map((card) => ({
+          ...mapCardInfo(card.card_info),
+          qty: card.quantity,
+          role: card.role ?? "Uncategorized",
+          importance: card.importance ?? "Not specified",
+          possible_replacements: (card.possible_replacements ?? []).map(mapCardInfo),
         })),
       };
 
@@ -159,6 +217,21 @@ export default function DeckPage() {
       void fetchDeck();
     }
   }, [deckId, fetchDeck]);
+
+  useEffect(() => {
+    if (!replacementModalCard) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setReplacementModalCard(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [replacementModalCard]);
 
   const updatePayload = useMemo(() => {
     if (!deck) {
@@ -279,7 +352,64 @@ export default function DeckPage() {
   const totalCards = deck?.cards.reduce((sum, card) => sum + card.qty, 0) || 0;
   const isDeckBuilding = deck?.creation_status === "PENDING" || deck?.creation_status === "IN_PROGRESS";
 
-  const formatManaCost = (card: DeckCard) => {
+  const cardsByRole = useMemo(() => {
+    if (!deck) {
+      return [] as Array<{ role: string; cards: DeckCard[] }>;
+    }
+
+    const groupedCards = new Map<string, DeckCard[]>();
+    for (const card of deck.cards) {
+      const role = card.role.trim().length > 0 ? card.role : "Uncategorized";
+      const roleCards = groupedCards.get(role);
+      if (roleCards) {
+        roleCards.push(card);
+      } else {
+        groupedCards.set(role, [card]);
+      }
+    }
+
+    return Array.from(groupedCards.entries())
+      .map(([role, cards]) => ({
+        role,
+        cards: [...cards].sort((leftCard, rightCard) => {
+          const leftImportance = importanceOrderIndex.get(leftCard.importance);
+          const rightImportance = importanceOrderIndex.get(rightCard.importance);
+
+          if (leftImportance === undefined && rightImportance === undefined) {
+            return leftCard.name.localeCompare(rightCard.name);
+          }
+          if (leftImportance === undefined) {
+            return 1;
+          }
+          if (rightImportance === undefined) {
+            return -1;
+          }
+          if (leftImportance !== rightImportance) {
+            return leftImportance - rightImportance;
+          }
+
+          return leftCard.name.localeCompare(rightCard.name);
+        }),
+      }))
+      .sort((leftGroup, rightGroup) => {
+        const leftRoleOrder = roleOrderIndex.get(leftGroup.role);
+        const rightRoleOrder = roleOrderIndex.get(rightGroup.role);
+
+        if (leftRoleOrder === undefined && rightRoleOrder === undefined) {
+          return leftGroup.role.localeCompare(rightGroup.role);
+        }
+        if (leftRoleOrder === undefined) {
+          return 1;
+        }
+        if (rightRoleOrder === undefined) {
+          return -1;
+        }
+
+        return leftRoleOrder - rightRoleOrder;
+      });
+  }, [deck]);
+
+  const formatManaCost = (card: CardInfo) => {
     const coloredMana = [
       ["W", card.mana_cost_white],
       ["U", card.mana_cost_blue],
@@ -332,6 +462,8 @@ export default function DeckPage() {
       console.error("Failed to copy arena import text:", error);
     }
   };
+
+  const getTypeLine = (card: CardInfo): string => [...card.supertypes, ...card.types, ...card.subtypes].join(" ");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -499,65 +631,92 @@ export default function DeckPage() {
                     ) : null}
                   </div>
 
-                  <div className="space-y-1">
-                    {deck.cards.map((card, index) => {
-                      const isExpanded = expandedCardIds.has(card.id);
-                      const typeLine = [...card.supertypes, ...card.types, ...card.subtypes].join(" ");
+                  <div className="space-y-4">
+                    {cardsByRole.map((roleGroup) => (
+                      <div key={roleGroup.role} className="space-y-2">
+                        <h3 className="text-base font-semibold">{roleGroup.role}</h3>
+                        <div className="space-y-1">
+                          {roleGroup.cards.map((card, index) => {
+                            const isExpanded = expandedCardIds.has(card.id);
+                            const typeLine = getTypeLine(card);
 
-                      return (
-                        <div
-                          key={`${card.id}-${index}`}
-                          className="rounded border"
-                        >
-                          <button
-                            type="button"
-                            className="w-full flex items-center justify-between py-2 px-3 text-left hover:bg-secondary/50 transition-colors"
-                            onClick={() => toggleCardExpanded(card.id)}
-                          >
-                            <span className="font-medium">{card.name}</span>
-                            <span className="text-sm text-muted-foreground">×{card.qty}</span>
-                          </button>
+                            return (
+                              <div
+                                key={`${roleGroup.role}-${card.id}-${index}`}
+                                className="rounded border"
+                              >
+                                <div className="w-full flex items-center justify-between py-2 px-3 hover:bg-secondary/50 transition-colors gap-3">
+                                  <button
+                                    type="button"
+                                    className="flex-1 text-left"
+                                    onClick={() => toggleCardExpanded(card.id)}
+                                  >
+                                    <span className="font-medium">{card.name}</span>
+                                    <p className="text-sm text-muted-foreground">
+                                      Importance: {card.importance}
+                                    </p>
+                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    {card.possible_replacements.length > 0 ? (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setReplacementModalCard(card);
+                                        }}
+                                      >
+                                        View replacements ({card.possible_replacements.length})
+                                      </Button>
+                                    ) : null}
+                                    <span className="text-sm text-muted-foreground">×{card.qty}</span>
+                                  </div>
+                                </div>
 
-                          {isExpanded ? (
-                            <div className="border-t px-3 py-3 space-y-2 text-sm">
-                              <p className="text-muted-foreground">
-                                {typeLine || "No type information"}
-                              </p>
-                              <p>
-                                <span className="font-medium">Mana Cost:</span> {formatManaCost(card)}
-                              </p>
-                              <p>
-                                <span className="font-medium">Power/Toughness:</span>{" "}
-                                {card.power && card.toughness ? `${card.power}/${card.toughness}` : "N/A"}
-                              </p>
-                              <p>
-                                <span className="font-medium">Rarity:</span> {card.rarity}
-                              </p>
-                              <p>
-                                <span className="font-medium">Keywords:</span> {card.keywords.length > 0 ? card.keywords.join(", ") : "None"}
-                              </p>
-                              <div>
-                                <span className="font-medium">Tags:</span>
-                                {card.tags.length > 0 ? (
-                                  <ul className="list-disc list-inside mt-1">
-                                    {card.tags.map((tag) => (
-                                      <li key={tag}>{tag}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p>None</p>
-                                )}
+                                {isExpanded ? (
+                                  <div className="border-t px-3 py-3 space-y-2 text-sm">
+                                    <p className="text-muted-foreground">
+                                      {typeLine || "No type information"}
+                                    </p>
+                                    <p>
+                                      <span className="font-medium">Mana Cost:</span> {formatManaCost(card)}
+                                    </p>
+                                    <p>
+                                      <span className="font-medium">Power/Toughness:</span>{" "}
+                                      {card.power && card.toughness ? `${card.power}/${card.toughness}` : "N/A"}
+                                    </p>
+                                    <p>
+                                      <span className="font-medium">Rarity:</span> {card.rarity}
+                                    </p>
+                                    <p>
+                                      <span className="font-medium">Keywords:</span> {card.keywords.length > 0 ? card.keywords.join(", ") : "None"}
+                                    </p>
+                                    <div>
+                                      <span className="font-medium">Tags:</span>
+                                      {card.tags.length > 0 ? (
+                                        <ul className="list-disc list-inside mt-1">
+                                          {card.tags.map((tag) => (
+                                            <li key={tag}>{tag}</li>
+                                          ))}
+                                        </ul>
+                                      ) : (
+                                        <p>None</p>
+                                      )}
+                                    </div>
+                                    <p>
+                                      <span className="font-medium">Set Codes:</span> {card.set_codes.length > 0 ? card.set_codes.join(", ") : "None"}
+                                    </p>
+                                    <p>{card.text || "No rules text available."}</p>
+                                    {card.llm_summary ? <p className="text-muted-foreground">{card.llm_summary}</p> : null}
+                                  </div>
+                                ) : null}
                               </div>
-                              <p>
-                                <span className="font-medium">Set Codes:</span> {card.set_codes.length > 0 ? card.set_codes.join(", ") : "None"}
-                              </p>
-                              <p>{card.text || "No rules text available."}</p>
-                              {card.llm_summary ? <p className="text-muted-foreground">{card.llm_summary}</p> : null}
-                            </div>
-                          ) : null}
+                            );
+                          })}
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </CardContent>
@@ -571,6 +730,52 @@ export default function DeckPage() {
           )}
         </div>
       </main>
+
+      {replacementModalCard ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80"
+          onClick={() => setReplacementModalCard(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Replacement cards for ${replacementModalCard.name}`}
+            className="w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-lg border bg-card text-card-foreground shadow-sm"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div>
+                <h3 className="text-lg font-semibold">Replacement Cards</h3>
+                <p className="text-sm text-muted-foreground">For {replacementModalCard.name}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setReplacementModalCard(null)}>
+                Close
+              </Button>
+            </div>
+            <div className="p-4 space-y-3">
+              {replacementModalCard.possible_replacements.map((replacementCard) => {
+                const typeLine = getTypeLine(replacementCard);
+                return (
+                  <div key={replacementCard.id} className="rounded border p-3 space-y-2 text-sm">
+                    <p className="font-medium">{replacementCard.name}</p>
+                    <p className="text-muted-foreground">{typeLine || "No type information"}</p>
+                    <p>
+                      <span className="font-medium">Mana Cost:</span> {formatManaCost(replacementCard)}
+                    </p>
+                    <p>
+                      <span className="font-medium">Rarity:</span> {replacementCard.rarity}
+                    </p>
+                    <p>{replacementCard.text || "No rules text available."}</p>
+                    {replacementCard.llm_summary ? (
+                      <p className="text-muted-foreground">{replacementCard.llm_summary}</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

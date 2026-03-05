@@ -174,6 +174,8 @@ def get_deck(
         DeckCardInfo(
             quantity=deck_card.quantity,
             card_info=card_to_info(deck_card.card),
+            role=deck_card.role,
+            importance=deck_card.importance,
             possible_replacements=[
                 card_to_info(replacement_card) for replacement_card in deck_card.replacement_cards.all()
             ],
@@ -272,6 +274,8 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
         DeckCardInfo(
             quantity=deck_card.quantity,
             card_info=card_to_info(deck_card.card),
+            role=deck_card.role,
+            importance=deck_card.importance,
             possible_replacements=[
                 card_to_info(replacement_card) for replacement_card in deck_card.replacement_cards.all()
             ],
