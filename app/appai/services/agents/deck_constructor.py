@@ -17,6 +17,7 @@ from appcore.modules.beartype import beartype
 from asgiref.sync import sync_to_async
 from pydantic import BaseModel, Field, create_model, field_validator
 from pydantic_ai import Agent, ModelRetry, UsageLimits
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC, TOOL_MODEL_THINKING
 from appai.constants.prompt_gotchas import GOTCHAS
@@ -149,6 +150,7 @@ class DeckConstructionOutput(BaseModel):
 
 
 @beartype
+@retry(stop=stop_after_attempt(APP_SETTINGS.DECK_BUILD_RETRY_LIMIT), wait=wait_exponential(multiplier=1, min=2, max=10))
 async def run_deck_constructor_agent(
     deck_id: UUID, deck_description: str, generation_history: list[str], available_set_codes: Optional[set[str]] = None
 ) -> DeckConstructionOutput:
@@ -185,6 +187,7 @@ async def run_deck_constructor_agent(
         deck_id=deck_id,
         deck_description=deck_description,
         available_set_codes=available_set_codes if available_set_codes is not None else CURRENT_STANDARD_SET_CODES,
+        build_task_id=None,
     )
 
     deck = await Deck.objects.aget(id=deck_id)
@@ -252,6 +255,7 @@ Consider how unique the cards are in their role within the deck, and how easily 
 
 
 @beartype
+@retry(stop=stop_after_attempt(APP_SETTINGS.DECK_BUILD_RETRY_LIMIT), wait=wait_exponential(multiplier=1, min=2, max=10))
 async def run_card_classifier_agent(deck_id: UUID, deck_description: str) -> None:
     """
     Classifies cards in a deck by their role and importance using an AI agent.

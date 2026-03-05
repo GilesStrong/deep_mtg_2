@@ -9,12 +9,14 @@ from django.http import HttpRequest
 from ninja import Path, Router
 from ninja.errors import HttpError
 
+from appai.constants.build_statuses import POLLABLE_BUILD_STATUSES, is_pollable_build_status
 from appai.constants.guardrail_contexts import BUILD_DECK_CONTEXT
 from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
 from appai.modules.build_rate_limit import check_remaining_daily_quota, withdraw_from_daily_quota
 from appai.serializers.build_deck import (
     BuildDeckPostIn,
     BuildDeckPostOut,
+    BuildDeckStatusesOut,
     BuildDeckStatusIn,
     BuildDeckStatusOut,
     CheckQuotaOut,
@@ -23,6 +25,27 @@ from appai.services.agents.guardrails import is_request_relevant
 from appai.tasks.construct_deck import construct_deck
 
 router = Router(tags=['decks'])
+
+
+@router.get(
+    '/statuses/',
+    summary='Get deck build statuses',
+    description='Retrieve all deck build statuses and the subset that should be actively polled by clients.',
+    response={200: BuildDeckStatusesOut},
+    operation_id='get_deck_build_statuses',
+)
+def get_deck_build_statuses(request: HttpRequest) -> BuildDeckStatusesOut:
+    """Get all deck build statuses and the in-progress pollable subset.
+
+    Args:
+        request: The incoming HTTP request object.
+
+    Returns:
+        BuildDeckStatusesOut: All possible statuses and the pollable in-progress statuses.
+    """
+    pollable_statuses = list(POLLABLE_BUILD_STATUSES)
+    all_statuses = [str(choice) for choice, _ in DeckBuildStatus.choices]
+    return BuildDeckStatusesOut(all=all_statuses, pollable=pollable_statuses)
 
 
 @router.get(
@@ -85,6 +108,9 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
         deck_id = payload.deck_id
         if not Deck.objects.filter(id=deck_id, user_id=user.id).exists():
             raise HttpError(403, "You do not have permission to access this deck")
+        latest_build = DeckBuildTask.objects.filter(deck_id=deck_id).order_by('-updated_at').first()
+        if latest_build is not None and is_pollable_build_status(latest_build.status):
+            raise HttpError(409, "Deck cannot be regenerated while generation is in progress")
 
     # Withdraw from quota
     response = withdraw_from_daily_quota(redis_client, user.id)
@@ -145,10 +171,11 @@ def check_deck_build_status(request: HttpRequest, path_params: Path[BuildDeckSta
 
     try:
         build = DeckBuildTask.objects.get(id=path_params.task_id)
+        deck_id = build.deck.id
         user = get_user_from_request(request)
-        if not Deck.objects.filter(id=build.deck_id, user_id=user.id).exists():
+        if not Deck.objects.filter(id=deck_id, user_id=user.id).exists():
             raise HttpError(403, "You do not have permission to access this deck")
     except DeckBuildTask.DoesNotExist:
         raise HttpError(404, 'Deck build task not found')
 
-    return BuildDeckStatusOut(status=build.status, deck_id=build.deck_id)
+    return BuildDeckStatusOut(status=build.status, deck_id=deck_id)

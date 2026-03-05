@@ -14,6 +14,13 @@ class CheckQuotaOut(Schema):
     remaining: int = Field(..., description="The number of remaining deck builds the user can perform today.")
 
 
+class BuildDeckStatusesOut(Schema):
+    all: list[str] = Field(..., description="All possible deck build status values.")
+    pollable: list[str] = Field(
+        ..., description="Deck build status values that indicate an active in-progress build and should be polled."
+    )
+
+
 class BuildDeckPostIn(Schema):
     prompt: str = Field(
         ...,

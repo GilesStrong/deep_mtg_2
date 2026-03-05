@@ -123,7 +123,7 @@ distro==1.9.0
     #   google-genai
     #   groq
     #   openai
-django==6.0.2
+django==6.0.3
     # via
     #   app
     #   django-celery-beat

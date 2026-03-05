@@ -1,14 +1,13 @@
-from datetime import datetime
 from timeit import default_timer
 
 import logfire
 from app.utils import celery_task_context
 from appcards.constants.storage import THEME_COLLECTION_NAME
 from appcards.models.deck import DailyDeckTheme
-from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.upsert import create_collection_if_not_exists, upsert_documents
 from celery import Task, shared_task
 from django.db import transaction
+from django.utils import timezone
 from qdrant_client.http import models as qm
 
 from appai.modules.dense_embedding import dense_embed
@@ -24,7 +23,6 @@ from appai.services.agents.deck_theme import get_daily_deck_theme
     queue="llm",
     routing_key="llm",
 )
-@beartype
 def make_daily_theme(self: Task) -> None:
     """
     Generate and store a daily deck theme for Magic: The Gathering.
@@ -39,7 +37,7 @@ def make_daily_theme(self: Task) -> None:
     Raises:
         RuntimeError: If an error occurs during the theme generation process.
     """
-    if DailyDeckTheme.objects.filter(date=datetime.now().date()).exists():
+    if DailyDeckTheme.objects.filter(date=timezone.now().date()).exists():
         return
 
     with celery_task_context():

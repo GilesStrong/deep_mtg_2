@@ -24,6 +24,7 @@
   // Give code actions enough time
   "editor.codeActionsOnSaveTimeout": 3000,
   "chat.tools.terminal.autoApprove": {
-    "bun": true
+    "bun": true,
+    "/workspace/deep_mtg_2/.venv/bin/python": true
   }
 }

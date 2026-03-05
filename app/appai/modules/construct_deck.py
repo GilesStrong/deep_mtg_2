@@ -21,7 +21,12 @@ class DeckConstructorResults(BaseModel):
 
 @beartype
 async def construct_deck(
-    deck_description: str, user_id: UUID, deck_id: Optional[UUID] = None, available_set_codes: Optional[set[str]] = None
+    *,
+    deck_description: str,
+    user_id: UUID,
+    build_task_id: UUID,
+    deck_id: Optional[UUID] = None,
+    available_set_codes: Optional[set[str]] = None,
 ) -> None:
     """
     Constructs or updates a Magic: The Gathering deck based on a given description.
@@ -34,6 +39,7 @@ async def construct_deck(
         deck_description (str): A natural language description of the desired deck,
             used to guide the deck construction process.
         user_id (UUID): The unique identifier of the user creating or updating the deck.
+        build_task_id (UUID): The unique identifier of the build task associated with this deck construction.
         deck_id (Optional[UUID]): If provided, the function will update the existing
             deck with this ID. If None, a new deck will be created. Defaults to None.
         available_set_codes (Optional[set[str]]): A set of MTG set codes to restrict
@@ -68,4 +74,5 @@ async def construct_deck(
         deck_description=deck_description,
         generation_history=generation_history,
         available_set_codes=available_set_codes,
+        build_task_id=build_task_id,
     )

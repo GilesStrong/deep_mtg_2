@@ -1,3 +1,6 @@
+from uuid import UUID
+
+from appai.constants.build_statuses import is_pollable_build_status
 from appai.models.deck_build import DeckBuildTask
 from appauth.modules.auth import get_user_from_request
 from django.http import HttpRequest
@@ -11,12 +14,12 @@ from appcards.serializers.deck import DeckCardInfo, GetDeckIn, GetFullDeckOut, G
 router = Router(tags=['decks'])
 
 
-def _get_latest_build(deck_id: str) -> DeckBuildTask | None:
+def _get_latest_build(deck_id: UUID) -> DeckBuildTask | None:
     """
     Retrieve the most recent DeckBuildTask for a given deck.
 
     Args:
-        deck_id (str): The unique identifier of the deck.
+        deck_id (UUID): The unique identifier of the deck.
 
     Returns:
         DeckBuildTask | None: The latest DeckBuildTask object associated with the
@@ -45,15 +48,18 @@ def list_decks(request: HttpRequest) -> list[GetSummaryDeckOut]:
     """
     user = get_user_from_request(request)
     all_decks = list(Deck.objects.filter(user_id=user.id).order_by('-updated_at'))
-    deck_ids = [str(deck.id) for deck in all_decks]
+    deck_ids = [deck.id for deck in all_decks]
     latest_builds = (
-        DeckBuildTask.objects.filter(deck_id__in=deck_ids).order_by('deck_id', '-updated_at').distinct('deck_id')
+        DeckBuildTask.objects.filter(deck_id__in=deck_ids)
+        .select_related('deck')
+        .order_by('deck_id', '-updated_at')
+        .distinct('deck_id')
     )
-    builds_by_deck_id = {str(build.deck_id): build for build in latest_builds}
+    builds_by_deck_id = {build.deck.id: build for build in latest_builds}
 
     decks = []
     for deck in all_decks:
-        latest_build = builds_by_deck_id.get(str(deck.id))
+        latest_build = builds_by_deck_id.get(deck.id)
         decks.append(
             GetSummaryDeckOut(
                 id=deck.id,
@@ -125,7 +131,7 @@ def get_summary_deck(
     deck = path_params.deck
     if deck.user.id != user.id:
         raise HttpError(403, "You do not have permission to access this deck")
-    latest_build = _get_latest_build(str(deck.id))
+    latest_build = _get_latest_build(deck.id)
     return GetSummaryDeckOut(
         id=deck.id,
         name=deck.name,
@@ -182,7 +188,7 @@ def get_deck(
         )
         for deck_card in deck_cards
     ]
-    latest_build = _get_latest_build(str(deck.id))
+    latest_build = _get_latest_build(deck.id)
     creation_status = latest_build.status if latest_build else None
 
     return GetFullDeckOut(
@@ -226,6 +232,9 @@ def delete_deck(
     deck = path_params.deck
     if deck.user.id != user.id:
         raise HttpError(403, "You do not have permission to access this deck")
+    latest_build = _get_latest_build(deck.id)
+    if latest_build is not None and is_pollable_build_status(latest_build.status):
+        raise HttpError(409, "Deck cannot be deleted while generation is in progress")
     deck.delete()
     return None
 
@@ -257,6 +266,9 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
     user = get_user_from_request(request)
     if deck.user.id != user.id:
         raise HttpError(403, "You do not have permission to access this deck")
+    latest_build = _get_latest_build(deck.id)
+    if latest_build is not None and is_pollable_build_status(latest_build.status):
+        raise HttpError(409, "Deck cannot be edited while generation is in progress")
     if payload.name is not None:
         deck.name = payload.name
     if payload.short_summary is not None:
@@ -264,7 +276,6 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
     if payload.full_summary is not None:
         deck.llm_summary = payload.full_summary
     deck.save()
-    latest_build = _get_latest_build(str(deck.id))
     creation_status = latest_build.status if latest_build else None
 
     deck_cards = list(

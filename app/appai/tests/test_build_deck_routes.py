@@ -9,7 +9,7 @@ from ninja.errors import HttpError
 
 from appai.models.deck_build import DeckBuildStatus
 from appai.models.deck_build import DeckBuildTask as DeckBuildTaskModel
-from appai.routes.build_deck import build_deck, check_deck_build_status, check_quota
+from appai.routes.build_deck import build_deck, check_deck_build_status, check_quota, get_deck_build_statuses
 
 _MODULE = "appai.routes.build_deck"
 _USER_ID = UUID("12345678-1234-5678-1234-567812345678")
@@ -42,6 +42,32 @@ class CheckQuotaRouteTests(TestCase):
         mock_check_quota.assert_called_once_with(mock_get_redis.return_value, _USER_ID)
 
 
+class BuildStatusesRouteTests(TestCase):
+    """Tests for get_deck_build_statuses endpoint."""
+
+    def test_returns_all_statuses_and_pollable_subset(self):
+        """
+        GIVEN the deck build statuses endpoint
+        WHEN get_deck_build_statuses is called
+        THEN it returns all status values and the expected in-progress pollable subset
+        """
+        response = get_deck_build_statuses(MagicMock())
+
+        self.assertIn(DeckBuildStatus.PENDING, response.all)
+        self.assertIn(DeckBuildStatus.COMPLETED, response.all)
+        self.assertIn(DeckBuildStatus.FAILED, response.all)
+        self.assertEqual(
+            response.pollable,
+            [
+                DeckBuildStatus.PENDING,
+                DeckBuildStatus.IN_PROGRESS,
+                DeckBuildStatus.BUILDING_DECK,
+                DeckBuildStatus.CLASSIFYING_DECK_CARDS,
+                DeckBuildStatus.FINDING_REPLACEMENT_CARDS,
+            ],
+        )
+
+
 class BuildDeckRouteTests(TestCase):
     """Tests for build_deck endpoint."""
 
@@ -64,10 +90,13 @@ class BuildDeckRouteTests(TestCase):
         self.assertEqual(ctx.exception.status_code, 429)
 
     @patch(f"{_MODULE}.Deck")
+    @patch(f"{_MODULE}.DeckBuildTask")
     @patch(f"{_MODULE}.check_remaining_daily_quota")
     @patch(f"{_MODULE}.get_redis")
     @patch(f"{_MODULE}.get_user_from_request")
-    def test_rejects_unowned_deck_id(self, mock_get_user, mock_get_redis, mock_check_quota, mock_deck):
+    def test_rejects_unowned_deck_id(
+        self, mock_get_user, mock_get_redis, mock_check_quota, _mock_build_task, mock_deck
+    ):
         """
         GIVEN a payload with deck_id that does not belong to the authenticated user
         WHEN build_deck is called
@@ -82,6 +111,32 @@ class BuildDeckRouteTests(TestCase):
             build_deck(MagicMock(), payload)
 
         self.assertEqual(ctx.exception.status_code, 403)
+
+    @patch(f"{_MODULE}.Deck")
+    @patch(f"{_MODULE}.DeckBuildTask")
+    @patch(f"{_MODULE}.check_remaining_daily_quota")
+    @patch(f"{_MODULE}.get_redis")
+    @patch(f"{_MODULE}.get_user_from_request")
+    def test_blocks_regeneration_when_latest_build_is_pollable(
+        self, mock_get_user, mock_get_redis, mock_check_quota, mock_build_task, mock_deck
+    ):
+        """
+        GIVEN a provided deck_id whose latest build is in a pollable in-progress state
+        WHEN build_deck is called for regeneration
+        THEN it raises HttpError 409 and does not enqueue a new build
+        """
+        payload = SimpleNamespace(prompt="refine this deck", set_codes=None, deck_id=_DECK_ID)
+        mock_get_user.return_value = SimpleNamespace(id=_USER_ID)
+        mock_check_quota.return_value = _quota_response(allowed=True, remaining=1)
+        mock_deck.objects.filter.return_value.exists.return_value = True
+        mock_build_task.objects.filter.return_value.order_by.return_value.first.return_value = SimpleNamespace(
+            status=DeckBuildStatus.BUILDING_DECK
+        )
+
+        with self.assertRaises(HttpError) as ctx:
+            build_deck(MagicMock(), payload)
+
+        self.assertEqual(ctx.exception.status_code, 409)
 
     @patch(f"{_MODULE}.withdraw_from_daily_quota")
     @patch(f"{_MODULE}.Deck")
@@ -251,7 +306,7 @@ class BuildDeckStatusRouteTests(TestCase):
         """
         mock_build_task.DoesNotExist = DeckBuildTaskModel.DoesNotExist
         mock_build_task.objects.get.return_value = SimpleNamespace(
-            id=_TASK_ID, deck_id=_DECK_ID, status=DeckBuildStatus.PENDING
+            id=_TASK_ID, deck=SimpleNamespace(id=_DECK_ID), status=DeckBuildStatus.PENDING
         )
         mock_get_user.return_value = SimpleNamespace(id=_USER_ID)
         mock_deck.objects.filter.return_value.exists.return_value = False
@@ -271,7 +326,7 @@ class BuildDeckStatusRouteTests(TestCase):
         WHEN check_deck_build_status is called
         THEN it returns the task status and deck_id
         """
-        build = SimpleNamespace(id=_TASK_ID, deck_id=_DECK_ID, status=DeckBuildStatus.COMPLETED)
+        build = SimpleNamespace(id=_TASK_ID, deck=SimpleNamespace(id=_DECK_ID), status=DeckBuildStatus.COMPLETED)
         mock_build_task.DoesNotExist = DeckBuildTaskModel.DoesNotExist
         mock_build_task.objects.get.return_value = build
         mock_get_user.return_value = SimpleNamespace(id=_USER_ID)

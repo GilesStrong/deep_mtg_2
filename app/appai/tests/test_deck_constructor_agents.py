@@ -6,8 +6,13 @@ from uuid import UUID
 
 from django.test import TestCase
 from pydantic_ai import ModelRetry
+from tenacity import stop_after_attempt, wait_exponential
 
-from appai.services.agents.deck_constructor import run_card_classifier_agent, run_card_replacement_agent
+from appai.services.agents.deck_constructor import (
+    run_card_classifier_agent,
+    run_card_replacement_agent,
+    run_deck_constructor_agent,
+)
 
 _MODULE = "appai.services.agents.deck_constructor"
 
@@ -103,6 +108,103 @@ class RunCardClassifierAgentTests(TestCase):
 
         first.asave.assert_not_awaited()
         second.asave.assert_awaited_once_with(update_fields=["role", "importance"])
+
+    @patch(f"{_MODULE}.Agent")
+    @patch(f"{_MODULE}.DeckCard")
+    async def test_retries_on_transient_agent_error(self, mock_deck_card_cls, mock_agent_cls):
+        """
+        GIVEN a transient exception during classifier agent execution
+        WHEN run_card_classifier_agent is invoked with retry overrides for testing
+        THEN the call is retried and card classifications are eventually persisted
+        """
+        deck_card = _make_deck_card("Retry Card")
+        queryset = MagicMock()
+        queryset.select_related.return_value = [deck_card]
+        mock_deck_card_cls.objects.filter.return_value = queryset
+
+        classifications = {
+            "card_id_00_role": "interaction",
+            "card_id_00_importance": "core",
+        }
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(
+            side_effect=[
+                RuntimeError("transient failure"),
+                SimpleNamespace(output=SimpleNamespace(model_dump=lambda: classifications)),
+            ]
+        )
+        mock_agent_cls.return_value = mock_agent
+
+        deck_id = UUID("abababab-abab-abab-abab-abababababab")
+        await run_card_classifier_agent.retry_with(
+            stop=stop_after_attempt(2),
+            wait=wait_exponential(multiplier=0, min=0, max=0),
+        )(
+            deck_id=deck_id,
+            deck_description="Resilient tempo deck",
+        )
+
+        self.assertEqual(mock_agent.run.await_count, 2)
+        deck_card.asave.assert_awaited_once_with(update_fields=["role", "importance"])
+
+
+class RunDeckConstructorAgentRetryTests(TestCase):
+    @patch(f"{_MODULE}.Agent")
+    @patch(f"{_MODULE}.Deck")
+    async def test_retries_on_transient_agent_error(self, mock_deck_cls, mock_agent_cls):
+        """
+        GIVEN a transient exception during deck construction agent execution
+        WHEN run_deck_constructor_agent is invoked with retry overrides for testing
+        THEN the call is retried and deck metadata is persisted from the successful retry
+        """
+        first_attempt_deck = SimpleNamespace(
+            name="New Deck",
+            llm_summary=None,
+            tags=[],
+        )
+        second_attempt_deck = SimpleNamespace(
+            name="New Deck",
+            llm_summary=None,
+            tags=[],
+        )
+        persisted_deck = SimpleNamespace(
+            name="New Deck",
+            llm_summary=None,
+            short_llm_summary=None,
+            tags=[],
+            generation_history=[],
+            asave=AsyncMock(),
+        )
+        mock_deck_cls.objects.aget = AsyncMock(side_effect=[first_attempt_deck, second_attempt_deck, persisted_deck])
+
+        output = SimpleNamespace(
+            deck_name="Izzet Tempo",
+            summary="A proactive spells-and-threats deck that pressures early and closes quickly.",
+            short_summary="Pressure early with cheap threats and efficient interaction.",
+            tags=["Aggro"],
+        )
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(side_effect=[RuntimeError("transient failure"), SimpleNamespace(output=output)])
+        mock_agent_cls.return_value = mock_agent
+
+        deck_id = UUID("cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd")
+        result = await run_deck_constructor_agent.retry_with(
+            stop=stop_after_attempt(2),
+            wait=wait_exponential(multiplier=0, min=0, max=0),
+        )(
+            deck_id=deck_id,
+            deck_description="Blue-red tempo with efficient interaction",
+            generation_history=[],
+            available_set_codes={"FDN"},
+        )
+
+        self.assertIs(result, output)
+        self.assertEqual(mock_agent.run.await_count, 2)
+        self.assertEqual(persisted_deck.name, "Izzet Tempo")
+        self.assertEqual(persisted_deck.short_llm_summary, output.short_summary)
+        self.assertEqual(persisted_deck.tags, ["Aggro"])
+        self.assertEqual(persisted_deck.generation_history, ["Blue-red tempo with efficient interaction"])
+        persisted_deck.asave.assert_awaited_once()
 
 
 class _FakeReplacementAgent:

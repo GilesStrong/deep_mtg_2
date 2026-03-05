@@ -43,6 +43,15 @@ const mockErrorResponse = (): Response =>
     ok: false,
     status: 500,
     json: vi.fn().mockResolvedValue({}),
+    text: vi.fn().mockResolvedValue(""),
+} as unknown as Response);
+
+const mockFailedResponse = (status: number, body: unknown): Response =>
+({
+    ok: false,
+    status,
+    json: vi.fn().mockResolvedValue(body),
+    text: vi.fn().mockResolvedValue(JSON.stringify(body)),
 } as unknown as Response);
 
 describe("DeckPage", () => {
@@ -333,6 +342,80 @@ describe("DeckPage", () => {
         expect(tagsList).toBeInTheDocument();
         expect(within(tagsList).getByText("Control")).toBeInTheDocument();
         expect(within(tagsList).getByText("Removal")).toBeInTheDocument();
+    });
+
+    it("shows toast when save is blocked by in-progress generation", async () => {
+        const user = userEvent.setup();
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/deck/deck-1/full/") {
+                return mockJsonResponse({
+                    id: "deck-1",
+                    name: "Azorius Control",
+                    short_summary: "Control shell",
+                    full_summary: "Long summary",
+                    set_codes: ["ONE"],
+                    tags: [],
+                    date_updated: "2026-02-01T10:00:00.000Z",
+                    creation_status: "COMPLETED",
+                    cards: [],
+                });
+            }
+
+            if (url === "/api/app/cards/deck/deck-1/" && init?.method === "PATCH") {
+                return mockFailedResponse(409, { detail: "Deck cannot be edited while generation is in progress" });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<DeckPage />);
+        expect(await screen.findByText("Deck Details")).toBeInTheDocument();
+
+        const nameInput = screen.getByLabelText("Name");
+        await user.clear(nameInput);
+        await user.type(nameInput, "Azorius Control Updated");
+        await user.click(screen.getByRole("button", { name: "Save Deck Details" }));
+
+        expect(await screen.findByRole("status")).toHaveTextContent(
+            "Deck cannot be edited while generation is in progress"
+        );
+    });
+
+    it("disables deck alterations while build is in a pollable in-progress status", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/deck/deck-1/full/") {
+                return mockJsonResponse({
+                    id: "deck-1",
+                    name: "Locked Deck",
+                    short_summary: "Locked",
+                    full_summary: "Locked during generation",
+                    set_codes: ["FDN"],
+                    tags: [],
+                    date_updated: "2026-02-01T10:00:00.000Z",
+                    creation_status: "BUILDING_DECK",
+                    cards: [],
+                });
+            }
+
+            if (url === "/api/app/cards/deck/deck-1/" && init?.method === "PATCH") {
+                return mockJsonResponse({});
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<DeckPage />);
+        expect(await screen.findByText("Deck Details")).toBeInTheDocument();
+
+        expect(screen.getByRole("button", { name: "Search Cards" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Delete Deck" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Save Deck Details" })).toBeDisabled();
+
+        expect(screen.getByLabelText("Name")).toBeDisabled();
+        expect(screen.getByLabelText("Short Description")).toBeDisabled();
+        expect(screen.getByLabelText("Long Description")).toBeDisabled();
     });
 
     it("shows role grouping and card importance in uncollapsed card rows", async () => {

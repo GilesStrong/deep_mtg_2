@@ -4,8 +4,10 @@ from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from appai.models.deck_build import DeckBuildStatus, DeckBuildTask
 from appuser.models import User
 from django.test import TestCase
+from django.utils import timezone
 from ninja.errors import HttpError
 
 from appcards.constants.cards import HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
@@ -13,7 +15,7 @@ from appcards.models.card import Card, Rarity
 from appcards.models.deck import DailyDeckTheme, Deck, DeckCard
 from appcards.models.printing import Printing
 from appcards.routes.card import get_card, list_set_codes, list_tags
-from appcards.routes.deck import delete_deck, get_daily_theme, get_deck, get_summary_deck, update_deck
+from appcards.routes.deck import delete_deck, get_daily_theme, get_deck, get_summary_deck, list_decks, update_deck
 from appcards.serializers.deck import UpdateDeckIn
 
 _CARD_MODULE = "appcards.routes.card"
@@ -90,6 +92,38 @@ class CardRoutesTests(TestCase):
 class DeckRoutesTests(TestCase):
     """Tests for appcards deck routes."""
 
+    @patch("appcards.routes.deck.get_user_from_request")
+    def test_list_decks_uses_latest_build_per_deck(self, mock_get_user):
+        """
+        GIVEN multiple build tasks per deck with different update times
+        WHEN list_decks is called
+        THEN each deck summary uses the most recently updated task status and task_id
+        """
+        user = User.objects.create(google_id="owner-list-gid", verified=True)
+        mock_get_user.return_value = user
+
+        first_deck = Deck.objects.create(name="Deck One", user=user)
+        second_deck = Deck.objects.create(name="Deck Two", user=user)
+
+        now = timezone.now()
+
+        old_first = DeckBuildTask.objects.create(deck=first_deck, status=DeckBuildStatus.PENDING)
+        new_first = DeckBuildTask.objects.create(deck=first_deck, status=DeckBuildStatus.COMPLETED)
+        only_second = DeckBuildTask.objects.create(deck=second_deck, status=DeckBuildStatus.FAILED)
+
+        DeckBuildTask.objects.filter(id=old_first.id).update(updated_at=now - timedelta(hours=3))
+        DeckBuildTask.objects.filter(id=new_first.id).update(updated_at=now - timedelta(hours=1))
+        DeckBuildTask.objects.filter(id=only_second.id).update(updated_at=now - timedelta(hours=2))
+
+        result = list_decks(SimpleNamespace(auth=user))
+
+        by_id = {deck_summary.id: deck_summary for deck_summary in result}
+
+        self.assertEqual(by_id[first_deck.id].generation_status, DeckBuildStatus.COMPLETED)
+        self.assertEqual(by_id[first_deck.id].generation_task_id, new_first.id)
+        self.assertEqual(by_id[second_deck.id].generation_status, DeckBuildStatus.FAILED)
+        self.assertEqual(by_id[second_deck.id].generation_task_id, only_second.id)
+
     def test_get_summary_deck_includes_tags(self):
         """
         GIVEN an owned deck with tags
@@ -132,6 +166,22 @@ class DeckRoutesTests(TestCase):
 
         self.assertIsNone(result)
         self.assertFalse(Deck.objects.filter(id=deck.id).exists())
+
+    def test_delete_deck_blocks_when_latest_build_is_pollable(self):
+        """
+        GIVEN a deck with an active pollable build task
+        WHEN delete_deck is called
+        THEN it raises HttpError 409 and does not delete the deck
+        """
+        user = User.objects.create(google_id="delete-blocked-gid", verified=True)
+        deck = Deck.objects.create(name="Cannot Delete Yet", user=user)
+        DeckBuildTask.objects.create(deck=deck, status=DeckBuildStatus.IN_PROGRESS)
+
+        with self.assertRaises(HttpError) as ctx:
+            delete_deck(SimpleNamespace(auth=user), SimpleNamespace(deck=deck))
+
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertTrue(Deck.objects.filter(id=deck.id).exists())
 
     def test_get_daily_theme_returns_fallback_when_no_themes_exist(self):
         """
@@ -209,3 +259,22 @@ class DeckRoutesTests(TestCase):
         self.assertEqual(len(response.cards), 1)
         self.assertEqual(response.cards[0].card_info.name, "Counterspell")
         self.assertEqual([candidate.name for candidate in response.cards[0].possible_replacements], ["Negate"])
+
+    def test_update_deck_blocks_when_latest_build_is_pollable(self):
+        """
+        GIVEN an owned deck with an active pollable build status
+        WHEN update_deck is called
+        THEN it raises HttpError 409 to prevent editing during generation
+        """
+        user = User.objects.create(google_id="deck-update-blocked-gid", verified=True)
+        deck = Deck.objects.create(name="In Progress Deck", user=user)
+        DeckBuildTask.objects.create(deck=deck, status=DeckBuildStatus.BUILDING_DECK)
+
+        with self.assertRaises(HttpError) as ctx:
+            update_deck(
+                SimpleNamespace(auth=user),
+                SimpleNamespace(deck=deck),
+                UpdateDeckIn(name="Should Not Save"),
+            )
+
+        self.assertEqual(ctx.exception.status_code, 409)
