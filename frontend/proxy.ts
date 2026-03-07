@@ -44,7 +44,6 @@ function buildCspHeader(nonce: string): string {
         "font-src 'self' data:",
         "connect-src 'self' https: wss:",
         "form-action 'self'",
-        "upgrade-insecure-requests",
     ]
         .join("; ")
         .replace(/\s{2,}/g, " ")
