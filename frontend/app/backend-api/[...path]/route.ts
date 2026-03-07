@@ -23,6 +23,21 @@ type RouteContext = {
     params: Promise<{ path: string[] }>;
 };
 
+type ProxyRequestInit = RequestInit & {
+    duplex?: "half";
+};
+
+const HOP_BY_HOP_RESPONSE_HEADERS = new Set([
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+]);
+
 /**
  * Build a backend URL for proxied API requests.
  *
@@ -37,6 +52,29 @@ function buildBackendUrl(pathSegments: string[], search: string): string {
     const normalizedBaseUrl = BACKEND_INTERNAL_URL.replace(/\/$/, "");
     const normalizedPath = pathSegments.join("/");
     return `${normalizedBaseUrl}/api/app/${normalizedPath}/${search}`;
+}
+
+/**
+ * Filter backend response headers before returning to the client.
+ *
+ * Args:
+ *     upstreamHeaders: Headers returned by the backend response.
+ *
+ * Returns:
+ *     Headers safe to include in the proxied response.
+ */
+function filterResponseHeaders(upstreamHeaders: Headers): Headers {
+    const filteredHeaders = new Headers();
+
+    for (const [headerName, headerValue] of upstreamHeaders.entries()) {
+        if (HOP_BY_HOP_RESPONSE_HEADERS.has(headerName.toLowerCase())) {
+            continue;
+        }
+
+        filteredHeaders.set(headerName, headerValue);
+    }
+
+    return filteredHeaders;
 }
 
 /**
@@ -72,14 +110,15 @@ async function forwardToBackend(request: NextRequest, context: RouteContext): Pr
     }
     requestHeaders.set("X-Forwarded-Proto", "https");
 
-    const requestInit: RequestInit = {
+    const requestInit: ProxyRequestInit = {
         method: request.method,
         headers: requestHeaders,
         cache: "no-store",
     };
 
     if (!["GET", "HEAD"].includes(request.method.toUpperCase())) {
-        requestInit.body = await request.text();
+        requestInit.body = request.body;
+        requestInit.duplex = "half";
     }
 
     let backendResponse: Response;
@@ -89,16 +128,9 @@ async function forwardToBackend(request: NextRequest, context: RouteContext): Pr
         return NextResponse.json({ detail: "Backend proxy request failed" }, { status: 502 });
     }
 
-    const responseBody = await backendResponse.text();
-    const responseHeaders = new Headers();
-    const responseContentType = backendResponse.headers.get("content-type");
-    if (responseContentType) {
-        responseHeaders.set("Content-Type", responseContentType);
-    }
-
-    return new NextResponse(responseBody, {
+    return new NextResponse(backendResponse.body, {
         status: backendResponse.status,
-        headers: responseHeaders,
+        headers: filterResponseHeaders(backendResponse.headers),
     });
 }
 
