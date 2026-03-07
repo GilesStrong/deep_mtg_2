@@ -17,7 +17,7 @@ limitations under the License.
 from django.http import HttpRequest
 from ninja import Path, Router
 
-from appcards.constants.cards import CURRENT_STANDARD_SET_CODES, HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
+from appcards.constants.cards import HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
 from appcards.models.card import Card
 from appcards.models.printing import Printing
 from appcards.modules.card_info import CardInfo, card_to_info
@@ -46,19 +46,6 @@ def _extract_used_tags() -> list[str]:
     return sorted(used_tags)
 
 
-def _extract_available_set_codes() -> list[str]:
-    """Return sorted set codes available for card search filtering.
-
-    Returns:
-        A sorted list of set codes from printings, or standard set codes when
-        no printings are available.
-    """
-    set_codes = list(Printing.objects.order_by('set_code').values_list('set_code', flat=True).distinct())
-    if set_codes:
-        return set_codes
-    return sorted(CURRENT_STANDARD_SET_CODES)
-
-
 @router.get(
     '/set_codes/',
     summary='List available set codes',
@@ -72,7 +59,8 @@ def list_set_codes(request: HttpRequest) -> SetCodesOut:
 
     This endpoint allows you to fetch the set codes that are currently available for deck construction.
     """
-    return SetCodesOut(set_codes=_extract_available_set_codes())
+    set_codes = list(Printing.objects.order_by('set_code').values_list('set_code', flat=True).distinct())
+    return SetCodesOut(set_codes=set_codes)
 
 
 @router.get(
