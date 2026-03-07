@@ -31,6 +31,7 @@ services:
       - BACKEND_UPSTREAM=web:8000
       - FRONTEND_UPSTREAM=frontend:3001
       - PUBLIC_URL=${PUBLIC_URL}
+      - ADMIN_ALLOWLIST_CIDRS=${ADMIN_ALLOWLIST_CIDRS:-127.0.0.1/32}
     networks:
       - deepmtg_network
     depends_on:

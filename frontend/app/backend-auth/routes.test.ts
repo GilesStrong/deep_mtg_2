@@ -1,6 +1,12 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const mockGetToken = vi.fn();
+
+vi.mock("next-auth/jwt", () => ({
+    getToken: mockGetToken,
+}));
+
 const makeExchangeRequest = (body: string, headers?: HeadersInit): NextRequest =>
     new NextRequest("http://localhost/backend-auth/exchange", {
         method: "POST",
@@ -24,10 +30,13 @@ describe("backend-auth route handlers", () => {
     beforeEach(() => {
         vi.restoreAllMocks();
         vi.resetModules();
+        mockGetToken.mockReset();
         process.env.BACKEND_INTERNAL_URL = "http://backend.internal";
+        process.env.NEXTAUTH_SECRET = "test-nextauth-secret";
     });
 
     it("exchange sets access, refresh, and csrf cookies when backend exchange succeeds", async () => {
+        mockGetToken.mockResolvedValue({ googleAuthToken: "google-token-from-jwt" });
         const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
             new Response(JSON.stringify({ access_token: "access-123", refresh_token: "refresh-123" }), {
                 status: 200,
@@ -37,7 +46,7 @@ describe("backend-auth route handlers", () => {
 
         const route = await import("@/app/backend-auth/exchange/route");
         const response = await route.POST(
-            makeExchangeRequest(JSON.stringify({ google_id_token: "google-token" }), {
+            makeExchangeRequest("", {
                 "user-agent": "vitest",
                 "x-forwarded-for": "203.0.113.10",
             }),
@@ -50,6 +59,7 @@ describe("backend-auth route handlers", () => {
             expect.objectContaining({
                 method: "POST",
                 cache: "no-store",
+                body: JSON.stringify({ google_id_token: "google-token-from-jwt" }),
             }),
         );
         expect(response.cookies.get("backend_access_token")?.value).toBe("access-123");
@@ -61,6 +71,7 @@ describe("backend-auth route handlers", () => {
     });
 
     it("exchange returns backend error detail when token exchange fails", async () => {
+        mockGetToken.mockResolvedValue({ googleAuthToken: "google-token-from-jwt" });
         vi.spyOn(globalThis, "fetch").mockResolvedValue(
             new Response(JSON.stringify({ detail: "User not allowed" }), {
                 status: 403,
@@ -69,10 +80,20 @@ describe("backend-auth route handlers", () => {
         );
 
         const route = await import("@/app/backend-auth/exchange/route");
-        const response = await route.POST(makeExchangeRequest(JSON.stringify({ google_id_token: "google-token" })));
+        const response = await route.POST(makeExchangeRequest(""));
 
         expect(response.status).toBe(403);
         await expect(response.json()).resolves.toEqual({ detail: "User not allowed" });
+    });
+
+    it("exchange returns 401 when no Google ID token is available", async () => {
+        mockGetToken.mockResolvedValue(null);
+
+        const route = await import("@/app/backend-auth/exchange/route");
+        const response = await route.POST(makeExchangeRequest(""));
+
+        expect(response.status).toBe(401);
+        await expect(response.json()).resolves.toEqual({ detail: "Missing Google ID token" });
     });
 
     it("refresh returns 401 when refresh cookie is missing", async () => {

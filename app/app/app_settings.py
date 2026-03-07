@@ -102,6 +102,9 @@ class AuthSettings(BaseSettings):
     REFRESH_TOKEN_TTL_SECONDS: int
     AUTH_EXCHANGE_PER_MINUTE: int = 20
     AUTH_REFRESH_PER_MINUTE: int = 60
+    AUTH_RATE_LIMIT_FAIL_OPEN: bool = False
+    AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS: list[str] = []
+    ADMIN_ALLOWLIST_CIDRS: str = ""
 
 
 class LimitSettings(BaseSettings):

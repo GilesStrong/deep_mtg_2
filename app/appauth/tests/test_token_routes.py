@@ -139,7 +139,7 @@ class RefreshRouteTests(TestCase):
         THEN it revokes the old token, mints a new refresh token, and returns new access and refresh tokens
         """
         user = User.objects.create(google_id="gid-refresh-ok", verified=True, warning_count=0)
-        old_rt, old_raw_token = RefreshToken.mint(user, user_agent="ua", ip="127.0.0.1")
+        old_rt, old_raw_token = RefreshToken.mint(user, user_agent="pytest", ip="127.0.0.1")
 
         request = SimpleNamespace(headers={"User-Agent": "pytest"}, META={"REMOTE_ADDR": "127.0.0.1"})
         payload = SimpleNamespace(refresh_token=old_raw_token)
@@ -170,7 +170,7 @@ class RefreshRouteTests(TestCase):
         THEN the token family is revoked and refresh returns 401
         """
         user = User.objects.create(google_id="gid-refresh-reuse", verified=True, warning_count=0)
-        old_rt, old_raw_token = RefreshToken.mint(user, user_agent="ua", ip="127.0.0.1")
+        old_rt, old_raw_token = RefreshToken.mint(user, user_agent="pytest", ip="127.0.0.1")
 
         request = SimpleNamespace(headers={"User-Agent": "pytest"}, META={"REMOTE_ADDR": "127.0.0.1"})
 
@@ -197,3 +197,61 @@ class RefreshRouteTests(TestCase):
         self.assertIsNotNone(new_rt.revoked_at)
         self.assertEqual(new_rt.revoked_reason, RefreshToken.RevocationReason.REUSE_DETECTED[0])
         self.assertLessEqual(old_rt.revoked_at, timezone.now())
+
+    def test_context_mismatch_revokes_refresh_token_family(self):
+        """
+        GIVEN a valid refresh token and a refresh request with different user-agent context
+        WHEN refresh is called
+        THEN it rejects with 401 and revokes the active token family with context_mismatch reason
+        """
+        user = User.objects.create(google_id="gid-refresh-context", verified=True, warning_count=0)
+        old_rt, old_raw_token = RefreshToken.mint(user, user_agent="ua-original", ip="203.0.113.10")
+
+        request = SimpleNamespace(headers={"User-Agent": "ua-other"}, META={"REMOTE_ADDR": "203.0.113.10"})
+
+        with (
+            patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit,
+            patch(f"{_MODULE}.mint_access_token") as mock_mint_access,
+        ):
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
+
+            with self.assertRaises(HttpError) as ctx:
+                refresh(request, SimpleNamespace(refresh_token=old_raw_token))
+
+        self.assertEqual(ctx.exception.status_code, 401)
+        mock_mint_access.assert_not_called()
+
+        old_rt.refresh_from_db()
+        self.assertIsNotNone(old_rt.revoked_at)
+        self.assertEqual(old_rt.revoked_reason, "context_mismatch")
+
+    def test_legacy_proxy_ip_token_is_allowed_once_and_rotates_to_client_ip(self):
+        """
+        GIVEN a legacy refresh token storing proxy REMOTE_ADDR instead of forwarded client IP
+        WHEN refresh is called behind the same trusted proxy with a forwarded client IP
+        THEN refresh succeeds and the rotated token stores the resolved client IP
+        """
+        user = User.objects.create(google_id="gid-refresh-legacy-proxy", verified=True, warning_count=0)
+        old_rt, old_raw_token = RefreshToken.mint(user, user_agent="pytest", ip="10.0.0.3")
+
+        request = SimpleNamespace(
+            headers={"User-Agent": "pytest", "X-Forwarded-For": "203.0.113.25"},
+            META={"REMOTE_ADDR": "10.0.0.3"},
+        )
+
+        with (
+            patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit,
+            patch(f"{_MODULE}.mint_access_token") as mock_mint_access,
+            patch(f"{_MODULE}._extract_client_ip") as mock_extract_client_ip,
+        ):
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
+            mock_mint_access.return_value = "new-access-token"
+            mock_extract_client_ip.return_value = "203.0.113.25"
+
+            result = refresh(request, SimpleNamespace(refresh_token=old_raw_token))
+
+        old_rt.refresh_from_db()
+        new_rt = RefreshToken.from_raw_token(result.refresh_token)
+        self.assertIsNotNone(old_rt.revoked_at)
+        self.assertEqual(new_rt.ip, "203.0.113.25")
+        self.assertEqual(result.access_token, "new-access-token")

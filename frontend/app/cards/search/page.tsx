@@ -66,6 +66,14 @@ type TagEndpointPayload = {
     tags?: string[] | HierarchicalTags;
 } & Record<string, unknown>;
 
+type SearchResultPayload = {
+    cards?: unknown;
+    results?: unknown;
+    items?: unknown;
+    data?: unknown;
+    hits?: unknown;
+};
+
 const normalizeHierarchicalTags = (input: unknown): HierarchicalTags => {
     if (!input || typeof input !== "object" || Array.isArray(input)) {
         return {};
@@ -150,6 +158,151 @@ const parseApiError = async (response: Response, fallbackMessage: string): Promi
     } catch {
         return responseText.trim() || fallbackMessage;
     }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+};
+
+const toStringArray = (value: unknown): string[] => {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value.filter((item): item is string => typeof item === "string");
+};
+
+const toStringOrNull = (value: unknown): string | null => {
+    if (typeof value === "string") {
+        return value;
+    }
+
+    return null;
+};
+
+const toNumberOrDefault = (value: unknown, fallback: number): number => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === "string") {
+        const parsedValue = Number(value);
+        if (Number.isFinite(parsedValue)) {
+            return parsedValue;
+        }
+    }
+
+    return fallback;
+};
+
+const normalizeSearchCard = (value: unknown, fallbackId: string): SearchCard | null => {
+    if (!isRecord(value)) {
+        return null;
+    }
+
+    const rawId = value.id;
+    const cardId = typeof rawId === "string" || typeof rawId === "number" ? String(rawId) : fallbackId;
+
+    return {
+        id: cardId,
+        name: typeof value.name === "string" ? value.name : "Unknown card",
+        text: typeof value.text === "string" ? value.text : "",
+        llm_summary: toStringOrNull(value.llm_summary),
+        types: toStringArray(value.types),
+        subtypes: toStringArray(value.subtypes),
+        supertypes: toStringArray(value.supertypes),
+        set_codes: toStringArray(value.set_codes),
+        rarity: typeof value.rarity === "string" ? value.rarity : "",
+        converted_mana_cost: toNumberOrDefault(value.converted_mana_cost, 0),
+        mana_cost_colorless: toNumberOrDefault(value.mana_cost_colorless, 0),
+        mana_cost_white: toNumberOrDefault(value.mana_cost_white, 0),
+        mana_cost_blue: toNumberOrDefault(value.mana_cost_blue, 0),
+        mana_cost_black: toNumberOrDefault(value.mana_cost_black, 0),
+        mana_cost_red: toNumberOrDefault(value.mana_cost_red, 0),
+        mana_cost_green: toNumberOrDefault(value.mana_cost_green, 0),
+        power: toStringOrNull(value.power),
+        toughness: toStringOrNull(value.toughness),
+        colors: toStringArray(value.colors),
+        keywords: toStringArray(value.keywords),
+        tags: toStringArray(value.tags),
+    };
+};
+
+const getSearchResultEntries = (payload: unknown): unknown[] => {
+    if (Array.isArray(payload)) {
+        return payload;
+    }
+
+    if (!isRecord(payload)) {
+        return [];
+    }
+
+    const typedPayload = payload as SearchResultPayload;
+    const nestedData = isRecord(typedPayload.data) ? (typedPayload.data as SearchResultPayload) : undefined;
+    const candidates = [
+        typedPayload.cards,
+        typedPayload.results,
+        typedPayload.items,
+        typedPayload.hits,
+        typedPayload.data,
+        nestedData?.cards,
+        nestedData?.results,
+        nestedData?.items,
+        nestedData?.hits,
+    ];
+    const firstArrayCandidate = candidates.find((candidate) => Array.isArray(candidate));
+
+    return Array.isArray(firstArrayCandidate) ? firstArrayCandidate : [];
+};
+
+const normalizeSearchResults = (payload: unknown): SearchResult[] => {
+    const entries = getSearchResultEntries(payload);
+
+    return entries
+        .map((entry, index) => {
+            if (Array.isArray(entry) && entry.length >= 2) {
+                const tupleCard = normalizeSearchCard(entry[1], `result-${index}`);
+                if (!tupleCard) {
+                    return null;
+                }
+
+                return {
+                    card_info: tupleCard,
+                    relevance_score: toNumberOrDefault(entry[0], 0),
+                } satisfies SearchResult;
+            }
+
+            if (!isRecord(entry)) {
+                return null;
+            }
+
+            const cardInfoCandidate = isRecord(entry.card_info)
+                ? entry.card_info
+                : isRecord(entry.card)
+                    ? entry.card
+                    : isRecord(entry.payload)
+                        ? entry.payload
+                        : isRecord(entry.card_data)
+                            ? entry.card_data
+                            : isRecord(entry.cardInfo)
+                                ? entry.cardInfo
+                                : isRecord(entry.document)
+                                    ? entry.document
+                                    : entry;
+
+            const normalizedCard = normalizeSearchCard(cardInfoCandidate, `result-${index}`);
+            if (!normalizedCard) {
+                return null;
+            }
+
+            const relevanceScore = toNumberOrDefault(entry.relevance_score ?? entry.score, 0);
+
+            return {
+                card_info: normalizedCard,
+                relevance_score: relevanceScore,
+            } satisfies SearchResult;
+        })
+        .filter((result): result is SearchResult => result !== null);
 };
 
 export default function CardSearchPage() {
@@ -247,9 +400,9 @@ export default function CardSearchPage() {
                     cards: Array<
                         | [number, { colors: string[]; tags?: string[]; set_codes: string[] }]
                         | {
-                              quantity: number;
-                              card_info: { colors: string[]; tags?: string[]; set_codes: string[] };
-                          }
+                            quantity: number;
+                            card_info: { colors: string[]; tags?: string[]; set_codes: string[] };
+                        }
                     >;
                 };
 
@@ -397,8 +550,13 @@ export default function CardSearchPage() {
                 throw new Error(await parseApiError(response, "Failed to search cards"));
             }
 
-            const data = (await response.json()) as { cards: SearchResult[] };
-            const sortedResults = [...data.cards].sort((a, b) => b.relevance_score - a.relevance_score);
+            const payload = (await response.json()) as unknown;
+            const normalizedResults = normalizeSearchResults(payload);
+            const rawEntries = getSearchResultEntries(payload);
+            if (rawEntries.length > 0 && normalizedResults.length === 0) {
+                throw new Error("Search returned an unexpected response format.");
+            }
+            const sortedResults = [...normalizedResults].sort((a, b) => b.relevance_score - a.relevance_score);
             setSearchResults(sortedResults);
         } catch (error) {
             console.error("Error searching cards:", error);

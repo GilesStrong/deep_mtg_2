@@ -7,12 +7,46 @@ from ninja import Router
 from ninja.errors import HttpError
 
 from appauth.models.token import RefreshToken
-from appauth.modules.auth_rate_limit import check_auth_rate_limit
+from appauth.modules.auth_rate_limit import _extract_client_ip, check_auth_rate_limit
 from appauth.modules.google_auth import verify_google_token
 from appauth.modules.token import mint_access_token
 from appauth.serializers.token import ExchangeIn, ExchangeOut, RefreshIn
 
 router = Router(tags=["auth"])
+
+
+def _is_legacy_proxy_ip_context(
+    *,
+    token_ip: str | None,
+    remote_addr: str | None,
+    resolved_client_ip: str | None,
+) -> bool:
+    """Return True when token IP appears to be a legacy proxy-stored IP.
+
+    This handles compatibility for refresh tokens minted before trusted-client
+    extraction was applied at exchange time. In that legacy shape, ``token_ip``
+    matches ``REMOTE_ADDR`` (proxy hop), while ``resolved_client_ip`` reflects
+    the forwarded client address.
+
+    Args:
+        token_ip: IP stored on refresh token.
+        remote_addr: Current request ``REMOTE_ADDR`` value.
+        resolved_client_ip: Trusted resolved client IP for the request.
+
+    Returns:
+        bool: True when values match the legacy proxy-IP pattern.
+    """
+    if not token_ip or not remote_addr or not resolved_client_ip:
+        return False
+
+    stored = token_ip.strip()
+    remote = remote_addr.strip()
+    resolved = resolved_client_ip.strip()
+
+    if not stored or not remote or not resolved:
+        return False
+
+    return stored == remote and resolved != remote
 
 
 @router.post(
@@ -58,6 +92,7 @@ def exchange(request: HttpRequest, payload: ExchangeIn) -> ExchangeOut:
         request,
         action="exchange",
         limit=APP_SETTINGS.AUTH_EXCHANGE_PER_MINUTE,
+        fail_open=False,
     )
     if not rate_limit.allowed:
         raise HttpError(429, f"Too many token exchange attempts. Retry in {rate_limit.retry_after_seconds}s")
@@ -77,11 +112,14 @@ def exchange(request: HttpRequest, payload: ExchangeIn) -> ExchangeOut:
             "Your account has been blocked due to multiple policy violations. Please contact support for assistance.",
         )
 
+    resolved_request_ip = _extract_client_ip(request)
+    request_ip = None if resolved_request_ip == "unknown" else resolved_request_ip
+
     access = mint_access_token(user_id=user.id)
     _rt, raw_refresh_token = RefreshToken.mint(
         user,
         user_agent=request.headers.get("User-Agent", ""),
-        ip=request.META.get("REMOTE_ADDR"),
+        ip=request_ip,
     )
     return ExchangeOut(access_token=access, refresh_token=raw_refresh_token)
 
@@ -133,6 +171,7 @@ def refresh(request: HttpRequest, payload: RefreshIn) -> ExchangeOut:
         request,
         action="refresh",
         limit=APP_SETTINGS.AUTH_REFRESH_PER_MINUTE,
+        fail_open=False,
     )
     if not rate_limit.allowed:
         raise HttpError(429, f"Too many token refresh attempts. Retry in {rate_limit.retry_after_seconds}s")
@@ -142,8 +181,14 @@ def refresh(request: HttpRequest, payload: RefreshIn) -> ExchangeOut:
     except RefreshToken.DoesNotExist:
         raise HttpError(401, "Invalid refresh token")
 
+    request_user_agent = request.headers.get("User-Agent", "")
+    request_remote_addr = request.META.get("REMOTE_ADDR")
+    resolved_request_ip = _extract_client_ip(request)
+    request_ip = None if resolved_request_ip == "unknown" else resolved_request_ip
+
     is_invalid = False
-    reuse_family_id = None
+    revoke_family_id = None
+    revoke_family_reason = ""
     new_raw_refresh_token = ""
     with transaction.atomic():
         rt = RefreshToken.objects.select_for_update().select_related("user").get(pk=rt.pk)
@@ -151,27 +196,40 @@ def refresh(request: HttpRequest, payload: RefreshIn) -> ExchangeOut:
         if not rt.is_valid():
             is_invalid = True
             if rt.looks_like_rotated_token_reuse():
-                reuse_family_id = rt.family_id
+                revoke_family_id = rt.family_id
+                revoke_family_reason = RefreshToken.RevocationReason.REUSE_DETECTED[0]
         else:
-            new_rt, new_raw_refresh_token = RefreshToken.mint(
-                rt.user,
-                user_agent=request.headers.get("User-Agent", ""),
-                ip=request.META.get("REMOTE_ADDR"),
-                parent=rt,
-                family_id=rt.family_id,
+            has_context_anomaly = rt.has_context_anomaly(request_user_agent=request_user_agent, request_ip=request_ip)
+            is_legacy_proxy_ip_context = _is_legacy_proxy_ip_context(
+                token_ip=rt.ip,
+                remote_addr=request_remote_addr,
+                resolved_client_ip=request_ip,
             )
 
-            RefreshToken.objects.filter(pk=rt.pk).update(
-                revoked_at=timezone.now(),
-                revoked_reason=RefreshToken.RevocationReason.ROTATED,
-                replaced_by_id=new_rt.pk,
-            )
+            if has_context_anomaly and not is_legacy_proxy_ip_context:
+                is_invalid = True
+                revoke_family_id = rt.family_id
+                revoke_family_reason = "context_mismatch"
+            else:
+                new_rt, new_raw_refresh_token = RefreshToken.mint(
+                    rt.user,
+                    user_agent=request_user_agent,
+                    ip=request_ip,
+                    parent=rt,
+                    family_id=rt.family_id,
+                )
+
+                RefreshToken.objects.filter(pk=rt.pk).update(
+                    revoked_at=timezone.now(),
+                    revoked_reason=RefreshToken.RevocationReason.ROTATED,
+                    replaced_by_id=new_rt.pk,
+                )
 
     if is_invalid:
-        if reuse_family_id is not None:
+        if revoke_family_id is not None:
             RefreshToken.revoke_family(
-                reuse_family_id,
-                reason=RefreshToken.RevocationReason.REUSE_DETECTED[0],
+                revoke_family_id,
+                reason=revoke_family_reason,
             )
         raise HttpError(401, "Refresh token expired or revoked")
 

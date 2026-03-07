@@ -296,6 +296,188 @@ describe("CardSearchPage", () => {
         expect(push).toHaveBeenCalledWith("/decks/deck-1");
     });
 
+    it("renders results when backend returns alternate payload keys", async () => {
+        const user = userEvent.setup();
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE"] });
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockJsonResponse({
+                    tags: {
+                        Strategy: {
+                            Control: "Cards that are designed to manage the game state.",
+                        },
+                    },
+                });
+            }
+
+            if (url === "/api/app/search/search/" && init?.method === "POST") {
+                return mockJsonResponse({
+                    results: [
+                        {
+                            score: "0.91",
+                            card: {
+                                id: 101,
+                                name: "Temporary Lockdown",
+                                text: "When Temporary Lockdown enters the battlefield...",
+                                llm_summary: null,
+                                types: ["Enchantment"],
+                                subtypes: [],
+                                supertypes: [],
+                                set_codes: ["DMU"],
+                                rarity: "Rare",
+                                converted_mana_cost: 3,
+                                mana_cost_colorless: 1,
+                                mana_cost_white: 2,
+                                mana_cost_blue: 0,
+                                mana_cost_black: 0,
+                                mana_cost_red: 0,
+                                mana_cost_green: 0,
+                                power: null,
+                                toughness: null,
+                                colors: ["W"],
+                                keywords: [],
+                                tags: ["Control"],
+                            },
+                        },
+                    ],
+                });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        await user.type(screen.getByLabelText("Query"), "Find cards that tax opponents and protect early turns");
+        await user.click(await screen.findByRole("button", { name: "Search Cards" }));
+
+        expect(await screen.findByText("Temporary Lockdown")).toBeInTheDocument();
+    });
+
+    it("renders results when backend wraps payload under data.cards", async () => {
+        const user = userEvent.setup();
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE"] });
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockJsonResponse({
+                    tags: {
+                        Strategy: {
+                            Control: "Cards that are designed to manage the game state.",
+                        },
+                    },
+                });
+            }
+
+            if (url === "/api/app/search/search/" && init?.method === "POST") {
+                return mockJsonResponse({
+                    data: {
+                        cards: [
+                            {
+                                relevance_score: 0.55,
+                                card_info: {
+                                    id: "card-55",
+                                    name: "Depopulate",
+                                    text: "Each player who controls a multicolored creature draws a card.",
+                                    llm_summary: null,
+                                    types: ["Sorcery"],
+                                    subtypes: [],
+                                    supertypes: [],
+                                    set_codes: ["SNC"],
+                                    rarity: "Rare",
+                                    converted_mana_cost: 4,
+                                    mana_cost_colorless: 2,
+                                    mana_cost_white: 2,
+                                    mana_cost_blue: 0,
+                                    mana_cost_black: 0,
+                                    mana_cost_red: 0,
+                                    mana_cost_green: 0,
+                                    power: null,
+                                    toughness: null,
+                                    colors: ["W"],
+                                    keywords: [],
+                                    tags: ["BoardWipe"],
+                                },
+                            },
+                        ],
+                    },
+                });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        await user.type(screen.getByLabelText("Query"), "Find white board wipes for stabilizing creature matchups");
+        await user.click(await screen.findByRole("button", { name: "Search Cards" }));
+
+        expect(await screen.findByText("Depopulate")).toBeInTheDocument();
+    });
+
+    it("renders results when card info is nested under payload alias", async () => {
+        const user = userEvent.setup();
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE"] });
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockJsonResponse({ tags: {} });
+            }
+
+            if (url === "/api/app/search/search/" && init?.method === "POST") {
+                return mockJsonResponse({
+                    cards: [
+                        {
+                            relevance_score: 0.42,
+                            payload: {
+                                id: "card-payload-1",
+                                name: "Lay Down Arms",
+                                text: "Exile target creature with mana value less than or equal to the number of Plains you control.",
+                                llm_summary: null,
+                                types: ["Sorcery"],
+                                subtypes: [],
+                                supertypes: [],
+                                set_codes: ["BRO"],
+                                rarity: "Uncommon",
+                                converted_mana_cost: 1,
+                                mana_cost_colorless: 0,
+                                mana_cost_white: 1,
+                                mana_cost_blue: 0,
+                                mana_cost_black: 0,
+                                mana_cost_red: 0,
+                                mana_cost_green: 0,
+                                power: null,
+                                toughness: null,
+                                colors: ["W"],
+                                keywords: [],
+                                tags: ["SpotRemoval"],
+                            },
+                        },
+                    ],
+                });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        await user.type(screen.getByLabelText("Query"), "Find cheap white spot removal for creature-heavy matchups");
+        await user.click(await screen.findByRole("button", { name: "Search Cards" }));
+
+        expect(await screen.findByText("Lay Down Arms")).toBeInTheDocument();
+    });
+
     it("prefills query and filters from source deck context", async () => {
         const user = userEvent.setup();
 

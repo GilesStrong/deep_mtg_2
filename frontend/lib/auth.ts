@@ -113,10 +113,6 @@ export const authOptions: AuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        if (typeof token.googleAuthToken === "string") {
-          session.user.googleAuthToken = token.googleAuthToken;
-        }
-
         if (typeof token.picture === "string") {
           session.user.image = token.picture;
         }

@@ -12,9 +12,36 @@ _MODULE = "appauth.modules.auth_rate_limit"
 
 
 class ExtractClientIpTests(TestCase):
-    def test_prefers_first_x_forwarded_for_hop(self):
+    @patch(f"{_MODULE}.APP_SETTINGS")
+    def test_explicit_empty_trusted_proxy_list_is_respected(self, mock_settings):
         """
-        GIVEN a request with an X-Forwarded-For header containing multiple IPs
+        GIVEN app settings trust a proxy CIDR but call-site passes trusted_proxy_cidrs=[]
+        WHEN _extract_client_ip is called
+        THEN it treats the request as untrusted and returns REMOTE_ADDR instead of forwarded header
+        """
+        mock_settings.AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS = ["10.0.0.0/24"]
+
+        request = SimpleNamespace(
+            headers={"X-Forwarded-For": "203.0.113.8, 10.0.0.2"}, META={"REMOTE_ADDR": "10.0.0.3"}
+        )
+
+        self.assertEqual(_extract_client_ip(request, trusted_proxy_cidrs=[]), "10.0.0.3")
+
+    def test_ignores_x_forwarded_for_when_remote_addr_not_trusted_proxy(self):
+        """
+        GIVEN a request with a spoofed X-Forwarded-For header from an untrusted REMOTE_ADDR
+        WHEN _extract_client_ip is called
+        THEN it ignores the header and returns REMOTE_ADDR
+        """
+        request = SimpleNamespace(
+            headers={"X-Forwarded-For": "203.0.113.8, 10.0.0.2"}, META={"REMOTE_ADDR": "10.0.0.3"}
+        )
+
+        self.assertEqual(_extract_client_ip(request, trusted_proxy_cidrs=["127.0.0.1/32"]), "10.0.0.3")
+
+    def test_prefers_first_x_forwarded_for_hop_when_remote_addr_is_trusted_proxy(self):
+        """
+        GIVEN a request from a trusted proxy with an X-Forwarded-For header containing multiple IPs
         WHEN _extract_client_ip is called
         THEN it returns the first (leftmost) IP in the header
         """
@@ -22,7 +49,20 @@ class ExtractClientIpTests(TestCase):
             headers={"X-Forwarded-For": "203.0.113.8, 10.0.0.2"}, META={"REMOTE_ADDR": "10.0.0.3"}
         )
 
-        self.assertEqual(_extract_client_ip(request), "203.0.113.8")
+        self.assertEqual(_extract_client_ip(request, trusted_proxy_cidrs=["10.0.0.3/32"]), "203.0.113.8")
+
+    def test_prefers_cf_connecting_ip_when_remote_addr_is_trusted_proxy(self):
+        """
+        GIVEN a request from a trusted proxy with both CF-Connecting-IP and X-Forwarded-For
+        WHEN _extract_client_ip is called
+        THEN it prefers and returns CF-Connecting-IP
+        """
+        request = SimpleNamespace(
+            headers={"CF-Connecting-IP": "198.51.100.11", "X-Forwarded-For": "203.0.113.8, 10.0.0.2"},
+            META={"REMOTE_ADDR": "10.0.0.3"},
+        )
+
+        self.assertEqual(_extract_client_ip(request, trusted_proxy_cidrs=["10.0.0.3/32"]), "198.51.100.11")
 
     def test_falls_back_to_remote_addr(self):
         """
@@ -119,11 +159,11 @@ class CheckAuthRateLimitTests(TestCase):
 
     @patch(f"{_MODULE}.get_redis")
     @patch(f"{_MODULE}.time.time")
-    def test_fails_open_on_redis_error(self, mock_time, mock_get_redis):
+    def test_fails_closed_on_redis_error_by_default(self, mock_time, mock_get_redis):
         """
         GIVEN Redis raises a RedisError during the incr call
         WHEN check_auth_rate_limit is called
-        THEN it fails open by allowing the request and returns retry_after_seconds of 0
+        THEN it fails closed by denying the request and returns retry_after_seconds equal to window_seconds
         """
         mock_time.return_value = 1700000000
         redis_client = mock_get_redis.return_value
@@ -131,6 +171,24 @@ class CheckAuthRateLimitTests(TestCase):
 
         request = SimpleNamespace(headers={}, META={"REMOTE_ADDR": "10.0.0.3"})
         result = check_auth_rate_limit(request, action="exchange", limit=3, window_seconds=60)
+
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.retry_after_seconds, 60)
+
+    @patch(f"{_MODULE}.get_redis")
+    @patch(f"{_MODULE}.time.time")
+    def test_can_fail_open_on_redis_error_when_explicitly_configured(self, mock_time, mock_get_redis):
+        """
+        GIVEN Redis raises a RedisError during the incr call and fail_open=True is passed
+        WHEN check_auth_rate_limit is called
+        THEN it allows the request and returns retry_after_seconds of 0
+        """
+        mock_time.return_value = 1700000000
+        redis_client = mock_get_redis.return_value
+        redis_client.incr.side_effect = redis.RedisError("redis unavailable")
+
+        request = SimpleNamespace(headers={}, META={"REMOTE_ADDR": "10.0.0.3"})
+        result = check_auth_rate_limit(request, action="exchange", limit=3, window_seconds=60, fail_open=True)
 
         self.assertTrue(result.allowed)
         self.assertEqual(result.retry_after_seconds, 0)
