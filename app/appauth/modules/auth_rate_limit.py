@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import ipaddress
 import time
 from dataclasses import dataclass
 
 import redis
+from app.app_settings import APP_SETTINGS
 from appcore.modules.redis_client import get_redis
 from django.http import HttpRequest
 
@@ -14,41 +16,112 @@ class AuthRateLimitResult:
     retry_after_seconds: int
 
 
-def _extract_client_ip(request: HttpRequest) -> str:
+def _normalize_ip(value: str) -> str | None:
+    """Return a normalized IP string when valid, otherwise None.
+
+    Args:
+        value: Candidate IP value.
+
+    Returns:
+        The canonical IP string when parsing succeeds; otherwise ``None``.
+    """
+    candidate = value.strip()
+    if not candidate:
+        return None
+
+    try:
+        parsed = ipaddress.ip_address(candidate)
+    except ValueError:
+        return None
+
+    return str(parsed)
+
+
+def _is_ip_in_trusted_proxy_ranges(client_ip: str, trusted_proxy_cidrs: list[str]) -> bool:
+    """Check whether an IP belongs to any trusted proxy range.
+
+    Args:
+        client_ip: The normalized client IP string to test.
+        trusted_proxy_cidrs: A list of trusted proxy CIDR blocks or single IPs.
+
+    Returns:
+        ``True`` when the IP matches at least one trusted range; otherwise ``False``.
+    """
+    if not trusted_proxy_cidrs:
+        return False
+
+    try:
+        parsed_ip = ipaddress.ip_address(client_ip)
+    except ValueError:
+        return False
+
+    for cidr_or_ip in trusted_proxy_cidrs:
+        try:
+            network = ipaddress.ip_network(cidr_or_ip, strict=False)
+        except ValueError:
+            continue
+
+        if parsed_ip in network:
+            return True
+
+    return False
+
+
+def _extract_client_ip(request: HttpRequest, trusted_proxy_cidrs: list[str] | None = None) -> str:
     """
     Extract the client's IP address from an HTTP request.
 
-    This function attempts to determine the real client IP address by first
-    checking the 'X-Forwarded-For' header (used when the request passes through
-    proxies or load balancers), and falling back to the 'REMOTE_ADDR' metadata
-    if the header is not present.
+    This function uses a trust boundary model for proxy headers:
+    forwarded headers are considered only when ``REMOTE_ADDR`` is inside a
+    trusted proxy CIDR allowlist. Otherwise, forwarded headers are ignored.
 
     Args:
         request (HttpRequest): The incoming Django HTTP request object.
+        trusted_proxy_cidrs (list[str] | None): Trusted proxy CIDR blocks or
+            IP addresses. If omitted, values are read from
+            ``APP_SETTINGS.AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS``.
 
     Returns:
-        str: The client's IP address as a string. Returns the first IP from the
-             'X-Forwarded-For' header if available, otherwise returns the
-             'REMOTE_ADDR' value. Returns 'unknown' if neither source provides
-             a valid IP address.
+        str: The resolved client IP address. Returns ``REMOTE_ADDR`` by default.
+        If the request came from a trusted proxy and a valid forwarded IP is
+        present, returns that forwarded IP. Returns ``"unknown"`` when no valid
+        candidate exists.
 
     Notes:
-        - When multiple IPs are present in 'X-Forwarded-For', only the first
-          (leftmost) IP address is returned, which represents the original client.
-        - Be aware that 'X-Forwarded-For' headers can be spoofed by clients,
-          so this should not be used for security-critical IP validation.
+        - ``CF-Connecting-IP`` is preferred over ``X-Forwarded-For`` when
+          both are present from a trusted proxy.
+        - The first hop from ``X-Forwarded-For`` is used, matching standard
+          reverse-proxy behavior.
     """
+    trusted_ranges = trusted_proxy_cidrs or APP_SETTINGS.AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS
+
+    remote_addr = _normalize_ip(request.META.get("REMOTE_ADDR", ""))
+    if remote_addr is None:
+        return "unknown"
+
+    if not _is_ip_in_trusted_proxy_ranges(remote_addr, trusted_ranges):
+        return remote_addr
+
+    cloudflare_ip = _normalize_ip(request.headers.get("CF-Connecting-IP", ""))
+    if cloudflare_ip is not None:
+        return cloudflare_ip
+
     forwarded_for = request.headers.get("X-Forwarded-For", "")
     if forwarded_for:
-        first_hop = forwarded_for.split(",")[0].strip()
-        if first_hop:
+        first_hop = _normalize_ip(forwarded_for.split(",")[0])
+        if first_hop is not None:
             return first_hop
-    remote_addr = request.META.get("REMOTE_ADDR", "")
-    return remote_addr or "unknown"
+
+    return remote_addr
 
 
 def check_auth_rate_limit(
-    request: HttpRequest, *, action: str, limit: int, window_seconds: int = 60
+    request: HttpRequest,
+    *,
+    action: str,
+    limit: int,
+    window_seconds: int = 60,
+    fail_open: bool | None = None,
 ) -> AuthRateLimitResult:
     """
     Check whether an authentication action is within its rate limit for the requesting client.
@@ -66,6 +139,10 @@ def check_auth_rate_limit(
             A value of ``0`` or less unconditionally blocks the request.
         window_seconds (int, optional): Duration of the rate-limit window in seconds.
             Defaults to ``60``.
+        fail_open (bool | None, optional): Redis failure policy override.
+            - ``True``: allow request when Redis is unavailable.
+            - ``False``: deny request when Redis is unavailable.
+            - ``None``: use ``APP_SETTINGS.AUTH_RATE_LIMIT_FAIL_OPEN``.
 
     Returns:
         AuthRateLimitResult: A result object with two fields:
@@ -77,9 +154,7 @@ def check_auth_rate_limit(
               when the limit is exceeded, or ``0`` when the request is allowed.
 
     Raises:
-        None: All ``redis.RedisError`` exceptions are caught internally. When Redis
-            is unavailable the function fails open, returning
-            ``AuthRateLimitResult(allowed=True, retry_after_seconds=0)``.
+        None: All ``redis.RedisError`` exceptions are caught internally.
 
     Notes:
         * The Redis key is namespaced as ``rate:auth:<action>:<client_ip>:<bucket>``
@@ -104,4 +179,7 @@ def check_auth_rate_limit(
         retry_after = ttl if ttl > 0 else window_seconds
         return AuthRateLimitResult(allowed=count <= limit, retry_after_seconds=retry_after)
     except redis.RedisError:
-        return AuthRateLimitResult(allowed=True, retry_after_seconds=0)
+        effective_fail_open = APP_SETTINGS.AUTH_RATE_LIMIT_FAIL_OPEN if fail_open is None else fail_open
+        if effective_fail_open:
+            return AuthRateLimitResult(allowed=True, retry_after_seconds=0)
+        return AuthRateLimitResult(allowed=False, retry_after_seconds=window_seconds)

@@ -32,7 +32,7 @@ describe("backend-auth", () => {
         );
 
         await ensureBackendTokens({
-            user: { email: "user@test.dev", googleAuthToken: "google-id-token" },
+            user: { email: "user@test.dev" },
         } as never);
 
         expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -45,10 +45,8 @@ describe("backend-auth", () => {
         );
     });
 
-    it("ensureBackendTokens throws when session is missing Google ID token", async () => {
-        await expect(ensureBackendTokens({ user: { email: "user@test.dev" } } as never)).rejects.toThrow(
-            "Missing Google ID token in session",
-        );
+    it("ensureBackendTokens throws when session is missing", async () => {
+        await expect(ensureBackendTokens(null)).rejects.toThrow("Missing authenticated session");
     });
 
     it("backendFetch refreshes cookie-backed token after 401 and retries", async () => {
@@ -77,7 +75,7 @@ describe("backend-auth", () => {
         });
 
         const response = await backendFetch(
-            { user: { email: "user@test.dev", googleAuthToken: "google-id-token" } } as never,
+            { user: { email: "user@test.dev" } } as never,
             "/api/protected",
         );
 

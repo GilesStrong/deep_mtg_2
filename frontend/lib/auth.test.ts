@@ -119,7 +119,7 @@ describe("authOptions callbacks", () => {
         expect(token?.email).toBe("jace@test.dev");
     });
 
-    it("session callback projects token values onto session.user", async () => {
+    it("session callback projects non-sensitive token values onto session.user", async () => {
         const session = await authOptions.callbacks?.session?.({
             session: { user: {} },
             token: {
@@ -130,7 +130,7 @@ describe("authOptions callbacks", () => {
             },
         } as never);
 
-        expect(session?.user?.googleAuthToken).toBe("token-123");
+        expect((session?.user as Record<string, unknown>)?.googleAuthToken).toBeUndefined();
         expect(session?.user?.image).toBe("https://images.test/user.png");
         expect(session?.user?.name).toBe("Teferi");
         expect(session?.user?.email).toBe("teferi@test.dev");

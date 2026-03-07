@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { getToken } from "next-auth/jwt";
 
 const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL ?? "http://web:8000";
 const ACCESS_TOKEN_COOKIE = "backend_access_token";
@@ -14,11 +15,32 @@ const getCookieSecurity = () => ({
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-    let payload: unknown;
+    let googleIdToken: string | null = null;
+
     try {
-        payload = await request.json();
+        const rawBody = await request.text();
+        if (rawBody.trim().length > 0) {
+            const parsedBody = JSON.parse(rawBody) as { google_id_token?: unknown };
+            if (typeof parsedBody.google_id_token === "string" && parsedBody.google_id_token.length > 0) {
+                googleIdToken = parsedBody.google_id_token;
+            }
+        }
     } catch {
         return NextResponse.json({ detail: "Invalid request body" }, { status: 400 });
+    }
+
+    if (!googleIdToken) {
+        const sessionToken = await getToken({
+            req: request,
+            secret: process.env.NEXTAUTH_SECRET,
+        });
+        if (typeof sessionToken?.googleAuthToken === "string" && sessionToken.googleAuthToken.length > 0) {
+            googleIdToken = sessionToken.googleAuthToken;
+        }
+    }
+
+    if (!googleIdToken) {
+        return NextResponse.json({ detail: "Missing Google ID token" }, { status: 401 });
     }
 
     const response = await fetch(`${BACKEND_INTERNAL_URL}/api/app/token/exchange`, {
@@ -28,7 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             "User-Agent": request.headers.get("user-agent") ?? "",
             "X-Forwarded-For": request.headers.get("x-forwarded-for") ?? "",
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ google_id_token: googleIdToken }),
         cache: "no-store",
     });
 

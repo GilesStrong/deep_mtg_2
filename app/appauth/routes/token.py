@@ -58,6 +58,7 @@ def exchange(request: HttpRequest, payload: ExchangeIn) -> ExchangeOut:
         request,
         action="exchange",
         limit=APP_SETTINGS.AUTH_EXCHANGE_PER_MINUTE,
+        fail_open=False,
     )
     if not rate_limit.allowed:
         raise HttpError(429, f"Too many token exchange attempts. Retry in {rate_limit.retry_after_seconds}s")
@@ -133,6 +134,7 @@ def refresh(request: HttpRequest, payload: RefreshIn) -> ExchangeOut:
         request,
         action="refresh",
         limit=APP_SETTINGS.AUTH_REFRESH_PER_MINUTE,
+        fail_open=False,
     )
     if not rate_limit.allowed:
         raise HttpError(429, f"Too many token refresh attempts. Retry in {rate_limit.retry_after_seconds}s")

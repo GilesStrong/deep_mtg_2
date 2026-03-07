@@ -18,11 +18,9 @@ const parseBackendErrorMessage = async (response: Response, fallbackMessage: str
     }
 };
 
-const exchangeGoogleToken = async (googleIdToken: string): Promise<void> => {
+const exchangeGoogleToken = async (): Promise<void> => {
     const response = await fetch(BACKEND_AUTH_EXCHANGE_PATH, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ google_id_token: googleIdToken }),
         credentials: "same-origin",
     });
 
@@ -64,13 +62,11 @@ const isUnsafeMethod = (method: string): boolean => {
 };
 
 export const ensureBackendTokens = async (session: Session | null): Promise<void> => {
-    const googleIdToken = session?.user?.googleAuthToken;
-
-    if (!googleIdToken) {
-        throw new Error("Missing Google ID token in session");
+    if (!session?.user) {
+        throw new Error("Missing authenticated session");
     }
 
-    await exchangeGoogleToken(googleIdToken);
+    await exchangeGoogleToken();
 };
 
 export const clearBackendTokens = async (): Promise<void> => {
@@ -127,11 +123,10 @@ export const backendFetch = async (
         }
     }
 
-    const googleIdToken = session?.user?.googleAuthToken;
-    if (!googleIdToken) {
+    if (!session?.user) {
         return response;
     }
 
-    await exchangeGoogleToken(googleIdToken);
+    await exchangeGoogleToken();
     return runRequest();
 };

@@ -239,5 +239,6 @@ In typical order:
 
 - Most frontend API calls assume same-origin routing and cookie-based backend auth.
 - Backend uses JWT access tokens + rotating refresh tokens for API auth.
+- Auth rate limiting trusts forwarded client IP headers only when `REMOTE_ADDR` is in `AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS`; set this to your internal proxy CIDRs in staging/production.
 - Long-running AI work is asynchronous; always think in terms of task IDs + status polling.
 - Search quality and deck generation quality depend on the freshness of card summaries and embeddings.

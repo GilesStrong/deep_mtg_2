@@ -1,3 +1,6 @@
+from uuid import UUID
+
+import logfire
 from appauth.modules.auth_rate_limit import check_auth_rate_limit
 from appcards.constants.storage import CARD_COLLECTION_NAME
 from appcards.models.card import Card
@@ -84,6 +87,8 @@ def search_cards(request: HttpRequest, payload: SearchCardsIn) -> SearchCardsOut
     colors = [color.value for color in payload.colors]
     tags = payload.tags
 
+    logfire.info("Card search request", query=query, set_codes=set_codes, colors=colors, tags=tags)
+
     # Build filter
     must = []
     if len(set_codes) > 0:
@@ -103,11 +108,12 @@ def search_cards(request: HttpRequest, payload: SearchCardsIn) -> SearchCardsOut
 
     # Convert results to CardInfo
     card_infos = []
-    card_ids = [point.id for point in found_cards]
+    card_ids = [UUID(str(point.id)) for point in found_cards]
     cards_by_id = Card.objects.in_bulk(card_ids)
     for point in found_cards:
-        card = cards_by_id.get(point.id)
+        card = cards_by_id.get(UUID(str(point.id)))
         if card is None:
             continue
         card_infos.append(FoundCard(card_info=card_to_info(card), relevance_score=point.score))
+    logfire.info("Card search results", query=query, num_results=len(card_infos), card_ids=card_ids)
     return SearchCardsOut(cards=card_infos)

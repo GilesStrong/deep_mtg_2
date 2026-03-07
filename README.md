@@ -47,6 +47,32 @@ Then edit values as needed:
 - In `.env`: backend/auth/API keys and Django/JWT settings
 - In `frontend/.env`: Google OAuth + NextAuth settings (`NEXTAUTH_URL` should be `http://localhost:3000` for local)
 
+### 2.1) Configure `AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS`
+
+`AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS` controls which proxy IP ranges are trusted to provide forwarded client IP headers (such as `X-Forwarded-For` and `CF-Connecting-IP`) for auth rate limiting.
+
+Use this rule:
+
+- Include only proxy ranges that connect directly to Django (typically Caddy on the internal Docker network).
+- Do **not** include broad/public ranges like `0.0.0.0/0`.
+
+Examples:
+
+- Single trusted proxy IP: `AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS=["172.30.5.10/32"]`
+- Trusted Docker subnet: `AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS=["172.30.5.0/24"]`
+
+How to discover values:
+
+```bash
+# Inspect subnet used by your compose network
+docker network inspect deepmtg_network_prod --format '{{(index .IPAM.Config 0).Subnet}}'
+
+# Inspect proxy container IP on that network
+docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' deepmtg_2_prod-proxy-1
+```
+
+For local dev where direct spoofing risk is lower, you can keep this as an empty list (`[]`), but for staging/production set it explicitly.
+
 Quick start defaults:
 
 - `cp .env.tests .env` gives you a backend baseline suitable for local/dev bootstrap.
