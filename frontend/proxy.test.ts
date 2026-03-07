@@ -123,8 +123,8 @@ describe("proxy", () => {
 
     it("skips CSP and auth checks on API routes", async () => {
         const response = await proxy({
-            nextUrl: { pathname: "/api/app/token/exchange" },
-            url: "https://app.test/api/app/token/exchange",
+            nextUrl: { pathname: "/api/app/token/exchange/" },
+            url: "https://app.test/api/app/token/exchange/",
         } as never);
 
         expect(mockGetToken).not.toHaveBeenCalled();
