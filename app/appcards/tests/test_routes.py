@@ -24,7 +24,7 @@ from django.test import TestCase
 from django.utils import timezone
 from ninja.errors import HttpError
 
-from appcards.constants.cards import HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
+from appcards.constants.cards import CURRENT_STANDARD_SET_CODES, HIERARCHICAL_TAGS, PRIMARY_TAG_DESCRIPTIONS
 from appcards.models.card import Card, Rarity
 from appcards.models.deck import DailyDeckTheme, Deck, DeckCard
 from appcards.models.printing import Printing
@@ -100,6 +100,16 @@ class CardRoutesTests(TestCase):
         result = list_set_codes(SimpleNamespace())
 
         self.assertEqual(result.set_codes, ["FDN", "M20"])
+
+    def test_list_set_codes_falls_back_to_standard_sets_without_printings(self):
+        """
+        GIVEN no card printings in the database
+        WHEN list_set_codes is called
+        THEN it returns the default standard set code list
+        """
+        result = list_set_codes(SimpleNamespace())
+
+        self.assertEqual(result.set_codes, sorted(CURRENT_STANDARD_SET_CODES))
 
     @patch(f"{_CARD_MODULE}.card_to_info")
     def test_get_card_returns_card_info_for_path_param_card(self, mock_card_to_info):

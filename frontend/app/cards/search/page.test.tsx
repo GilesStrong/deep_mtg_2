@@ -255,7 +255,51 @@ describe("CardSearchPage", () => {
 
         expect(await screen.findByRole("button", { name: "ONE" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "DMU" })).toBeInTheDocument();
-        expect(screen.getByText("No tags available.")).toBeInTheDocument();
+        expect(screen.getByText("Tags unavailable right now.")).toBeInTheDocument();
+    });
+
+    it("shows tags even when set codes endpoint fails", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockTextErrorResponse(500, "Set code lookup failed");
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockJsonResponse({
+                    tags: {
+                        Strategy: {
+                            Control: "Cards that are designed to manage the game state.",
+                        },
+                    },
+                });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        expect(await screen.findByText("Set codes unavailable right now.")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Control" })).toBeInTheDocument();
+    });
+
+    it("renders set code buttons when set code endpoint returns an array payload", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse(["DMU", "ONE", "DMU"]);
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockJsonResponse({ tags: {} });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        expect(await screen.findByRole("button", { name: "DMU" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "ONE" })).toBeInTheDocument();
     });
 
     it("shows api error messages when search fails", async () => {

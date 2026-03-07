@@ -90,6 +90,13 @@ type SearchResultPayload = {
     hits?: unknown;
 };
 
+type SetCodesEndpointPayload = {
+    set_codes?: unknown;
+    setCodes?: unknown;
+    codes?: unknown;
+    data?: unknown;
+} & Record<string, unknown>;
+
 const normalizeHierarchicalTags = (input: unknown): HierarchicalTags => {
     if (!input || typeof input !== "object" || Array.isArray(input)) {
         return {};
@@ -144,6 +151,50 @@ const parseTagPayload = (rawPayload: unknown): HierarchicalTags => {
     }
 
     return normalizeHierarchicalTags(payload);
+};
+
+const parseSetCodesPayload = (rawPayload: unknown): string[] => {
+    const normalizeSetCodes = (value: unknown): string[] => {
+        if (!Array.isArray(value)) {
+            return [];
+        }
+
+        const cleanedSetCodes = value
+            .filter((setCode): setCode is string => typeof setCode === "string")
+            .map((setCode) => setCode.trim())
+            .filter((setCode) => setCode.length > 0);
+
+        return [...new Set(cleanedSetCodes)].sort((a, b) => a.localeCompare(b));
+    };
+
+    if (Array.isArray(rawPayload)) {
+        return normalizeSetCodes(rawPayload);
+    }
+
+    if (!rawPayload || typeof rawPayload !== "object") {
+        return [];
+    }
+
+    const payload = rawPayload as SetCodesEndpointPayload;
+    const nestedData = payload.data && typeof payload.data === "object" ? (payload.data as SetCodesEndpointPayload) : null;
+
+    const candidates = [
+        payload.set_codes,
+        payload.setCodes,
+        payload.codes,
+        nestedData?.set_codes,
+        nestedData?.setCodes,
+        nestedData?.codes,
+    ];
+
+    for (const candidate of candidates) {
+        const parsedSetCodes = normalizeSetCodes(candidate);
+        if (parsedSetCodes.length > 0) {
+            return parsedSetCodes;
+        }
+    }
+
+    return [];
 };
 
 const parseApiError = async (response: Response, fallbackMessage: string): Promise<string> => {
@@ -335,6 +386,8 @@ function CardSearchPageContent() {
     const [selectedColors, setSelectedColors] = useState<string[]>([]);
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
+    const [isSetCodesUnavailable, setIsSetCodesUnavailable] = useState(false);
+    const [isTagsUnavailable, setIsTagsUnavailable] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
@@ -368,6 +421,9 @@ function CardSearchPageContent() {
     useEffect(() => {
         const loadFilters = async () => {
             try {
+                setIsSetCodesUnavailable(false);
+                setIsTagsUnavailable(false);
+
                 const [setCodesResult, tagsResult] = await Promise.allSettled([
                     backendFetch(session, "/api/app/cards/card/set_codes/"),
                     backendFetch(session, "/api/app/cards/card/tags/"),
@@ -375,31 +431,35 @@ function CardSearchPageContent() {
 
                 if (setCodesResult.status === "fulfilled") {
                     if (setCodesResult.value.ok) {
-                        const setCodesData = (await setCodesResult.value.json()) as { set_codes?: unknown };
-                        const setCodes = Array.isArray(setCodesData.set_codes)
-                            ? setCodesData.set_codes.filter((setCode): setCode is string => typeof setCode === "string")
-                            : [];
-                        setAvailableSetCodes([...setCodes].sort((a, b) => a.localeCompare(b)));
+                        const setCodesData = (await setCodesResult.value.json()) as unknown;
+                        const setCodes = parseSetCodesPayload(setCodesData);
+                        setAvailableSetCodes(setCodes);
+                        setIsSetCodesUnavailable(false);
                     } else {
                         console.error("Error loading card search set codes");
                         setAvailableSetCodes([]);
+                        setIsSetCodesUnavailable(true);
                     }
                 } else {
                     console.error("Error loading card search set codes:", setCodesResult.reason);
                     setAvailableSetCodes([]);
+                    setIsSetCodesUnavailable(true);
                 }
 
                 if (tagsResult.status === "fulfilled") {
                     if (tagsResult.value.ok) {
                         const tagsData = (await tagsResult.value.json()) as unknown;
                         setAvailableTagsByPrimary(parseTagPayload(tagsData));
+                        setIsTagsUnavailable(false);
                     } else {
                         console.error("Error loading card search tags");
                         setAvailableTagsByPrimary({});
+                        setIsTagsUnavailable(true);
                     }
                 } else {
                     console.error("Error loading card search tags:", tagsResult.reason);
                     setAvailableTagsByPrimary({});
+                    setIsTagsUnavailable(true);
                 }
             } finally {
                 setIsLoadingFilters(false);
@@ -701,6 +761,8 @@ function CardSearchPageContent() {
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Loading set codes and tags...
                                     </div>
+                                ) : isSetCodesUnavailable ? (
+                                    <p className="text-sm text-muted-foreground">Set codes unavailable right now.</p>
                                 ) : availableSetCodes.length === 0 ? (
                                     <p className="text-sm text-muted-foreground">No set codes available.</p>
                                 ) : (
@@ -725,7 +787,9 @@ function CardSearchPageContent() {
 
                             <div className="space-y-2">
                                 <Label>Tags</Label>
-                                {isLoadingFilters ? null : availablePrimaryTags.length === 0 ? (
+                                {isLoadingFilters ? null : isTagsUnavailable ? (
+                                    <p className="text-sm text-muted-foreground">Tags unavailable right now.</p>
+                                ) : availablePrimaryTags.length === 0 ? (
                                     <p className="text-sm text-muted-foreground">No tags available.</p>
                                 ) : (
                                     <div className="space-y-3">
