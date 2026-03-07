@@ -65,7 +65,7 @@ How to discover values:
 
 ```bash
 # Inspect subnet used by your compose network
-docker network inspect deepmtg_network_prod --format '{{(index .IPAM.Config 0).Subnet}}'
+docker network inspect deepmtg_2_prod_deepmtg_network_prod --format '{{(index .IPAM.Config 0).Subnet}}'
 
 # Inspect proxy container IP on that network
 docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' deepmtg_2_prod-proxy-1
