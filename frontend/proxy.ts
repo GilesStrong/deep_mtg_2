@@ -2,16 +2,62 @@ import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
 
+const CSP_HEADER_NAME = "Content-Security-Policy";
+
+function createNonce(): string {
+    const uuid = crypto.randomUUID();
+    if (typeof btoa === "function") {
+        return btoa(uuid);
+    }
+    return Buffer.from(uuid, "utf-8").toString("base64");
+}
+
+function buildCspHeader(nonce: string): string {
+    return [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "frame-ancestors 'none'",
+        "object-src 'none'",
+        `script-src 'self' 'nonce-${nonce}'`,
+        `style-src 'self' 'nonce-${nonce}'`,
+        "img-src 'self' data: blob: https:",
+        "font-src 'self' data:",
+        "connect-src 'self' https: wss:",
+        "form-action 'self'",
+        "upgrade-insecure-requests",
+    ].join("; ");
+}
+
+function withNonceCsp(request: NextRequest): NextResponse {
+    const nonce = createNonce();
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-nonce", nonce);
+
+    const response = NextResponse.next({
+        request: {
+            headers: requestHeaders,
+        },
+    });
+    response.headers.set(CSP_HEADER_NAME, buildCspHeader(nonce));
+    return response;
+}
+
 export async function proxy(request: NextRequest) {
+    const pathname = request.nextUrl.pathname;
+
+    if (pathname.startsWith("/api/") || pathname.startsWith("/_next/") || pathname === "/favicon.ico") {
+        return NextResponse.next();
+    }
+
     const token = await getToken({
         req: request,
         secret: process.env.NEXTAUTH_SECRET,
     });
 
-    const isAuthPage = request.nextUrl.pathname === "/login";
+    const isAuthPage = pathname === "/login";
     const isProtectedRoute =
-        request.nextUrl.pathname.startsWith("/dashboard") ||
-        request.nextUrl.pathname.startsWith("/decks");
+        pathname.startsWith("/dashboard") ||
+        pathname.startsWith("/decks");
 
     if (isProtectedRoute && !token) {
         return NextResponse.redirect(new URL("/login", request.url));
@@ -21,9 +67,9 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    return NextResponse.next();
+    return withNonceCsp(request);
 }
 
 export const config = {
-    matcher: ["/dashboard/:path*", "/decks/:path*", "/login"],
+    matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
