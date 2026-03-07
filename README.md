@@ -207,6 +207,29 @@ docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-comp
 docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml down
 ```
 
+### Cloudflared Tunnel Config
+
+Create `.cloudflared/config.yml` with:
+
+```yaml
+tunnel: [tunnel_id]
+credentials-file: /etc/cloudflared/[tunnel_id].json
+
+ingress:
+	- hostname: [host name]
+	  service: http://proxy:3000
+	- service: http_status:404
+```
+
+Set permissions:
+
+```bash
+chmod 755 .cloudflared
+chmod 644 .cloudflared/config.yml
+chmod 644 .cloudflared/[tunnel_id].json
+chmod 644 .cloudflared/cert.pem
+```
+
 ## Card Data Pipeline (Load New Expansion)
 
 Use MTGJSON set files from https://mtgjson.com/downloads/all-sets/.
