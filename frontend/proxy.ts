@@ -34,11 +34,11 @@ function buildCspHeader(nonce: string): string {
         "base-uri 'self'",
         "frame-ancestors 'none'",
         "object-src 'none'",
-        `script-src 'self' 'nonce-${nonce}'`,
+        `script-src 'self' 'nonce-${nonce}' https://static.cloudflareinsights.com`,
         `style-src 'self' 'nonce-${nonce}'`,
         "img-src 'self' data: blob: https:",
         "font-src 'self' data:",
-        "connect-src 'self' https: wss:",
+        "connect-src 'self' https: wss: https://cloudflareinsights.com",
         "form-action 'self'",
         "upgrade-insecure-requests",
     ].join("; ");

@@ -23,6 +23,8 @@ import { LegalFooter } from "@/components/legal-footer";
 
 const inter = Inter({ subsets: ["latin"] });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Deep MTG",
   description: "AI-powered Magic: The Gathering deck builder",
