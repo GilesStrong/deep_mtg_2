@@ -44,7 +44,7 @@ services:
     env_file: .env.prod
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import sys, urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2); sys.exit(0 if 200 <= getattr(response, 'status', 200) < 400 else 1)\""]
+      test: ["CMD-SHELL", "python -c \"import http.client, sys; conn = http.client.HTTPConnection('127.0.0.1', 8000, timeout=2); conn.request('GET', '/healthz'); response = conn.getresponse(); sys.exit(0 if response.status in (200, 301, 302, 307, 308) else 1)\""]
       interval: 10s
       timeout: 3s
       retries: 10
