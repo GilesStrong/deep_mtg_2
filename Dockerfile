@@ -37,8 +37,8 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
 # Copy project files
 COPY . .
 
-RUN addgroup --system --gid 10001 appgroup && \
-    adduser --system --uid 10001 --ingroup appgroup appuser && \
+RUN addgroup --system --gid 998 appgroup && \
+    adduser --system --uid 998 --ingroup appgroup appuser && \
     mkdir -p /app/staticfiles /app/media && \
     chown -R appuser:appgroup /app
 

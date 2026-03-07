@@ -3,6 +3,7 @@ cloudflared/*.json
 cloudflared/cert.pem
 cloudflared/config.yml
 .env.prod
+*.dump
 
 # dev
 data/
