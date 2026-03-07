@@ -35,12 +35,13 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
     rm -rf /wheels
 
 # Copy project files
-COPY . .
-
 RUN addgroup --system --gid 998 appgroup && \
-    adduser --system --uid 998 --ingroup appgroup appuser && \
-    mkdir -p /app/staticfiles /app/media && \
-    chown -R appuser:appgroup /app
+    adduser --system --uid 998 --ingroup appgroup appuser
+
+COPY --chown=appuser:appgroup . .
+
+RUN mkdir -p /app/staticfiles /app/media && \
+    chown -R appuser:appgroup /app/staticfiles /app/media
 
 USER appuser
 
