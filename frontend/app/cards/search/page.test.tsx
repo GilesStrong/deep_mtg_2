@@ -23,6 +23,7 @@ const {
     mockUseRouter,
     mockUseSearchParams,
     mockBackendFetch,
+    mockEnsureBackendTokens,
     mockGetAvatarUrlFromSession,
     mockSignOut,
     mockClearBackendTokens,
@@ -31,6 +32,7 @@ const {
     mockUseRouter: vi.fn(),
     mockUseSearchParams: vi.fn(),
     mockBackendFetch: vi.fn(),
+    mockEnsureBackendTokens: vi.fn(),
     mockGetAvatarUrlFromSession: vi.fn(),
     mockSignOut: vi.fn(),
     mockClearBackendTokens: vi.fn(),
@@ -48,6 +50,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/backend-auth", () => ({
     backendFetch: mockBackendFetch,
+    ensureBackendTokens: mockEnsureBackendTokens,
     clearBackendTokens: mockClearBackendTokens,
 }));
 
@@ -89,6 +92,7 @@ describe("CardSearchPage", () => {
         mockUseRouter.mockReturnValue({ push });
         mockUseSearchParams.mockReturnValue({ get: vi.fn().mockReturnValue(null) });
         mockGetAvatarUrlFromSession.mockReturnValue("https://images.test/avatar.png");
+        mockEnsureBackendTokens.mockResolvedValue(undefined);
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
             if (url === "/api/app/cards/card/set_codes/") {
@@ -179,6 +183,7 @@ describe("CardSearchPage", () => {
         render(<CardSearchPage />);
 
         expect(await screen.findByText("Card Search")).toBeInTheDocument();
+        expect(mockEnsureBackendTokens).toHaveBeenCalledTimes(1);
         expect(screen.queryByRole("button", { name: "Back to Deck" })).not.toBeInTheDocument();
 
         await user.type(screen.getByLabelText("Query"), "Find me cards that clear the board and stabilise early game");

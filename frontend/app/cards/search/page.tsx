@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
+import { backendFetch, clearBackendTokens, ensureBackendTokens } from "@/lib/backend-auth";
 import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 const QUERY_MIN_LENGTH = 20;
@@ -423,6 +423,8 @@ function CardSearchPageContent() {
             try {
                 setIsSetCodesUnavailable(false);
                 setIsTagsUnavailable(false);
+
+                await ensureBackendTokens(session);
 
                 const [setCodesResult, tagsResult] = await Promise.allSettled([
                     backendFetch(session, "/api/app/cards/card/set_codes/"),
