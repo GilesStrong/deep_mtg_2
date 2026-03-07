@@ -1,13 +1,5 @@
-{
-  auto_https off
-}
-
 {$PUBLIC_URL}:3000 {
-
-  @http {
-    header X-Forwarded-Proto http
-  }
-  redir @http https://{host}{uri} 308
+  encode zstd gzip
 
   header {
     X-Content-Type-Options "nosniff"
@@ -16,10 +8,8 @@
     Referrer-Policy "strict-origin-when-cross-origin"
     Cross-Origin-Opener-Policy "same-origin"
     Cross-Origin-Resource-Policy "same-origin"
-    Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
+    Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
   }
-
-  encode zstd gzip
 
   log {
     output stdout
