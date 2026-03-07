@@ -22,6 +22,7 @@ const {
     mockUseSession,
     mockUseRouter,
     mockBackendFetch,
+    mockEnsureBackendTokens,
     mockGetAvatarUrlFromSession,
     mockSignOut,
     mockClearBackendTokens,
@@ -29,6 +30,7 @@ const {
     mockUseSession: vi.fn(),
     mockUseRouter: vi.fn(),
     mockBackendFetch: vi.fn(),
+    mockEnsureBackendTokens: vi.fn(),
     mockGetAvatarUrlFromSession: vi.fn(),
     mockSignOut: vi.fn(),
     mockClearBackendTokens: vi.fn(),
@@ -45,6 +47,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/backend-auth", () => ({
     backendFetch: mockBackendFetch,
+    ensureBackendTokens: mockEnsureBackendTokens,
     clearBackendTokens: mockClearBackendTokens,
 }));
 
@@ -85,6 +88,7 @@ describe("DashboardPage", () => {
         });
         mockUseRouter.mockReturnValue({ push });
         mockGetAvatarUrlFromSession.mockReturnValue("https://images.test/avatar.png");
+        mockEnsureBackendTokens.mockResolvedValue(undefined);
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
             if (url === "/api/app/ai/deck/statuses/") {

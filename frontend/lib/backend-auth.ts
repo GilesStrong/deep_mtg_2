@@ -19,6 +19,8 @@ import type { Session } from "next-auth";
 const BACKEND_AUTH_EXCHANGE_PATH = "/backend-auth/exchange";
 const BACKEND_AUTH_REFRESH_PATH = "/backend-auth/refresh";
 const BACKEND_AUTH_CLEAR_PATH = "/backend-auth/clear";
+const BACKEND_PROXY_PREFIX = "/backend-api/";
+const BACKEND_APP_PREFIX = "/api/app/";
 const BACKEND_CSRF_COOKIE_NAME = "backend_csrf_token";
 
 const parseBackendErrorMessage = async (response: Response, fallbackMessage: string): Promise<string> => {
@@ -77,6 +79,31 @@ const isUnsafeMethod = (method: string): boolean => {
     return ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase());
 };
 
+const isAuthLikeFailure = (response: Response): boolean => {
+    if (response.status === 401) {
+        return true;
+    }
+
+    return response.status >= 300 && response.status < 400;
+};
+
+const toProxyInput = (input: RequestInfo | URL): RequestInfo | URL => {
+    if (typeof input === "string") {
+        if (!input.startsWith(BACKEND_APP_PREFIX)) {
+            return input;
+        }
+
+        return `${BACKEND_PROXY_PREFIX}${input.slice(BACKEND_APP_PREFIX.length)}`;
+    }
+
+    if (input instanceof URL && input.pathname.startsWith(BACKEND_APP_PREFIX)) {
+        const proxiedPath = `${BACKEND_PROXY_PREFIX}${input.pathname.slice(BACKEND_APP_PREFIX.length)}`;
+        return `${proxiedPath}${input.search}`;
+    }
+
+    return input;
+};
+
 export const ensureBackendTokens = async (session: Session | null): Promise<void> => {
     if (!session?.user) {
         throw new Error("Missing authenticated session");
@@ -102,6 +129,8 @@ export const backendFetch = async (
     input: RequestInfo | URL,
     init?: RequestInit
 ): Promise<Response> => {
+    const proxiedInput = toProxyInput(input);
+
     const runRequest = async (): Promise<Response> => {
         const method = (init?.method ?? "GET").toUpperCase();
         const headers = new Headers(init?.headers);
@@ -112,7 +141,7 @@ export const backendFetch = async (
             }
         }
 
-        return fetch(input, {
+        return fetch(proxiedInput, {
             ...init,
             method,
             headers,
@@ -120,15 +149,37 @@ export const backendFetch = async (
         });
     };
 
-    let response = await runRequest();
-    if (response.status !== 401) {
+    let response: Response;
+    try {
+        response = await runRequest();
+    } catch {
+        try {
+            await refreshBackendTokens();
+            return await runRequest();
+        } catch {
+            try {
+                await clearBackendTokens();
+            } catch {
+                // no-op
+            }
+        }
+
+        if (!session?.user) {
+            throw new Error("Backend request failed before authentication");
+        }
+
+        await exchangeGoogleToken();
+        return runRequest();
+    }
+
+    if (!isAuthLikeFailure(response)) {
         return response;
     }
 
     try {
         await refreshBackendTokens();
         response = await runRequest();
-        if (response.status !== 401) {
+        if (!isAuthLikeFailure(response)) {
             return response;
         }
     } catch {

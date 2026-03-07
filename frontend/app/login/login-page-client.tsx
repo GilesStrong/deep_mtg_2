@@ -52,7 +52,9 @@ function LoginPageContent() {
                         <>
                             {authError ? <p className="text-sm text-center">{authError}</p> : null}
                             <Button
-                                onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                                onClick={() =>
+                                    signIn("google", { callbackUrl: "/dashboard" }, { prompt: "select_account" })
+                                }
                                 className="w-full"
                                 size="lg"
                             >

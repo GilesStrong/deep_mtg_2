@@ -119,6 +119,10 @@ describe("proxy", () => {
             "Content-Security-Policy",
             expect.stringContaining("'strict-dynamic'"),
         );
+        expect(response.headers.set).toHaveBeenCalledWith(
+            "Content-Security-Policy",
+            expect.stringContaining("https://lh3.googleusercontent.com"),
+        );
     });
 
     it("skips CSP and auth checks on API routes", async () => {

@@ -69,6 +69,25 @@ describe("Providers", () => {
         expect(mockSignOut).not.toHaveBeenCalled();
     });
 
+    it("does not clear backend tokens while session is loading", async () => {
+        mockUseSession.mockReturnValue({ data: null, status: "loading" });
+
+        render(
+            <Providers>
+                <div>Child</div>
+            </Providers>,
+        );
+
+        expect(screen.getByTestId("session-provider")).toBeInTheDocument();
+        expect(screen.getByText("Child")).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(mockClearBackendTokens).not.toHaveBeenCalled();
+        });
+        expect(mockEnsureBackendTokens).not.toHaveBeenCalled();
+        expect(mockSignOut).not.toHaveBeenCalled();
+    });
+
     it("syncs backend tokens when authenticated", async () => {
         const session = { user: { email: "builder@test.dev" } };
         mockUseSession.mockReturnValue({ data: session, status: "authenticated" });

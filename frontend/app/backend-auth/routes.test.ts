@@ -30,6 +30,13 @@ const makeExchangeRequest = (body: string, headers?: HeadersInit): NextRequest =
         body,
     });
 
+const makeSecureExchangeRequest = (body: string, headers?: HeadersInit): NextRequest =>
+    new NextRequest("https://deepmtg.strong-tech.org/backend-auth/exchange", {
+        method: "POST",
+        headers,
+        body,
+    });
+
 const makeRefreshRequest = (cookieValue?: string, headers?: HeadersInit): NextRequest => {
     const combinedHeaders = new Headers(headers);
     if (cookieValue) {
@@ -41,6 +48,24 @@ const makeRefreshRequest = (cookieValue?: string, headers?: HeadersInit): NextRe
         headers: combinedHeaders,
     });
 };
+
+const makeSecureRefreshRequest = (cookieValue?: string, headers?: HeadersInit): NextRequest => {
+    const combinedHeaders = new Headers(headers);
+    if (cookieValue) {
+        combinedHeaders.set("cookie", `backend_refresh_token=${cookieValue}`);
+    }
+
+    return new NextRequest("https://deepmtg.strong-tech.org/backend-auth/refresh", {
+        method: "POST",
+        headers: combinedHeaders,
+    });
+};
+
+const makeClearRequest = (url = "http://localhost/backend-auth/clear", headers?: HeadersInit): NextRequest =>
+    new NextRequest(url, {
+        method: "POST",
+        headers,
+    });
 
 describe("backend-auth route handlers", () => {
     beforeEach(() => {
@@ -84,6 +109,23 @@ describe("backend-auth route handlers", () => {
         const csrfCookie = response.cookies.get("backend_csrf_token");
         expect(csrfCookie?.value).toBeTruthy();
         expect(csrfCookie?.httpOnly).toBe(false);
+    });
+
+    it("exchange sets secure cookies on https requests", async () => {
+        mockGetToken.mockResolvedValue({ googleAuthToken: "google-token-from-jwt" });
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(JSON.stringify({ access_token: "access-123", refresh_token: "refresh-123" }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+
+        const route = await import("@/app/backend-auth/exchange/route");
+        const response = await route.POST(makeSecureExchangeRequest(""));
+
+        expect(response.cookies.get("backend_access_token")?.secure).toBe(true);
+        expect(response.cookies.get("backend_refresh_token")?.secure).toBe(true);
+        expect(response.cookies.get("backend_csrf_token")?.secure).toBe(true);
     });
 
     it("exchange returns backend error detail when token exchange fails", async () => {
@@ -192,6 +234,22 @@ describe("backend-auth route handlers", () => {
         expect(csrfCookie?.httpOnly).toBe(false);
     });
 
+    it("refresh sets secure cookies on https requests", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(JSON.stringify({ access_token: "new-access", refresh_token: "new-refresh" }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+
+        const route = await import("@/app/backend-auth/refresh/route");
+        const response = await route.POST(makeSecureRefreshRequest("refresh-cookie-value"));
+
+        expect(response.cookies.get("backend_access_token")?.secure).toBe(true);
+        expect(response.cookies.get("backend_refresh_token")?.secure).toBe(true);
+        expect(response.cookies.get("backend_csrf_token")?.secure).toBe(true);
+    });
+
     it("refresh retries with http when https backend URL hits TLS wrong-version error", async () => {
         process.env.BACKEND_INTERNAL_URL = "https://backend.internal";
         const tlsMismatchError = new TypeError("fetch failed", {
@@ -235,7 +293,7 @@ describe("backend-auth route handlers", () => {
 
     it("clear expires all backend auth cookies", async () => {
         const route = await import("@/app/backend-auth/clear/route");
-        const response = await route.POST();
+        const response = await route.POST(makeClearRequest());
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toEqual({ ok: true });
@@ -251,5 +309,14 @@ describe("backend-auth route handlers", () => {
         expect(refresh?.maxAge).toBe(0);
         expect(csrf?.maxAge).toBe(0);
         expect(csrf?.httpOnly).toBe(false);
+    });
+
+    it("clear sets secure cookie attributes on https requests", async () => {
+        const route = await import("@/app/backend-auth/clear/route");
+        const response = await route.POST(makeClearRequest("https://deepmtg.strong-tech.org/backend-auth/clear"));
+
+        expect(response.cookies.get("backend_access_token")?.secure).toBe(true);
+        expect(response.cookies.get("backend_refresh_token")?.secure).toBe(true);
+        expect(response.cookies.get("backend_csrf_token")?.secure).toBe(true);
     });
 });
