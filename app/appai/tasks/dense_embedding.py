@@ -25,8 +25,8 @@ from appai.modules.dense_embedding import _dense_embed
     retry_kwargs={"max_retries": 5},
     soft_time_limit=90,
     time_limit=120,
-    queue="llm",
-    routing_key="llm",
+    queue="default",
+    routing_key="default",
 )
 @beartype
 def dense_embed(self: Task, text: str) -> list[float]:

@@ -238,17 +238,17 @@ Run inside the backend container:
 
 1) Load cards into Postgres:
 ```bash
-docker compose exec web python app/manage.py 1_add_cards --card-json-path /path/to/cards.json
+docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml exec web python app/manage.py 1_add_cards --card-json-path /path/to/cards.json
 ```
 
 2) Generate summaries and tags:
 ```bash
-docker compose exec web python app/manage.py 2_generate_card_summaries
+docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml exec web python app/manage.py 2_generate_card_summaries
 ```
 
 3) Generate embeddings and upsert to Qdrant:
 ```bash
-docker compose exec web python app/manage.py 3_embed_cards
+docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml exec web python app/manage.py 3_embed_cards
 ```
 
 Note: Deck generation and semantic search quality depend on this pipeline being populated.
