@@ -115,3 +115,29 @@ class RefreshTokenModelTests(TestCase):
         self.assertEqual(token_a.revoked_reason, RefreshToken.RevocationReason.REUSE_DETECTED)
         self.assertEqual(token_b.revoked_reason, RefreshToken.RevocationReason.REUSE_DETECTED)
         self.assertEqual(token_c.revoked_reason, "")
+
+    def test_has_context_anomaly_detects_user_agent_mismatch(self):
+        """
+        GIVEN a refresh token with stored user-agent context
+        WHEN has_context_anomaly is called with a different user-agent
+        THEN it returns True
+        """
+        user = User.objects.create(google_id="gid-model-7", verified=True, warning_count=0)
+        token, _ = RefreshToken.mint(user, user_agent="ua-original", ip="203.0.113.10")
+
+        result = token.has_context_anomaly(request_user_agent="ua-other", request_ip="203.0.113.11")
+
+        self.assertTrue(result)
+
+    def test_has_context_anomaly_allows_same_ipv4_24_network(self):
+        """
+        GIVEN a refresh token with stored IPv4 context
+        WHEN has_context_anomaly is called with an IP in the same /24 network
+        THEN it returns False
+        """
+        user = User.objects.create(google_id="gid-model-8", verified=True, warning_count=0)
+        token, _ = RefreshToken.mint(user, user_agent="ua-original", ip="203.0.113.10")
+
+        result = token.has_context_anomaly(request_user_agent="ua-original", request_ip="203.0.113.77")
+
+        self.assertFalse(result)

@@ -41,8 +41,20 @@
     file_server
   }
 
+  @admin path /admin/*
+  @admin_allowed {
+    path /admin/*
+    remote_ip private_ranges {$ADMIN_ALLOWLIST_CIDRS}
+  }
+  handle @admin {
+    handle @admin_allowed {
+      reverse_proxy {$BACKEND_UPSTREAM}
+    }
+    respond "Forbidden" 403
+  }
+
   @backend {
-    path /api/* /admin/*
+    path /api/*
     not path /api/auth/*
   }
   handle @backend {

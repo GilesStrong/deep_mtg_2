@@ -1,3 +1,4 @@
+import ipaddress
 import secrets
 import uuid
 from datetime import timedelta
@@ -148,6 +149,64 @@ class RefreshToken(models.Model):
                   indicating it was rotated and the old token is being reused. False otherwise.
         """
         return self.revoked_at is not None and getattr(self, "replaced_by", None) is not None
+
+    def has_context_anomaly(self, *, request_user_agent: str, request_ip: str | None) -> bool:
+        """Return True when refresh request context deviates from token context.
+
+        A request is treated as anomalous when either:
+
+        - both stored and request user-agent values are present and differ, or
+        - both stored and request IP values are present and they are not in the
+          same trusted network block (IPv4 /24, IPv6 /56).
+
+        Args:
+            request_user_agent: The user-agent value from the incoming refresh request.
+            request_ip: The resolved client IP value from the incoming refresh request.
+
+        Returns:
+            bool: ``True`` when context mismatch is detected, otherwise ``False``.
+        """
+        stored_user_agent = (self.user_agent or "").strip()
+        current_user_agent = request_user_agent.strip()
+        if stored_user_agent and current_user_agent and stored_user_agent != current_user_agent:
+            return True
+
+        stored_ip = self.ip
+        current_ip = request_ip
+        if not stored_ip or not current_ip:
+            return False
+
+        return not self._ip_in_same_network(stored_ip, current_ip)
+
+    @staticmethod
+    def _ip_in_same_network(stored_ip: str, current_ip: str) -> bool:
+        """Check whether two IP addresses belong to the same comparison network.
+
+        For anomaly detection this compares:
+
+        - IPv4 using /24 network blocks
+        - IPv6 using /56 network blocks
+
+        Args:
+            stored_ip: The IP value persisted with the refresh token.
+            current_ip: The IP value from the incoming refresh request.
+
+        Returns:
+            bool: ``True`` when both values parse and are within the same
+            comparison network, otherwise ``False``.
+        """
+        try:
+            stored_addr = ipaddress.ip_address(stored_ip)
+            current_addr = ipaddress.ip_address(current_ip)
+        except ValueError:
+            return False
+
+        if stored_addr.version != current_addr.version:
+            return False
+
+        prefix = 24 if stored_addr.version == 4 else 56
+        network = ipaddress.ip_network(f"{stored_addr}/{prefix}", strict=False)
+        return current_addr in network
 
     @classmethod
     def revoke_family(cls, family_id: uuid.UUID, *, reason: str) -> int:

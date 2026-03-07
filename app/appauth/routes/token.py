@@ -7,7 +7,7 @@ from ninja import Router
 from ninja.errors import HttpError
 
 from appauth.models.token import RefreshToken
-from appauth.modules.auth_rate_limit import check_auth_rate_limit
+from appauth.modules.auth_rate_limit import _extract_client_ip, check_auth_rate_limit
 from appauth.modules.google_auth import verify_google_token
 from appauth.modules.token import mint_access_token
 from appauth.serializers.token import ExchangeIn, ExchangeOut, RefreshIn
@@ -144,8 +144,13 @@ def refresh(request: HttpRequest, payload: RefreshIn) -> ExchangeOut:
     except RefreshToken.DoesNotExist:
         raise HttpError(401, "Invalid refresh token")
 
+    request_user_agent = request.headers.get("User-Agent", "")
+    resolved_request_ip = _extract_client_ip(request)
+    request_ip = None if resolved_request_ip == "unknown" else resolved_request_ip
+
     is_invalid = False
-    reuse_family_id = None
+    revoke_family_id = None
+    revoke_family_reason = ""
     new_raw_refresh_token = ""
     with transaction.atomic():
         rt = RefreshToken.objects.select_for_update().select_related("user").get(pk=rt.pk)
@@ -153,12 +158,17 @@ def refresh(request: HttpRequest, payload: RefreshIn) -> ExchangeOut:
         if not rt.is_valid():
             is_invalid = True
             if rt.looks_like_rotated_token_reuse():
-                reuse_family_id = rt.family_id
+                revoke_family_id = rt.family_id
+                revoke_family_reason = RefreshToken.RevocationReason.REUSE_DETECTED[0]
+        elif rt.has_context_anomaly(request_user_agent=request_user_agent, request_ip=request_ip):
+            is_invalid = True
+            revoke_family_id = rt.family_id
+            revoke_family_reason = "context_mismatch"
         else:
             new_rt, new_raw_refresh_token = RefreshToken.mint(
                 rt.user,
-                user_agent=request.headers.get("User-Agent", ""),
-                ip=request.META.get("REMOTE_ADDR"),
+                user_agent=request_user_agent,
+                ip=request_ip,
                 parent=rt,
                 family_id=rt.family_id,
             )
@@ -170,10 +180,10 @@ def refresh(request: HttpRequest, payload: RefreshIn) -> ExchangeOut:
             )
 
     if is_invalid:
-        if reuse_family_id is not None:
+        if revoke_family_id is not None:
             RefreshToken.revoke_family(
-                reuse_family_id,
-                reason=RefreshToken.RevocationReason.REUSE_DETECTED[0],
+                revoke_family_id,
+                reason=revoke_family_reason,
             )
         raise HttpError(401, "Refresh token expired or revoked")
 

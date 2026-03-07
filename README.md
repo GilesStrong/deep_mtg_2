@@ -73,6 +73,22 @@ docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' deep
 
 For local dev where direct spoofing risk is lower, you can keep this as an empty list (`[]`), but for staging/production set it explicitly.
 
+### 2.2) Configure `ADMIN_ALLOWLIST_CIDRS`
+
+`ADMIN_ALLOWLIST_CIDRS` controls which source CIDRs can access `/admin/*` through Caddy.
+
+Use this rule:
+
+- Include only trusted operator/VPN/internal CIDRs.
+- Do **not** use broad ranges like `0.0.0.0/0`.
+
+Examples:
+
+- Single office egress IP: `ADMIN_ALLOWLIST_CIDRS=["198.51.100.44/32"]`
+- VPN subnet: `ADMIN_ALLOWLIST_CIDRS=["10.42.0.0/16"]`
+
+If no explicit value is provided in compose, the default is `127.0.0.1/32` (effectively closed to public traffic).
+
 Quick start defaults:
 
 - `cp .env.tests .env` gives you a backend baseline suitable for local/dev bootstrap.
