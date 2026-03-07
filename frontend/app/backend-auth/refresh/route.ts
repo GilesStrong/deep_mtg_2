@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 
 const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL ?? "http://web:8000";
+const SSL_WRONG_VERSION_NUMBER = "ERR_SSL_WRONG_VERSION_NUMBER";
 const ACCESS_TOKEN_COOKIE = "backend_access_token";
 const REFRESH_TOKEN_COOKIE = "backend_refresh_token";
 const CSRF_COOKIE = "backend_csrf_token";
@@ -29,22 +30,100 @@ const getCookieSecurity = () => ({
     path: "/",
 });
 
+/**
+ * Checks if an unknown fetch error is the OpenSSL wrong-version TLS mismatch error.
+ *
+ * Args:
+ *     error: Unknown thrown value from fetch.
+ *
+ * Returns:
+ *     True when the error indicates https was attempted against a non-TLS endpoint.
+ */
+function isSslWrongVersionError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+        return false;
+    }
+
+    const errorCause = error.cause;
+    if (typeof errorCause === "object" && errorCause !== null && "code" in errorCause) {
+        return (errorCause as { code?: unknown }).code === SSL_WRONG_VERSION_NUMBER;
+    }
+
+    return false;
+}
+
+/**
+ * Converts an https backend URL to http, preserving host, port, and path.
+ *
+ * Args:
+ *     url: Backend base URL.
+ *
+ * Returns:
+ *     Equivalent http URL, or null when conversion is not applicable.
+ */
+function toHttpUrl(url: string): string | null {
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "https:") {
+            return null;
+        }
+        parsed.protocol = "http:";
+        return parsed.toString().replace(/\/$/, "");
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Performs fetch against backend and retries once over http when TLS protocol mismatch is detected.
+ *
+ * Args:
+ *     path: Backend API path.
+ *     requestInit: Fetch init object.
+ *
+ * Returns:
+ *     The backend response.
+ */
+async function fetchBackend(path: string, requestInit: RequestInit): Promise<Response> {
+    const primaryUrl = `${BACKEND_INTERNAL_URL}${path}`;
+
+    try {
+        return await fetch(primaryUrl, requestInit);
+    } catch (error) {
+        if (!isSslWrongVersionError(error)) {
+            throw error;
+        }
+
+        const fallbackBaseUrl = toHttpUrl(BACKEND_INTERNAL_URL);
+        if (!fallbackBaseUrl) {
+            throw error;
+        }
+
+        return fetch(`${fallbackBaseUrl}${path}`, requestInit);
+    }
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
     const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
     if (!refreshToken) {
         return NextResponse.json({ detail: "Missing refresh token" }, { status: 401 });
     }
 
-    const response = await fetch(`${BACKEND_INTERNAL_URL}/api/app/token/refresh`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "User-Agent": request.headers.get("user-agent") ?? "",
-            "X-Forwarded-For": request.headers.get("x-forwarded-for") ?? "",
-        },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-        cache: "no-store",
-    });
+    let response: Response;
+    try {
+        response = await fetchBackend("/api/app/token/refresh", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "User-Agent": request.headers.get("user-agent") ?? "",
+                "X-Forwarded-For": request.headers.get("x-forwarded-for") ?? "",
+            },
+            body: JSON.stringify({ refresh_token: refreshToken }),
+            cache: "no-store",
+        });
+    } catch {
+        return NextResponse.json({ detail: "Backend token refresh request failed" }, { status: 502 });
+    }
 
     let data: { access_token?: string; refresh_token?: string; detail?: string };
     try {
