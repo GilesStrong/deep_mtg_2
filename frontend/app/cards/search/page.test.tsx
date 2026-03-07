@@ -238,6 +238,26 @@ describe("CardSearchPage", () => {
         expect(searchButton).toBeEnabled();
     });
 
+    it("shows set codes even when tags endpoint fails", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE", "DMU"] });
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockTextErrorResponse(500, "Tag lookup failed");
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        expect(await screen.findByRole("button", { name: "ONE" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "DMU" })).toBeInTheDocument();
+        expect(screen.getByText("No tags available.")).toBeInTheDocument();
+    });
+
     it("shows api error messages when search fails", async () => {
         const user = userEvent.setup();
 

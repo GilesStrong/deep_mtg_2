@@ -70,6 +70,20 @@ class CardRoutesTests(TestCase):
             },
         )
 
+    def test_list_tags_ignores_non_string_and_blank_values(self):
+        """
+        GIVEN cards with null, non-string, and blank tag values
+        WHEN list_tags is called
+        THEN it ignores invalid values and still returns valid hierarchical tags
+        """
+        Card.objects.create(name="Opt", text="Scry 1.", rarity=Rarity.COMMON, tags=["Control", "", "  ", None])
+        Card.objects.create(name="Shock", text="Deal 2 damage.", rarity=Rarity.COMMON, tags=["Aggro", 123])
+
+        result = list_tags(SimpleNamespace())
+
+        self.assertEqual(result.tags["Control"], {"Control": PRIMARY_TAG_DESCRIPTIONS["Control"]})
+        self.assertEqual(result.tags["Aggro"], {"Aggro": PRIMARY_TAG_DESCRIPTIONS["Aggro"]})
+
     def test_list_set_codes_returns_distinct_sorted_values(self):
         """
         GIVEN multiple printings including duplicate set codes

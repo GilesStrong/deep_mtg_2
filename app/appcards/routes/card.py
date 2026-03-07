@@ -1,16 +1,18 @@
-# Copyright 2026 Giles Strong
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""
+Copyright 2026 Giles Strong
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 from django.http import HttpRequest
 from ninja import Path, Router
@@ -22,6 +24,26 @@ from appcards.modules.card_info import CardInfo, card_to_info
 from appcards.serializers.card import GetCardIn, SetCodesOut, SetTagsOut
 
 router = Router(tags=['cards'])
+
+
+def _extract_used_tags() -> list[str]:
+    """Return sorted, unique card tags present in the database.
+
+    Returns:
+        A sorted list of non-empty tag values.
+    """
+    used_tags: set[str] = set()
+    tag_lists = Card.objects.values_list('tags', flat=True)
+    for tag_list in tag_lists:
+        if not isinstance(tag_list, list):
+            continue
+        for tag in tag_list:
+            if not isinstance(tag, str):
+                continue
+            cleaned_tag = tag.strip()
+            if cleaned_tag:
+                used_tags.add(cleaned_tag)
+    return sorted(used_tags)
 
 
 @router.get(
@@ -54,8 +76,7 @@ def list_tags(request: HttpRequest) -> SetTagsOut:
 
     This endpoint allows you to fetch the tags that are currently available for deck construction.
     """
-    tag_lists = Card.objects.values_list('tags', flat=True)
-    used_tags = sorted({tag for tag_list in tag_lists for tag in (tag_list or [])})
+    used_tags = _extract_used_tags()
 
     tags: dict[str, dict[str, str]] = {}
     for primary_tag, subtags in HIERARCHICAL_TAGS.items():

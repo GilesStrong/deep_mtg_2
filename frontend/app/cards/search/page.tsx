@@ -368,24 +368,39 @@ function CardSearchPageContent() {
     useEffect(() => {
         const loadFilters = async () => {
             try {
-                const [setCodesResponse, tagsResponse] = await Promise.all([
+                const [setCodesResult, tagsResult] = await Promise.allSettled([
                     backendFetch(session, "/api/app/cards/card/set_codes/"),
                     backendFetch(session, "/api/app/cards/card/tags/"),
                 ]);
 
-                if (!setCodesResponse.ok || !tagsResponse.ok) {
-                    throw new Error("Failed to fetch card search filters");
+                if (setCodesResult.status === "fulfilled") {
+                    if (setCodesResult.value.ok) {
+                        const setCodesData = (await setCodesResult.value.json()) as { set_codes?: unknown };
+                        const setCodes = Array.isArray(setCodesData.set_codes)
+                            ? setCodesData.set_codes.filter((setCode): setCode is string => typeof setCode === "string")
+                            : [];
+                        setAvailableSetCodes([...setCodes].sort((a, b) => a.localeCompare(b)));
+                    } else {
+                        console.error("Error loading card search set codes");
+                        setAvailableSetCodes([]);
+                    }
+                } else {
+                    console.error("Error loading card search set codes:", setCodesResult.reason);
+                    setAvailableSetCodes([]);
                 }
 
-                const setCodesData = (await setCodesResponse.json()) as { set_codes: string[] };
-                const tagsData = (await tagsResponse.json()) as unknown;
-
-                setAvailableSetCodes([...setCodesData.set_codes].sort((a, b) => a.localeCompare(b)));
-                setAvailableTagsByPrimary(parseTagPayload(tagsData));
-            } catch (error) {
-                console.error("Error loading card search filters:", error);
-                setAvailableSetCodes([]);
-                setAvailableTagsByPrimary({});
+                if (tagsResult.status === "fulfilled") {
+                    if (tagsResult.value.ok) {
+                        const tagsData = (await tagsResult.value.json()) as unknown;
+                        setAvailableTagsByPrimary(parseTagPayload(tagsData));
+                    } else {
+                        console.error("Error loading card search tags");
+                        setAvailableTagsByPrimary({});
+                    }
+                } else {
+                    console.error("Error loading card search tags:", tagsResult.reason);
+                    setAvailableTagsByPrimary({});
+                }
             } finally {
                 setIsLoadingFilters(false);
             }
