@@ -82,6 +82,10 @@ describe("LoginPage", () => {
         render(<LoginPage />);
         await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
 
-        expect(mockSignIn).toHaveBeenCalledWith("google", { callbackUrl: "/dashboard" });
+        expect(mockSignIn).toHaveBeenCalledWith(
+            "google",
+            { callbackUrl: "/dashboard" },
+            { prompt: "select_account" },
+        );
     });
 });

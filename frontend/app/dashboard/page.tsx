@@ -32,7 +32,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Loader2 } from "lucide-react";
-import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
+import { backendFetch, clearBackendTokens, ensureBackendTokens } from "@/lib/backend-auth";
 import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 type DeckSummary = {
@@ -59,6 +59,30 @@ type BuildStatusesResponse = {
     pollable: string[];
 };
 
+const parseApiError = async (response: Response, fallbackMessage: string): Promise<string> => {
+    const responseText = await response.text();
+    if (!responseText) {
+        return `${fallbackMessage} (HTTP ${response.status})`;
+    }
+
+    try {
+        const data = JSON.parse(responseText) as {
+            detail?: string;
+            message?: string;
+            error?: string;
+        };
+
+        const detail = data.detail ?? data.message ?? data.error;
+        if (detail) {
+            return `${fallbackMessage} (HTTP ${response.status}): ${detail}`;
+        }
+    } catch {
+        // fall through to raw text
+    }
+
+    return `${fallbackMessage} (HTTP ${response.status}): ${responseText.trim()}`;
+};
+
 export default function DashboardPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
@@ -69,12 +93,32 @@ export default function DashboardPage() {
     const [selectedDeckTags, setSelectedDeckTags] = useState<string[]>([]);
     const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
     const [pollableStatuses, setPollableStatuses] = useState<Set<string>>(new Set(DEFAULT_POLLABLE_STATUSES));
+    const [isBackendReady, setIsBackendReady] = useState(false);
+
+    useEffect(() => {
+        if (status !== "authenticated") {
+            setIsBackendReady(false);
+            return;
+        }
+
+        const syncBackendTokens = async () => {
+            try {
+                await ensureBackendTokens(session);
+                setIsBackendReady(true);
+            } catch (error) {
+                console.error("Error syncing backend tokens for dashboard:", error);
+                setIsBackendReady(false);
+            }
+        };
+
+        void syncBackendTokens();
+    }, [session, status]);
 
     const fetchDecks = useCallback(async () => {
         const response = await backendFetch(session, "/api/app/cards/deck/");
 
         if (!response.ok) {
-            throw new Error("Failed to fetch deck summaries");
+            throw new Error(await parseApiError(response, "Failed to fetch deck summaries"));
         }
 
         const data = (await response.json()) as DeckSummary[];
@@ -86,7 +130,7 @@ export default function DashboardPage() {
             try {
                 const response = await backendFetch(session, "/api/app/ai/deck/statuses/");
                 if (!response.ok) {
-                    throw new Error("Failed to fetch deck build statuses");
+                    throw new Error(await parseApiError(response, "Failed to fetch deck build statuses"));
                 }
 
                 const data = (await response.json()) as BuildStatusesResponse;
@@ -101,19 +145,19 @@ export default function DashboardPage() {
             setPollableStatuses(new Set(DEFAULT_POLLABLE_STATUSES));
         };
 
-        if (status !== "authenticated") {
+        if (status !== "authenticated" || !isBackendReady) {
             return;
         }
 
         void loadPollableStatuses();
-    }, [session, status]);
+    }, [isBackendReady, session, status]);
 
     useEffect(() => {
         const loadSetCodes = async () => {
             try {
                 const response = await backendFetch(session, "/api/app/cards/card/set_codes/");
                 if (!response.ok) {
-                    throw new Error("Failed to fetch set codes");
+                    throw new Error(await parseApiError(response, "Failed to fetch set codes"));
                 }
 
                 const data = (await response.json()) as { set_codes: string[] };
@@ -127,15 +171,15 @@ export default function DashboardPage() {
             }
         };
 
-        if (status !== "authenticated") {
+        if (status !== "authenticated" || !isBackendReady) {
             return;
         }
 
         void loadSetCodes();
-    }, [session, status]);
+    }, [isBackendReady, session, status]);
 
     useEffect(() => {
-        if (status !== "authenticated") {
+        if (status !== "authenticated" || !isBackendReady) {
             return;
         }
 
@@ -150,7 +194,7 @@ export default function DashboardPage() {
         };
 
         void load();
-    }, [fetchDecks, status]);
+    }, [fetchDecks, isBackendReady, status]);
 
     const activeDecks = useMemo(
         () =>

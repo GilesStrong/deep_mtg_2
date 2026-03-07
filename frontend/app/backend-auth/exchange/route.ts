@@ -24,12 +24,17 @@ const ACCESS_TOKEN_COOKIE = "backend_access_token";
 const REFRESH_TOKEN_COOKIE = "backend_refresh_token";
 const CSRF_COOKIE = "backend_csrf_token";
 
-const getCookieSecurity = () => ({
+const getCookieSecurity = (request: NextRequest) => {
+    const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const isSecureRequest = request.nextUrl.protocol === "https:" || forwardedProto === "https";
+
+    return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: false,
+    secure: isSecureRequest,
     path: "/",
-});
+    };
+};
 
 /**
  * Checks if an unknown fetch error is the OpenSSL wrong-version TLS mismatch error.
@@ -141,6 +146,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 "Content-Type": "application/json",
                 "User-Agent": request.headers.get("user-agent") ?? "",
                 "X-Forwarded-For": request.headers.get("x-forwarded-for") ?? "",
+                "X-Forwarded-Proto": "https",
             },
             body: JSON.stringify({ google_id_token: googleIdToken }),
             cache: "no-store",
@@ -164,7 +170,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const nextResponse = NextResponse.json({ ok: true }, { status: 200 });
-    const security = getCookieSecurity();
+    const security = getCookieSecurity(request);
 
     nextResponse.cookies.set(ACCESS_TOKEN_COOKIE, data.access_token, security);
     nextResponse.cookies.set(REFRESH_TOKEN_COOKIE, data.refresh_token, security);

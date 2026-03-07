@@ -25,7 +25,11 @@ function BackendUserSync() {
   const { data: session, status } = useSession();
 
   useEffect(() => {
-    if (status !== "authenticated") {
+    if (status === "loading") {
+      return;
+    }
+
+    if (status === "unauthenticated") {
       void clearBackendTokens();
       return;
     }

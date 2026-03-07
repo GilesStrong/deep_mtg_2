@@ -40,7 +40,7 @@ function buildCspHeader(nonce: string): string {
         isDevelopment
             ? "style-src 'self' 'unsafe-inline'"
             : `style-src 'self' 'nonce-${nonce}'`,
-        "img-src 'self' blob: data:",
+        "img-src 'self' blob: data: https://lh3.googleusercontent.com https://*.googleusercontent.com",
         "font-src 'self' data:",
         "connect-src 'self' https: wss:",
         "form-action 'self'",
