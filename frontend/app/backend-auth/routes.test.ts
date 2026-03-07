@@ -100,6 +100,9 @@ describe("backend-auth route handlers", () => {
             expect.objectContaining({
                 method: "POST",
                 cache: "no-store",
+                headers: expect.objectContaining({
+                    "X-Forwarded-Proto": "https",
+                }),
                 body: JSON.stringify({ google_id_token: "google-token-from-jwt" }),
             }),
         );
@@ -209,7 +212,7 @@ describe("backend-auth route handlers", () => {
     });
 
     it("refresh rotates access, refresh, and csrf cookies on success", async () => {
-        vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
             new Response(JSON.stringify({ access_token: "new-access", refresh_token: "new-refresh" }), {
                 status: 200,
                 headers: { "Content-Type": "application/json" },
@@ -226,6 +229,14 @@ describe("backend-auth route handlers", () => {
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toEqual({ ok: true });
+        expect(fetchMock).toHaveBeenCalledWith(
+            "http://backend.internal/api/app/token/refresh/",
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    "X-Forwarded-Proto": "https",
+                }),
+            }),
+        );
         expect(response.cookies.get("backend_access_token")?.value).toBe("new-access");
         expect(response.cookies.get("backend_refresh_token")?.value).toBe("new-refresh");
 

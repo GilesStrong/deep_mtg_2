@@ -122,6 +122,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 "Content-Type": "application/json",
                 "User-Agent": request.headers.get("user-agent") ?? "",
                 "X-Forwarded-For": request.headers.get("x-forwarded-for") ?? "",
+                "X-Forwarded-Proto": "https",
             },
             body: JSON.stringify({ refresh_token: refreshToken }),
             cache: "no-store",

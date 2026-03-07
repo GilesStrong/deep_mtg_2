@@ -146,6 +146,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 "Content-Type": "application/json",
                 "User-Agent": request.headers.get("user-agent") ?? "",
                 "X-Forwarded-For": request.headers.get("x-forwarded-for") ?? "",
+                "X-Forwarded-Proto": "https",
             },
             body: JSON.stringify({ google_id_token: googleIdToken }),
             cache: "no-store",
