@@ -38,6 +38,9 @@ import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 const QUERY_MIN_LENGTH = 20;
 const QUERY_MAX_LENGTH = 200;
+const SET_CODES_ENDPOINT = "/api/app/cards/card/set-codes/";
+const LEGACY_SET_CODES_ENDPOINT = "/api/app/cards/card/set_codes/";
+const TAGS_ENDPOINT = "/api/app/cards/card/tags/";
 
 const COLOR_FILTERS = [
     { code: "W", label: "White" },
@@ -419,6 +422,15 @@ function CardSearchPageContent() {
     }, [availablePrimaryTags, availableTagsByPrimary]);
 
     useEffect(() => {
+        const fetchSetCodesResponse = async (): Promise<Response> => {
+            try {
+                return await backendFetch(session, SET_CODES_ENDPOINT);
+            } catch (primaryError) {
+                console.error("Error loading card search set codes from primary endpoint:", primaryError);
+                return backendFetch(session, LEGACY_SET_CODES_ENDPOINT);
+            }
+        };
+
         const loadFilters = async () => {
             try {
                 setIsSetCodesUnavailable(false);
@@ -427,8 +439,8 @@ function CardSearchPageContent() {
                 await ensureBackendTokens(session);
 
                 const [setCodesResult, tagsResult] = await Promise.allSettled([
-                    backendFetch(session, "/api/app/cards/card/set_codes/"),
-                    backendFetch(session, "/api/app/cards/card/tags/"),
+                    fetchSetCodesResponse(),
+                    backendFetch(session, TAGS_ENDPOINT),
                 ]);
 
                 if (setCodesResult.status === "fulfilled") {
