@@ -60,9 +60,9 @@ class Command(BaseCommand):
         parser.add_argument(
             '--n-max-summaries', type=int, required=False, help='Maximum number of summaries to generate'
         )
-        parser.add_argument('--max-workers', type=int, default=5, help='Maximum number of concurrent workers')
+        parser.add_argument('--max-workers', type=int, default=50, help='Maximum number of concurrent workers')
 
     def handle(self, *args: Any, **options: Any) -> None:
         generate_card_summaries(
-            n_max_summaries=options.get('n_max_summaries'), max_workers=options.get('max_workers', 5)
+            n_max_summaries=options.get('n_max_summaries'), max_workers=options.get('max_workers', 50)
         )

@@ -22,6 +22,7 @@ class TypeEnum(StrEnum):
     LAND = "Land"
     PLANESWALKER = "Planeswalker"
     SORCERY = "Sorcery"
+    KINDRED = "Kindred"
 
 
 class ManaColorEnum(StrEnum):

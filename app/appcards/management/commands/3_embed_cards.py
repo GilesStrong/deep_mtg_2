@@ -86,11 +86,11 @@ class Command(BaseCommand):
             '--n-max-embeddings', type=int, required=False, help='Maximum number of embeddings to generate'
         )
         parser.add_argument('--batchsize', type=int, default=64, help='Upsert batch size (default: 64)')
-        parser.add_argument('--max-workers', type=int, default=5, help='Maximum number of concurrent workers')
+        parser.add_argument('--max-workers', type=int, default=50, help='Maximum number of concurrent workers')
 
     def handle(self, *args: Any, **options: Any) -> None:
         embed_cards(
             n_max_embeddings=options.get('n_max_embeddings'),
             batchsize=options.get('batchsize', 64),
-            max_workers=options.get('max_workers', 5),
+            max_workers=options.get('max_workers', 50),
         )
