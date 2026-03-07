@@ -104,6 +104,7 @@ class AuthSettings(BaseSettings):
     AUTH_REFRESH_PER_MINUTE: int = 60
     AUTH_RATE_LIMIT_FAIL_OPEN: bool = False
     AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS: list[str] = []
+    ADMIN_ALLOWLIST_CIDRS: list[str] = []
 
 
 class LimitSettings(BaseSettings):
