@@ -135,7 +135,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     let response: Response;
     try {
-        response = await fetchBackend("/api/app/token/exchange", {
+        response = await fetchBackend("/api/app/token/exchange/", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

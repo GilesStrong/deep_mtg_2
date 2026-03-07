@@ -71,7 +71,7 @@ describe("backend-auth route handlers", () => {
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toEqual({ ok: true });
         expect(fetchMock).toHaveBeenCalledWith(
-            "http://backend.internal/api/app/token/exchange",
+            "http://backend.internal/api/app/token/exchange/",
             expect.objectContaining({
                 method: "POST",
                 cache: "no-store",
@@ -124,12 +124,12 @@ describe("backend-auth route handlers", () => {
         expect(response.status).toBe(200);
         expect(fetchMock).toHaveBeenNthCalledWith(
             1,
-            "https://backend.internal/api/app/token/exchange",
+            "https://backend.internal/api/app/token/exchange/",
             expect.any(Object),
         );
         expect(fetchMock).toHaveBeenNthCalledWith(
             2,
-            "http://backend.internal/api/app/token/exchange",
+            "http://backend.internal/api/app/token/exchange/",
             expect.any(Object),
         );
     });
@@ -213,12 +213,12 @@ describe("backend-auth route handlers", () => {
         expect(response.status).toBe(200);
         expect(fetchMock).toHaveBeenNthCalledWith(
             1,
-            "https://backend.internal/api/app/token/refresh",
+            "https://backend.internal/api/app/token/refresh/",
             expect.any(Object),
         );
         expect(fetchMock).toHaveBeenNthCalledWith(
             2,
-            "http://backend.internal/api/app/token/refresh",
+            "http://backend.internal/api/app/token/refresh/",
             expect.any(Object),
         );
     });

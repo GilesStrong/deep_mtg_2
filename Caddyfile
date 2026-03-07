@@ -54,6 +54,12 @@
     path /api/*
     not path /api/auth/*
   }
+
+  @api_app_no_trailing_slash {
+    path_regexp apiAppNoTrailingSlash ^/api/app/.+[^/]$
+  }
+  rewrite @api_app_no_trailing_slash {http.regexp.apiAppNoTrailingSlash.0}/
+
   handle @backend {
     reverse_proxy {$BACKEND_UPSTREAM} {
       header_up X-Forwarded-Proto https

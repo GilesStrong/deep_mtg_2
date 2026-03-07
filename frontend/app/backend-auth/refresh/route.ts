@@ -111,7 +111,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     let response: Response;
     try {
-        response = await fetchBackend("/api/app/token/refresh", {
+        response = await fetchBackend("/api/app/token/refresh/", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
