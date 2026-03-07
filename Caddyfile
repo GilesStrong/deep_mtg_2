@@ -2,7 +2,7 @@
   auto_https off
 }
 
-{$PUBLIC_URL}:3000 {
+{$PUBLIC_URL}:{$PORT} {
 
   @http {
     header X-Forwarded-Proto http

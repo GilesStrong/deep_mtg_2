@@ -165,7 +165,7 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${PORT}:3000"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data_prod:/data
