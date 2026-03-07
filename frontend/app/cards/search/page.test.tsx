@@ -728,4 +728,27 @@ describe("CardSearchPage", () => {
         expect(await screen.findByRole("button", { name: "DMU" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "ONE" })).toBeInTheDocument();
     });
+
+    it("falls back to legacy underscore set code endpoint when hyphen endpoint is non-ok", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/cards/card/set-codes/") {
+                return mockTextErrorResponse(404, "Not Found");
+            }
+
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["DMU", "ONE"] });
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockJsonResponse({ tags: {} });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        expect(await screen.findByRole("button", { name: "DMU" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "ONE" })).toBeInTheDocument();
+    });
 });

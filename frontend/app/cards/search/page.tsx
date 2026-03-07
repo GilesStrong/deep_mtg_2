@@ -424,7 +424,16 @@ function CardSearchPageContent() {
     useEffect(() => {
         const fetchSetCodesResponse = async (): Promise<Response> => {
             try {
-                return await backendFetch(session, SET_CODES_ENDPOINT);
+                const primaryResponse = await backendFetch(session, SET_CODES_ENDPOINT);
+                if (primaryResponse.ok) {
+                    return primaryResponse;
+                }
+
+                console.error("Error loading card search set codes from primary endpoint", {
+                    status: primaryResponse.status,
+                    endpoint: SET_CODES_ENDPOINT,
+                });
+                return backendFetch(session, LEGACY_SET_CODES_ENDPOINT);
             } catch (primaryError) {
                 console.error("Error loading card search set codes from primary endpoint:", primaryError);
                 return backendFetch(session, LEGACY_SET_CODES_ENDPOINT);
