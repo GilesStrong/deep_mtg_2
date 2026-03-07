@@ -16,7 +16,7 @@ limitations under the License.
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -321,7 +321,7 @@ const normalizeSearchResults = (payload: unknown): SearchResult[] => {
         .filter((result): result is SearchResult => result !== null);
 };
 
-export default function CardSearchPage() {
+function CardSearchPageContent() {
     const { data: session } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -861,5 +861,13 @@ export default function CardSearchPage() {
                 </div>
             </main>
         </div>
+    );
+}
+
+export default function CardSearchPage() {
+    return (
+        <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading search...</div>}>
+            <CardSearchPageContent />
+        </Suspense>
     );
 }
