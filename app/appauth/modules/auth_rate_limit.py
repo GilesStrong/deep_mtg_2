@@ -93,7 +93,9 @@ def _extract_client_ip(request: HttpRequest, trusted_proxy_cidrs: list[str] | No
         - The first hop from ``X-Forwarded-For`` is used, matching standard
           reverse-proxy behavior.
     """
-    trusted_ranges = trusted_proxy_cidrs or APP_SETTINGS.AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS
+    trusted_ranges = (
+        APP_SETTINGS.AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS if trusted_proxy_cidrs is None else trusted_proxy_cidrs
+    )
 
     remote_addr = _normalize_ip(request.META.get("REMOTE_ADDR", ""))
     if remote_addr is None:

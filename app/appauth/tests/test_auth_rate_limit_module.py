@@ -12,6 +12,21 @@ _MODULE = "appauth.modules.auth_rate_limit"
 
 
 class ExtractClientIpTests(TestCase):
+    @patch(f"{_MODULE}.APP_SETTINGS")
+    def test_explicit_empty_trusted_proxy_list_is_respected(self, mock_settings):
+        """
+        GIVEN app settings trust a proxy CIDR but call-site passes trusted_proxy_cidrs=[]
+        WHEN _extract_client_ip is called
+        THEN it treats the request as untrusted and returns REMOTE_ADDR instead of forwarded header
+        """
+        mock_settings.AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS = ["10.0.0.0/24"]
+
+        request = SimpleNamespace(
+            headers={"X-Forwarded-For": "203.0.113.8, 10.0.0.2"}, META={"REMOTE_ADDR": "10.0.0.3"}
+        )
+
+        self.assertEqual(_extract_client_ip(request, trusted_proxy_cidrs=[]), "10.0.0.3")
+
     def test_ignores_x_forwarded_for_when_remote_addr_not_trusted_proxy(self):
         """
         GIVEN a request with a spoofed X-Forwarded-For header from an untrusted REMOTE_ADDR

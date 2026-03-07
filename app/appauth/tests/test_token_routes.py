@@ -224,3 +224,34 @@ class RefreshRouteTests(TestCase):
         old_rt.refresh_from_db()
         self.assertIsNotNone(old_rt.revoked_at)
         self.assertEqual(old_rt.revoked_reason, "context_mismatch")
+
+    def test_legacy_proxy_ip_token_is_allowed_once_and_rotates_to_client_ip(self):
+        """
+        GIVEN a legacy refresh token storing proxy REMOTE_ADDR instead of forwarded client IP
+        WHEN refresh is called behind the same trusted proxy with a forwarded client IP
+        THEN refresh succeeds and the rotated token stores the resolved client IP
+        """
+        user = User.objects.create(google_id="gid-refresh-legacy-proxy", verified=True, warning_count=0)
+        old_rt, old_raw_token = RefreshToken.mint(user, user_agent="pytest", ip="10.0.0.3")
+
+        request = SimpleNamespace(
+            headers={"User-Agent": "pytest", "X-Forwarded-For": "203.0.113.25"},
+            META={"REMOTE_ADDR": "10.0.0.3"},
+        )
+
+        with (
+            patch(f"{_MODULE}.check_auth_rate_limit") as mock_limit,
+            patch(f"{_MODULE}.mint_access_token") as mock_mint_access,
+            patch(f"{_MODULE}._extract_client_ip") as mock_extract_client_ip,
+        ):
+            mock_limit.return_value = SimpleNamespace(allowed=True, retry_after_seconds=0)
+            mock_mint_access.return_value = "new-access-token"
+            mock_extract_client_ip.return_value = "203.0.113.25"
+
+            result = refresh(request, SimpleNamespace(refresh_token=old_raw_token))
+
+        old_rt.refresh_from_db()
+        new_rt = RefreshToken.from_raw_token(result.refresh_token)
+        self.assertIsNotNone(old_rt.revoked_at)
+        self.assertEqual(new_rt.ip, "203.0.113.25")
+        self.assertEqual(result.access_token, "new-access-token")

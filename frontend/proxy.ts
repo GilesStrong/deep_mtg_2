@@ -49,22 +49,24 @@ export async function proxy(request: NextRequest) {
         return NextResponse.next();
     }
 
-    const token = await getToken({
-        req: request,
-        secret: process.env.NEXTAUTH_SECRET,
-    });
-
     const isAuthPage = pathname === "/login";
     const isProtectedRoute =
         pathname.startsWith("/dashboard") ||
         pathname.startsWith("/decks");
 
-    if (isProtectedRoute && !token) {
-        return NextResponse.redirect(new URL("/login", request.url));
-    }
+    if (isProtectedRoute || isAuthPage) {
+        const token = await getToken({
+            req: request,
+            secret: process.env.NEXTAUTH_SECRET,
+        });
 
-    if (isAuthPage && token) {
-        return NextResponse.redirect(new URL("/dashboard", request.url));
+        if (isProtectedRoute && !token) {
+            return NextResponse.redirect(new URL("/login", request.url));
+        }
+
+        if (isAuthPage && token) {
+            return NextResponse.redirect(new URL("/dashboard", request.url));
+        }
     }
 
     return withNonceCsp(request);

@@ -77,6 +77,8 @@ For local dev where direct spoofing risk is lower, you can keep this as an empty
 
 `ADMIN_ALLOWLIST_CIDRS` controls which source CIDRs can access `/admin/*` through Caddy.
 
+Format: space-separated CIDR list (not JSON).
+
 Use this rule:
 
 - Include only trusted operator/VPN/internal CIDRs.
@@ -84,8 +86,8 @@ Use this rule:
 
 Examples:
 
-- Single office egress IP: `ADMIN_ALLOWLIST_CIDRS=["198.51.100.44/32"]`
-- VPN subnet: `ADMIN_ALLOWLIST_CIDRS=["10.42.0.0/16"]`
+- Single office egress IP: `ADMIN_ALLOWLIST_CIDRS=198.51.100.44/32`
+- Multiple ranges: `ADMIN_ALLOWLIST_CIDRS=198.51.100.44/32 10.42.0.0/16`
 
 If no explicit value is provided in compose, the default is `127.0.0.1/32` (effectively closed to public traffic).
 
