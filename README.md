@@ -2,7 +2,7 @@
 
 AI-powered Magic: The Gathering deck builder.
 
-[https://deepmtg.strong-tech.org/]
+https://deepmtg.strong-tech.org/
 
 The app allows users to build decks from standard-legal sets according to their descriptions of the kind of decks they want to build.
 Given the deck description, an agentic LLM-based system will search over the available cards, and iteratively build up a deck that fits the description.
