@@ -162,7 +162,10 @@ services:
       - "3001"
 
   proxy:
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    image: deepmtg-caddy:prod
     restart: unless-stopped
     ports:
       - "${PORT}:3000"
@@ -185,8 +188,8 @@ services:
         condition: service_healthy
     networks:
       - deepmtg_network_prod
-    security_opt:
-      - no-new-privileges:true
+    # security_opt:
+    #   - no-new-privileges:true
     cap_drop:
       - ALL
     read_only: true
