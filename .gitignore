@@ -1,8 +1,9 @@
 # prod
-cloudflared/*.json
-cloudflared/cert.pem
-cloudflared/config.yml
+.cloudflared/*.json
+.cloudflared/cert.pem
+.cloudflared/config.yml
 .env.prod
+*.dump
 
 # dev
 data/

@@ -16,7 +16,7 @@ limitations under the License.
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -33,11 +33,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { backendFetch, clearBackendTokens } from "@/lib/backend-auth";
+import { backendFetch, clearBackendTokens, ensureBackendTokens } from "@/lib/backend-auth";
 import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 const QUERY_MIN_LENGTH = 20;
 const QUERY_MAX_LENGTH = 200;
+const SET_CODES_ENDPOINT = "/api/app/cards/card/set_codes/";
+const TAGS_ENDPOINT = "/api/app/cards/card/tags/";
 
 const COLOR_FILTERS = [
     { code: "W", label: "White" },
@@ -89,6 +91,13 @@ type SearchResultPayload = {
     data?: unknown;
     hits?: unknown;
 };
+
+type SetCodesEndpointPayload = {
+    set_codes?: unknown;
+    setCodes?: unknown;
+    codes?: unknown;
+    data?: unknown;
+} & Record<string, unknown>;
 
 const normalizeHierarchicalTags = (input: unknown): HierarchicalTags => {
     if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -144,6 +153,50 @@ const parseTagPayload = (rawPayload: unknown): HierarchicalTags => {
     }
 
     return normalizeHierarchicalTags(payload);
+};
+
+const parseSetCodesPayload = (rawPayload: unknown): string[] => {
+    const normalizeSetCodes = (value: unknown): string[] => {
+        if (!Array.isArray(value)) {
+            return [];
+        }
+
+        const cleanedSetCodes = value
+            .filter((setCode): setCode is string => typeof setCode === "string")
+            .map((setCode) => setCode.trim())
+            .filter((setCode) => setCode.length > 0);
+
+        return [...new Set(cleanedSetCodes)].sort((a, b) => a.localeCompare(b));
+    };
+
+    if (Array.isArray(rawPayload)) {
+        return normalizeSetCodes(rawPayload);
+    }
+
+    if (!rawPayload || typeof rawPayload !== "object") {
+        return [];
+    }
+
+    const payload = rawPayload as SetCodesEndpointPayload;
+    const nestedData = payload.data && typeof payload.data === "object" ? (payload.data as SetCodesEndpointPayload) : null;
+
+    const candidates = [
+        payload.set_codes,
+        payload.setCodes,
+        payload.codes,
+        nestedData?.set_codes,
+        nestedData?.setCodes,
+        nestedData?.codes,
+    ];
+
+    for (const candidate of candidates) {
+        const parsedSetCodes = normalizeSetCodes(candidate);
+        if (parsedSetCodes.length > 0) {
+            return parsedSetCodes;
+        }
+    }
+
+    return [];
 };
 
 const parseApiError = async (response: Response, fallbackMessage: string): Promise<string> => {
@@ -321,7 +374,7 @@ const normalizeSearchResults = (payload: unknown): SearchResult[] => {
         .filter((result): result is SearchResult => result !== null);
 };
 
-export default function CardSearchPage() {
+function CardSearchPageContent() {
     const { data: session } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -335,6 +388,8 @@ export default function CardSearchPage() {
     const [selectedColors, setSelectedColors] = useState<string[]>([]);
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
+    const [isSetCodesUnavailable, setIsSetCodesUnavailable] = useState(false);
+    const [isTagsUnavailable, setIsTagsUnavailable] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
@@ -368,24 +423,48 @@ export default function CardSearchPage() {
     useEffect(() => {
         const loadFilters = async () => {
             try {
-                const [setCodesResponse, tagsResponse] = await Promise.all([
-                    backendFetch(session, "/api/app/cards/card/set_codes/"),
-                    backendFetch(session, "/api/app/cards/card/tags/"),
+                setIsSetCodesUnavailable(false);
+                setIsTagsUnavailable(false);
+
+                await ensureBackendTokens(session);
+
+                const [setCodesResult, tagsResult] = await Promise.allSettled([
+                    backendFetch(session, SET_CODES_ENDPOINT),
+                    backendFetch(session, TAGS_ENDPOINT),
                 ]);
 
-                if (!setCodesResponse.ok || !tagsResponse.ok) {
-                    throw new Error("Failed to fetch card search filters");
+                if (setCodesResult.status === "fulfilled") {
+                    if (setCodesResult.value.ok) {
+                        const setCodesData = (await setCodesResult.value.json()) as unknown;
+                        const setCodes = parseSetCodesPayload(setCodesData);
+                        setAvailableSetCodes(setCodes);
+                        setIsSetCodesUnavailable(false);
+                    } else {
+                        console.error("Error loading card search set codes");
+                        setAvailableSetCodes([]);
+                        setIsSetCodesUnavailable(true);
+                    }
+                } else {
+                    console.error("Error loading card search set codes:", setCodesResult.reason);
+                    setAvailableSetCodes([]);
+                    setIsSetCodesUnavailable(true);
                 }
 
-                const setCodesData = (await setCodesResponse.json()) as { set_codes: string[] };
-                const tagsData = (await tagsResponse.json()) as unknown;
-
-                setAvailableSetCodes([...setCodesData.set_codes].sort((a, b) => a.localeCompare(b)));
-                setAvailableTagsByPrimary(parseTagPayload(tagsData));
-            } catch (error) {
-                console.error("Error loading card search filters:", error);
-                setAvailableSetCodes([]);
-                setAvailableTagsByPrimary({});
+                if (tagsResult.status === "fulfilled") {
+                    if (tagsResult.value.ok) {
+                        const tagsData = (await tagsResult.value.json()) as unknown;
+                        setAvailableTagsByPrimary(parseTagPayload(tagsData));
+                        setIsTagsUnavailable(false);
+                    } else {
+                        console.error("Error loading card search tags");
+                        setAvailableTagsByPrimary({});
+                        setIsTagsUnavailable(true);
+                    }
+                } else {
+                    console.error("Error loading card search tags:", tagsResult.reason);
+                    setAvailableTagsByPrimary({});
+                    setIsTagsUnavailable(true);
+                }
             } finally {
                 setIsLoadingFilters(false);
             }
@@ -686,6 +765,8 @@ export default function CardSearchPage() {
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Loading set codes and tags...
                                     </div>
+                                ) : isSetCodesUnavailable ? (
+                                    <p className="text-sm text-muted-foreground">Set codes unavailable right now.</p>
                                 ) : availableSetCodes.length === 0 ? (
                                     <p className="text-sm text-muted-foreground">No set codes available.</p>
                                 ) : (
@@ -710,7 +791,9 @@ export default function CardSearchPage() {
 
                             <div className="space-y-2">
                                 <Label>Tags</Label>
-                                {isLoadingFilters ? null : availablePrimaryTags.length === 0 ? (
+                                {isLoadingFilters ? null : isTagsUnavailable ? (
+                                    <p className="text-sm text-muted-foreground">Tags unavailable right now.</p>
+                                ) : availablePrimaryTags.length === 0 ? (
                                     <p className="text-sm text-muted-foreground">No tags available.</p>
                                 ) : (
                                     <div className="space-y-3">
@@ -861,5 +944,13 @@ export default function CardSearchPage() {
                 </div>
             </main>
         </div>
+    );
+}
+
+export default function CardSearchPage() {
+    return (
+        <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading search...</div>}>
+            <CardSearchPageContent />
+        </Suspense>
     );
 }

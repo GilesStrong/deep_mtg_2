@@ -29,32 +29,40 @@ function createNonce(): string {
 }
 
 function buildCspHeader(nonce: string): string {
+    const isDevelopment = process.env.NODE_ENV === "development";
+
     return [
         "default-src 'self'",
         "base-uri 'self'",
         "frame-ancestors 'none'",
         "object-src 'none'",
-        `script-src 'self' 'nonce-${nonce}'`,
-        `style-src 'self' 'nonce-${nonce}'`,
-        "img-src 'self' data: blob: https:",
+        `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ""}`,
+        isDevelopment
+            ? "style-src 'self' 'unsafe-inline'"
+            : `style-src 'self' 'nonce-${nonce}'`,
+        "img-src 'self' blob: data: https://lh3.googleusercontent.com https://*.googleusercontent.com",
         "font-src 'self' data:",
         "connect-src 'self' https: wss:",
         "form-action 'self'",
-        "upgrade-insecure-requests",
-    ].join("; ");
+    ]
+        .join("; ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
 }
 
 function withNonceCsp(request: NextRequest): NextResponse {
     const nonce = createNonce();
+    const cspHeader = buildCspHeader(nonce);
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set(CSP_HEADER_NAME, cspHeader);
 
     const response = NextResponse.next({
         request: {
             headers: requestHeaders,
         },
     });
-    response.headers.set(CSP_HEADER_NAME, buildCspHeader(nonce));
+    response.headers.set(CSP_HEADER_NAME, cspHeader);
     return response;
 }
 

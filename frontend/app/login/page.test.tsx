@@ -31,7 +31,7 @@ vi.mock("next-auth/react", () => ({
     signIn: mockSignIn,
 }));
 
-import LoginPage from "@/app/login/page";
+import { LoginPageClient } from "@/app/login/login-page-client";
 
 describe("LoginPage", () => {
     beforeEach(() => {
@@ -47,7 +47,7 @@ describe("LoginPage", () => {
             get: (key: string) => (key === "error" ? "OAuthAccountNotLinked" : null),
         });
 
-        render(<LoginPage />);
+        render(<LoginPageClient />);
 
         expect(screen.getByText("OAuthAccountNotLinked")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Sign in with Google" })).toBeInTheDocument();
@@ -58,7 +58,7 @@ describe("LoginPage", () => {
             get: (key: string) => (key === "error" ? "AccessDenied" : null),
         });
 
-        render(<LoginPage />);
+        render(<LoginPageClient />);
 
         expect(screen.getByText("Access denied")).toBeInTheDocument();
         expect(screen.getByText("Your Google account is not authorized for this app.")).toBeInTheDocument();
@@ -70,7 +70,7 @@ describe("LoginPage", () => {
             get: (key: string) => (key === "error" ? "access_denied" : null),
         });
 
-        render(<LoginPage />);
+        render(<LoginPageClient />);
 
         expect(screen.queryByRole("button", { name: "Sign in with Google" })).not.toBeInTheDocument();
     });
@@ -79,9 +79,13 @@ describe("LoginPage", () => {
         const user = userEvent.setup();
         mockUseSearchParams.mockReturnValue({ get: () => null });
 
-        render(<LoginPage />);
+        render(<LoginPageClient />);
         await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
 
-        expect(mockSignIn).toHaveBeenCalledWith("google", { callbackUrl: "/dashboard" });
+        expect(mockSignIn).toHaveBeenCalledWith(
+            "google",
+            { callbackUrl: "/dashboard" },
+            { prompt: "select_account" },
+        );
     });
 });

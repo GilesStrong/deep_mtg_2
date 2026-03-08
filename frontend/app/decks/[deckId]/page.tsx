@@ -98,6 +98,10 @@ interface Deck {
   cards: DeckCard[];
 }
 
+type ApiCardInfo = Omit<CardInfo, "tags"> & {
+  tags?: string[];
+};
+
 export default function DeckPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -234,7 +238,7 @@ export default function DeckPage() {
         }[];
       };
 
-      const mapCardInfo = (cardInfo: CardInfo): CardInfo => ({
+      const mapCardInfo = (cardInfo: ApiCardInfo): CardInfo => ({
         id: cardInfo.id,
         name: cardInfo.name,
         text: cardInfo.text,

@@ -1,13 +1,5 @@
-{
-  auto_https off
-}
-
 {$PUBLIC_URL}:3000 {
-
-  @http {
-    header X-Forwarded-Proto http
-  }
-  redir @http https://{host}{uri} 308
+  encode zstd gzip
 
   header {
     X-Content-Type-Options "nosniff"
@@ -16,10 +8,8 @@
     Referrer-Policy "strict-origin-when-cross-origin"
     Cross-Origin-Opener-Policy "same-origin"
     Cross-Origin-Resource-Policy "same-origin"
-    Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
+    Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
   }
-
-  encode zstd gzip
 
   log {
     output stdout
@@ -51,7 +41,11 @@
       header {
         Content-Security-Policy "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; form-action 'self'; upgrade-insecure-requests"
       }
-      reverse_proxy {$BACKEND_UPSTREAM}
+      reverse_proxy {$BACKEND_UPSTREAM} {
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-Port 443
+        header_up X-Forwarded-Host {host}
+      }
     }
     respond "Forbidden" 403
   }
@@ -61,7 +55,11 @@
     not path /api/auth/*
   }
   handle @backend {
-    reverse_proxy {$BACKEND_UPSTREAM}
+    reverse_proxy {$BACKEND_UPSTREAM} {
+      header_up X-Forwarded-Proto https
+      header_up X-Forwarded-Port 443
+      header_up X-Forwarded-Host {host}
+    }
   }
 
   handle {

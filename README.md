@@ -65,7 +65,7 @@ How to discover values:
 
 ```bash
 # Inspect subnet used by your compose network
-docker network inspect deepmtg_network_prod --format '{{(index .IPAM.Config 0).Subnet}}'
+docker network inspect deepmtg_2_prod_deepmtg_network_prod --format '{{(index .IPAM.Config 0).Subnet}}'
 
 # Inspect proxy container IP on that network
 docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' deepmtg_2_prod-proxy-1
@@ -207,6 +207,29 @@ docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-comp
 docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml down
 ```
 
+### Cloudflared Tunnel Config
+
+Create `.cloudflared/config.yml` with:
+
+```yaml
+tunnel: [tunnel_id]
+credentials-file: /etc/cloudflared/[tunnel_id].json
+
+ingress:
+	- hostname: [host name]
+	  service: http://proxy:3000
+	- service: http_status:404
+```
+
+Set permissions:
+
+```bash
+chmod 700 .cloudflared
+chmod 600 .cloudflared/config.yml
+chmod 600 .cloudflared/[tunnel_id].json
+chmod 600 .cloudflared/cert.pem
+```
+
 ## Card Data Pipeline (Load New Expansion)
 
 Use MTGJSON set files from https://mtgjson.com/downloads/all-sets/.
@@ -215,17 +238,17 @@ Run inside the backend container:
 
 1) Load cards into Postgres:
 ```bash
-docker compose exec web python app/manage.py 1_add_cards --card-json-path /path/to/cards.json
+docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml exec web python app/manage.py 1_add_cards --card-json-path /path/to/cards.json
 ```
 
 2) Generate summaries and tags:
 ```bash
-docker compose exec web python app/manage.py 2_generate_card_summaries
+docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml exec web python app/manage.py 2_generate_card_summaries
 ```
 
 3) Generate embeddings and upsert to Qdrant:
 ```bash
-docker compose exec web python app/manage.py 3_embed_cards
+docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-compose.prod.yml exec web python app/manage.py 3_embed_cards
 ```
 
 Note: Deck generation and semantic search quality depend on this pipeline being populated.

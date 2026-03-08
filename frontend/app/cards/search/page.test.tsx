@@ -23,6 +23,7 @@ const {
     mockUseRouter,
     mockUseSearchParams,
     mockBackendFetch,
+    mockEnsureBackendTokens,
     mockGetAvatarUrlFromSession,
     mockSignOut,
     mockClearBackendTokens,
@@ -31,6 +32,7 @@ const {
     mockUseRouter: vi.fn(),
     mockUseSearchParams: vi.fn(),
     mockBackendFetch: vi.fn(),
+    mockEnsureBackendTokens: vi.fn(),
     mockGetAvatarUrlFromSession: vi.fn(),
     mockSignOut: vi.fn(),
     mockClearBackendTokens: vi.fn(),
@@ -48,6 +50,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/backend-auth", () => ({
     backendFetch: mockBackendFetch,
+    ensureBackendTokens: mockEnsureBackendTokens,
     clearBackendTokens: mockClearBackendTokens,
 }));
 
@@ -56,6 +59,8 @@ vi.mock("@/lib/avatar", () => ({
 }));
 
 import CardSearchPage from "@/app/cards/search/page";
+
+const SET_CODES_ENDPOINT = "/api/app/cards/card/set_codes/";
 
 const mockJsonResponse = (data: unknown): Response =>
 ({
@@ -89,9 +94,10 @@ describe("CardSearchPage", () => {
         mockUseRouter.mockReturnValue({ push });
         mockUseSearchParams.mockReturnValue({ get: vi.fn().mockReturnValue(null) });
         mockGetAvatarUrlFromSession.mockReturnValue("https://images.test/avatar.png");
+        mockEnsureBackendTokens.mockResolvedValue(undefined);
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
-            if (url === "/api/app/cards/card/set_codes/") {
+            if (url === SET_CODES_ENDPOINT) {
                 return mockJsonResponse({ set_codes: ["ONE", "DMU"] });
             }
 
@@ -179,6 +185,7 @@ describe("CardSearchPage", () => {
         render(<CardSearchPage />);
 
         expect(await screen.findByText("Card Search")).toBeInTheDocument();
+        expect(mockEnsureBackendTokens).toHaveBeenCalledTimes(1);
         expect(screen.queryByRole("button", { name: "Back to Deck" })).not.toBeInTheDocument();
 
         await user.type(screen.getByLabelText("Query"), "Find me cards that clear the board and stabilise early game");
@@ -238,11 +245,75 @@ describe("CardSearchPage", () => {
         expect(searchButton).toBeEnabled();
     });
 
+    it("shows set codes even when tags endpoint fails", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === SET_CODES_ENDPOINT) {
+                return mockJsonResponse({ set_codes: ["ONE", "DMU"] });
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockTextErrorResponse(500, "Tag lookup failed");
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        expect(await screen.findByRole("button", { name: "ONE" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "DMU" })).toBeInTheDocument();
+        expect(screen.getByText("Tags unavailable right now.")).toBeInTheDocument();
+    });
+
+    it("shows tags even when set codes endpoint fails", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === SET_CODES_ENDPOINT) {
+                return mockTextErrorResponse(500, "Set code lookup failed");
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockJsonResponse({
+                    tags: {
+                        Strategy: {
+                            Control: "Cards that are designed to manage the game state.",
+                        },
+                    },
+                });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        expect(await screen.findByText("Set codes unavailable right now.")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Control" })).toBeInTheDocument();
+    });
+
+    it("renders set code buttons when set code endpoint returns an array payload", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === SET_CODES_ENDPOINT) {
+                return mockJsonResponse(["DMU", "ONE", "DMU"]);
+            }
+
+            if (url === "/api/app/cards/card/tags/") {
+                return mockJsonResponse({ tags: {} });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<CardSearchPage />);
+
+        expect(await screen.findByRole("button", { name: "DMU" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "ONE" })).toBeInTheDocument();
+    });
+
     it("shows api error messages when search fails", async () => {
         const user = userEvent.setup();
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
-            if (url === "/api/app/cards/card/set_codes/") {
+            if (url === SET_CODES_ENDPOINT) {
                 return mockJsonResponse({ set_codes: ["ONE"] });
             }
 
@@ -279,7 +350,7 @@ describe("CardSearchPage", () => {
         });
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
-            if (url === "/api/app/cards/card/set_codes/") {
+            if (url === SET_CODES_ENDPOINT) {
                 return mockJsonResponse({ set_codes: ["ONE", "DMU"] });
             }
 
@@ -316,7 +387,7 @@ describe("CardSearchPage", () => {
         const user = userEvent.setup();
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
-            if (url === "/api/app/cards/card/set_codes/") {
+            if (url === SET_CODES_ENDPOINT) {
                 return mockJsonResponse({ set_codes: ["ONE"] });
             }
 
@@ -378,7 +449,7 @@ describe("CardSearchPage", () => {
         const user = userEvent.setup();
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
-            if (url === "/api/app/cards/card/set_codes/") {
+            if (url === SET_CODES_ENDPOINT) {
                 return mockJsonResponse({ set_codes: ["ONE"] });
             }
 
@@ -442,7 +513,7 @@ describe("CardSearchPage", () => {
         const user = userEvent.setup();
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
-            if (url === "/api/app/cards/card/set_codes/") {
+            if (url === SET_CODES_ENDPOINT) {
                 return mockJsonResponse({ set_codes: ["ONE"] });
             }
 
@@ -502,7 +573,7 @@ describe("CardSearchPage", () => {
         });
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
-            if (url === "/api/app/cards/card/set_codes/") {
+            if (url === SET_CODES_ENDPOINT) {
                 return mockJsonResponse({ set_codes: ["ONE", "DMU"] });
             }
 
@@ -575,7 +646,7 @@ describe("CardSearchPage", () => {
         });
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
-            if (url === "/api/app/cards/card/set_codes/") {
+            if (url === SET_CODES_ENDPOINT) {
                 return mockJsonResponse({ set_codes: ["ONE", "DMU"] });
             }
 
@@ -634,4 +705,5 @@ describe("CardSearchPage", () => {
             expect(payload.tags).not.toContain("Strategy");
         });
     });
+
 });

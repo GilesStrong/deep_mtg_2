@@ -15,21 +15,27 @@ limitations under the License.
 */
 
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 const ACCESS_TOKEN_COOKIE = "backend_access_token";
 const REFRESH_TOKEN_COOKIE = "backend_refresh_token";
 const CSRF_COOKIE = "backend_csrf_token";
 
-const getCookieSecurity = () => ({
+const getCookieSecurity = (request: NextRequest) => {
+    const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const isSecureRequest = request.nextUrl.protocol === "https:" || forwardedProto === "https";
+
+    return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecureRequest,
     path: "/",
-});
+    };
+};
 
-export async function POST(): Promise<NextResponse> {
+export async function POST(request: NextRequest): Promise<NextResponse> {
     const nextResponse = NextResponse.json({ ok: true }, { status: 200 });
-    const security = getCookieSecurity();
+    const security = getCookieSecurity(request);
 
     nextResponse.cookies.set(ACCESS_TOKEN_COOKIE, "", { ...security, maxAge: 0 });
     nextResponse.cookies.set(REFRESH_TOKEN_COOKIE, "", { ...security, maxAge: 0 });

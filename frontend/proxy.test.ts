@@ -105,17 +105,30 @@ describe("proxy", () => {
                 headers: expect.any(Headers),
             },
         });
+        const nextCall = mockNext.mock.calls[0]?.[0];
+        const requestHeaders = nextCall.request.headers as Headers;
+
+        expect(requestHeaders.get("x-nonce")).toBeTruthy();
+        expect(requestHeaders.get("Content-Security-Policy")).toContain("'strict-dynamic'");
         expect(response.type).toBe("next");
         expect(response.headers.set).toHaveBeenCalledWith(
             "Content-Security-Policy",
             expect.stringContaining("script-src 'self' 'nonce-"),
         );
+        expect(response.headers.set).toHaveBeenCalledWith(
+            "Content-Security-Policy",
+            expect.stringContaining("'strict-dynamic'"),
+        );
+        expect(response.headers.set).toHaveBeenCalledWith(
+            "Content-Security-Policy",
+            expect.stringContaining("https://lh3.googleusercontent.com"),
+        );
     });
 
     it("skips CSP and auth checks on API routes", async () => {
         const response = await proxy({
-            nextUrl: { pathname: "/api/app/token/exchange" },
-            url: "https://app.test/api/app/token/exchange",
+            nextUrl: { pathname: "/api/app/token/exchange/" },
+            url: "https://app.test/api/app/token/exchange/",
         } as never);
 
         expect(mockGetToken).not.toHaveBeenCalled();

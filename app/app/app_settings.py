@@ -140,6 +140,10 @@ class GuardrailSettings(BaseSettings):
     )
 
 
+class CaddySettings(BaseSettings):
+    PORT: int
+
+
 class AppSettings(
     GoogleAuthSettings,
     EnvSettings,
@@ -154,6 +158,7 @@ class AppSettings(
     LimitSettings,
     RedisSettings,
     GuardrailSettings,
+    CaddySettings,
 ):
     model_config = SettingsConfigDict(env_file_encoding='utf-8')
 

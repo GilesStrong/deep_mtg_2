@@ -64,7 +64,7 @@ def _is_legacy_proxy_ip_context(
 
 
 @router.post(
-    "/exchange",
+    "/exchange/",
     response=ExchangeOut,
     summary="Exchange Google ID token for access and refresh tokens",
     description="Exchange a Google ID token for an access token and a refresh token. The access token can be used to authenticate API requests, while the refresh token can be used to obtain new access tokens when the current one expires.",
@@ -139,7 +139,7 @@ def exchange(request: HttpRequest, payload: ExchangeIn) -> ExchangeOut:
 
 
 @router.post(
-    "/refresh",
+    "/refresh/",
     response=ExchangeOut,
     summary="Refresh access token using refresh token",
     description="Use a valid refresh token to obtain a new access token. This endpoint will also rotate the refresh token, invalidating the old one and issuing a new one.",

@@ -107,6 +107,72 @@ describe("backend-auth", () => {
         );
     });
 
+    it("backendFetch treats redirect responses as auth-like failures and retries", async () => {
+        let protectedRequestCount = 0;
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+            const url = String(input);
+            if (url === "/api/protected") {
+                protectedRequestCount += 1;
+                if (protectedRequestCount === 1) {
+                    return mockResponse({ ok: false, status: 302 });
+                }
+
+                return mockResponse({ ok: true, status: 200 });
+            }
+
+            if (url === "/backend-auth/refresh") {
+                return mockResponse({ ok: true, status: 200, json: { ok: true } });
+            }
+
+            return mockResponse({ ok: false, status: 500 });
+        });
+
+        const response = await backendFetch(
+            { user: { email: "user@test.dev" } } as never,
+            "/api/protected",
+        );
+
+        expect(response.status).toBe(200);
+        expect(protectedRequestCount).toBe(2);
+        expect(fetchMock).toHaveBeenCalledWith(
+            "/backend-auth/refresh",
+            expect.objectContaining({ method: "POST", credentials: "same-origin" }),
+        );
+    });
+
+    it("backendFetch retries after initial fetch throws by refreshing backend tokens", async () => {
+        let protectedRequestCount = 0;
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+            const url = String(input);
+            if (url === "/api/protected") {
+                protectedRequestCount += 1;
+                if (protectedRequestCount === 1) {
+                    throw new TypeError("fetch failed");
+                }
+
+                return mockResponse({ ok: true, status: 200 });
+            }
+
+            if (url === "/backend-auth/refresh") {
+                return mockResponse({ ok: true, status: 200, json: { ok: true } });
+            }
+
+            return mockResponse({ ok: false, status: 500 });
+        });
+
+        const response = await backendFetch(
+            { user: { email: "user@test.dev" } } as never,
+            "/api/protected",
+        );
+
+        expect(response.status).toBe(200);
+        expect(protectedRequestCount).toBe(2);
+        expect(fetchMock).toHaveBeenCalledWith(
+            "/backend-auth/refresh",
+            expect.objectContaining({ method: "POST", credentials: "same-origin" }),
+        );
+    });
+
     it("clearBackendTokens clears cookie-backed tokens via API route", async () => {
         const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
             mockResponse({ ok: true, status: 200, json: { ok: true } }),
@@ -144,5 +210,25 @@ describe("backend-auth", () => {
 
         expect(response.status).toBe(200);
         expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("backendFetch rewrites app API paths to backend proxy paths", async () => {
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            mockResponse({ ok: true, status: 200, json: { ok: true } }),
+        );
+
+        const response = await backendFetch(
+            { user: { email: "user@test.dev" } } as never,
+            "/api/app/cards/deck/",
+        );
+
+        expect(response.status).toBe(200);
+        expect(fetchMock).toHaveBeenCalledWith(
+            "/backend-api/cards/deck/",
+            expect.objectContaining({
+                method: "GET",
+                credentials: "same-origin",
+            }),
+        );
     });
 });

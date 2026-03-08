@@ -25,6 +25,15 @@ cd /workspace/deep_mtg_2/frontend && bun run test --run
 ## Frontend E2E tests
 These tests use Playwright. Do not try to run them youself. Ask the user to run them for you.
 
+# Docker
+You are running in a devcontainer and do not have docker installed locally. Do not try to run docker commands yourself. Ask the user to run them for you.
+
+# Frontend editing
+With the exception of editing test files, after finishing editing frontend code, you must run the build command to ensure type generation and other build steps can run successfully.
+```
+cd /workspace/deep_mtg_2/frontend && bunx next build
+```
+
 # License headding
 
 All source files must include the following license header at the top of the file:

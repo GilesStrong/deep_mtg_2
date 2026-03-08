@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import type { Page, Request } from "@playwright/test";
+import type { Page, Request, Route } from "@playwright/test";
 import { encode } from "next-auth/jwt";
 
 type DeckSummary = {
@@ -111,6 +111,8 @@ type DeleteRequestResponse = {
 const DEFAULT_BASE_URL = process.env.E2E_BASE_URL ?? "http://localhost:3001";
 const E2E_NEXTAUTH_SECRET =
     process.env.NEXTAUTH_SECRET ?? "e2e-nextauth-secret-please-change-in-real-env-32chars";
+const BACKEND_APP_PREFIX = "/api/app/";
+const BACKEND_PROXY_PREFIX = "/backend-api/";
 
 const E2E_USER = {
     name: "E2E Deck User",
@@ -119,14 +121,28 @@ const E2E_USER = {
     googleAuthToken: "e2e.google.token",
 };
 
+/**
+ * Convert backend app paths to their proxied frontend route equivalent.
+ */
+const toProxyPath = (pathname: string): string => {
+    if (!pathname.startsWith(BACKEND_APP_PREFIX)) {
+        return pathname;
+    }
+
+    return `${BACKEND_PROXY_PREFIX}${pathname.slice(BACKEND_APP_PREFIX.length)}`;
+};
+
+/**
+ * Check whether a URL path matches either direct backend app paths or proxied frontend paths.
+ */
 const isPath = (urlString: string, pathname: string): boolean => {
     const url = new URL(urlString);
-    return url.pathname === pathname;
+    return url.pathname === pathname || url.pathname === toProxyPath(pathname);
 };
 
 const isDeckDetailPath = (urlString: string): boolean => {
     const url = new URL(urlString);
-    return /^\/api\/app\/cards\/deck\/[^/]+\/full\/$/.test(url.pathname);
+    return /^\/(api\/app|backend-api)\/cards\/deck\/[^/]+\/full\/$/.test(url.pathname);
 };
 
 const createAuthCookieValue = async (): Promise<string> =>
@@ -228,8 +244,8 @@ export const mockAuth = async (page: Page): Promise<void> => {
 };
 
 export const mockDeckListing = async (page: Page, decks: DeckSummary[]): Promise<void> => {
-    await page.route("**/api/app/cards/deck/", async (route) => {
-        if (route.request().method() !== "GET") {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "GET" || !isPath(route.request().url(), "/api/app/cards/deck/")) {
             await route.continue();
             return;
         }
@@ -239,11 +255,14 @@ export const mockDeckListing = async (page: Page, decks: DeckSummary[]): Promise
             contentType: "application/json",
             body: JSON.stringify(decks),
         });
-    });
+    };
+
+    await page.route("**/api/app/cards/deck/", handler);
+    await page.route("**/backend-api/cards/deck/", handler);
 };
 
 export const mockDeckDetail = async (page: Page, deck: DeckDetail): Promise<void> => {
-    await page.route("**/api/app/cards/deck/*/full/", async (route) => {
+    const handler = async (route: Route) => {
         if (route.request().method() !== "GET") {
             await route.continue();
             return;
@@ -259,7 +278,10 @@ export const mockDeckDetail = async (page: Page, deck: DeckDetail): Promise<void
             contentType: "application/json",
             body: JSON.stringify(deck),
         });
-    });
+    };
+
+    await page.route("**/api/app/cards/deck/*/full/", handler);
+    await page.route("**/backend-api/cards/deck/*/full/", handler);
 };
 
 export const captureGenerationRequest = (page: Page): Promise<Request> =>
@@ -273,8 +295,8 @@ export const mockGenerationResponse = async (
     page: Page,
     response: GenerationResponse
 ): Promise<void> => {
-    await page.route("**/api/app/ai/deck/", async (route) => {
-        if (route.request().method() !== "POST") {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "POST" || !isPath(route.request().url(), "/api/app/ai/deck/")) {
             await route.continue();
             return;
         }
@@ -284,30 +306,49 @@ export const mockGenerationResponse = async (
             contentType: "application/json",
             body: JSON.stringify(response),
         });
-    });
+    };
+
+    await page.route("**/api/app/ai/deck/", handler);
+    await page.route("**/backend-api/ai/deck/", handler);
 };
 
 export const mockSetCodes = async (page: Page, setCodes: string[]): Promise<void> => {
-    await page.route("**/api/app/cards/card/set_codes/", async (route) => {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "GET" || !isPath(route.request().url(), "/api/app/cards/card/set_codes/")) {
+            await route.continue();
+            return;
+        }
+
         await route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({ set_codes: setCodes }),
         });
-    });
+    };
+
+    await page.route("**/api/app/cards/card/set_codes/", handler);
+    await page.route("**/backend-api/cards/card/set_codes/", handler);
 };
 
 export const mockCardTags = async (
     page: Page,
     tags: Record<string, Record<string, string>>
 ): Promise<void> => {
-    await page.route("**/api/app/cards/card/tags/", async (route) => {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "GET" || !isPath(route.request().url(), "/api/app/cards/card/tags/")) {
+            await route.continue();
+            return;
+        }
+
         await route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({ tags }),
         });
-    });
+    };
+
+    await page.route("**/api/app/cards/card/tags/", handler);
+    await page.route("**/backend-api/cards/card/tags/", handler);
 };
 
 export const captureCardSearchRequest = (page: Page): Promise<Request> =>
@@ -321,8 +362,8 @@ export const mockCardSearchResponse = async (
     page: Page,
     cards: SearchCardResult[]
 ): Promise<void> => {
-    await page.route("**/api/app/search/search/", async (route) => {
-        if (route.request().method() !== "POST") {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "POST" || !isPath(route.request().url(), "/api/app/search/search/")) {
             await route.continue();
             return;
         }
@@ -332,17 +373,28 @@ export const mockCardSearchResponse = async (
             contentType: "application/json",
             body: JSON.stringify({ cards }),
         });
-    });
+    };
+
+    await page.route("**/api/app/search/search/", handler);
+    await page.route("**/backend-api/search/search/", handler);
 };
 
 export const mockRemainingQuota = async (page: Page, remaining: number): Promise<void> => {
-    await page.route("**/api/app/ai/deck/remaining_quota/", async (route) => {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "GET" || !isPath(route.request().url(), "/api/app/ai/deck/remaining_quota/")) {
+            await route.continue();
+            return;
+        }
+
         await route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({ remaining }),
         });
-    });
+    };
+
+    await page.route("**/api/app/ai/deck/remaining_quota/", handler);
+    await page.route("**/backend-api/ai/deck/remaining_quota/", handler);
 };
 
 export const mockBuildStatus = async (
@@ -351,9 +403,16 @@ export const mockBuildStatus = async (
     deckId: string,
     status: "COMPLETED" | "FAILED" = "COMPLETED"
 ): Promise<void> => {
-    await page.route("**/api/app/ai/deck/build_status/*/", async (route) => {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "GET") {
+            await route.continue();
+            return;
+        }
+
         const requestUrl = new URL(route.request().url());
-        if (!requestUrl.pathname.endsWith(`/api/app/ai/deck/build_status/${taskId}/`)) {
+        const appPath = `/api/app/ai/deck/build_status/${taskId}/`;
+        const proxyPath = toProxyPath(appPath);
+        if (requestUrl.pathname !== appPath && requestUrl.pathname !== proxyPath) {
             await route.continue();
             return;
         }
@@ -363,12 +422,15 @@ export const mockBuildStatus = async (
             contentType: "application/json",
             body: JSON.stringify({ status, deck_id: deckId }),
         });
-    });
+    };
+
+    await page.route("**/api/app/ai/deck/build_status/*/", handler);
+    await page.route("**/backend-api/ai/deck/build_status/*/", handler);
 };
 
 export const mockAccountExport = async (page: Page, payload: Record<string, unknown>): Promise<void> => {
-    await page.route("**/api/app/user/me/export/", async (route) => {
-        if (route.request().method() !== "GET") {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "GET" || !isPath(route.request().url(), "/api/app/user/me/export/")) {
             await route.continue();
             return;
         }
@@ -378,15 +440,18 @@ export const mockAccountExport = async (page: Page, payload: Record<string, unkn
             contentType: "application/json",
             body: JSON.stringify(payload),
         });
-    });
+    };
+
+    await page.route("**/api/app/user/me/export/", handler);
+    await page.route("**/backend-api/user/me/export/", handler);
 };
 
 export const mockDeleteRequest = async (
     page: Page,
     response: DeleteRequestResponse
 ): Promise<void> => {
-    await page.route("**/api/app/user/me/delete-request/", async (route) => {
-        if (route.request().method() !== "POST") {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "POST" || !isPath(route.request().url(), "/api/app/user/me/delete-request/")) {
             await route.continue();
             return;
         }
@@ -396,7 +461,10 @@ export const mockDeleteRequest = async (
             contentType: "application/json",
             body: JSON.stringify(response),
         });
-    });
+    };
+
+    await page.route("**/api/app/user/me/delete-request/", handler);
+    await page.route("**/backend-api/user/me/delete-request/", handler);
 };
 
 export const captureDeleteConfirmationRequest = (page: Page): Promise<Request> =>
@@ -407,8 +475,8 @@ export const captureDeleteConfirmationRequest = (page: Page): Promise<Request> =
     );
 
 export const mockDeleteConfirm = async (page: Page): Promise<void> => {
-    await page.route("**/api/app/user/me/", async (route) => {
-        if (route.request().method() !== "DELETE") {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "DELETE" || !isPath(route.request().url(), "/api/app/user/me/")) {
             await route.continue();
             return;
         }
@@ -418,7 +486,10 @@ export const mockDeleteConfirm = async (page: Page): Promise<void> => {
             contentType: "application/json",
             body: "",
         });
-    });
+    };
+
+    await page.route("**/api/app/user/me/", handler);
+    await page.route("**/backend-api/user/me/", handler);
 };
 
 export type { DeckDetail, DeckSummary };
