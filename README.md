@@ -2,6 +2,20 @@
 
 AI-powered Magic: The Gathering deck builder.
 
+The app allows users to build decks from standard-legal sets according to their descriptions of the kind of decks they want to build.
+Given the deck description, an agentic LLM-based system will search over the available cards, and iteratively build up a deck that fits the description.
+Cards are not "generated", they are retrieved via vector-searches over semantic descriptions of the cards, and filters based on card properties.
+Having built the deck, downstream agents will classify the cards in the deck according to their perceived role (wincon, support, flex, etc.), and how replaceable given cards are.
+If a card is at least moderately replaceable, then replacements will be searched for, and made available when viewing the deck.
+
+The user cannot (currently) modify the deck themselves, however they can regenerate it with extra prompts to have it modified for them.
+
+A simplified version of the card search is also made available to the users.
+
+This is a personal project with the aim to help me improve my backend engineering skills, and gain an appreciation for frontend development and production deployment.
+With the exception of the auth system and unit tests, the majority of the entire backend system is written by me. The frontend, and its tests, are agentically coded according to my directions.
+An older version of this project may be found here https://github.com/GilesStrong/deep_mtg.
+
 ## Developer Docs
 
 - High-level backend/frontend architecture and flows: [`docs/developer-architecture-guide.md`](docs/developer-architecture-guide.md)
@@ -252,3 +266,71 @@ docker compose --project-name deepmtg_2_prod --env-file .env.prod -f docker-comp
 ```
 
 Note: Deck generation and semantic search quality depend on this pipeline being populated.
+
+## Database backup and restore
+
+Backup:
+
+```bash
+cd ~/dev/deep_mtg_2
+
+docker compose --env-file .env exec -T db \
+  sh -lc 'pg_dump -U deepmtg_user -d deepmtg -Fc' > deepmtg_dev.dump
+
+cp ~/dev/deep_mtg_2/deepmtg_dev.dump ~/prod/deep_mtg_2/
+```
+
+Restore:
+
+```bash
+cd ~/prod/deep_mtg_2
+
+docker compose \
+  --project-name deepmtg_2_prod \
+  --env-file .env.prod \
+  -f docker-compose.prod.yml \
+  up -d db
+
+docker compose \
+  --project-name deepmtg_2_prod \
+  --env-file .env.prod \
+  -f docker-compose.prod.yml \
+  exec db \
+  sh -lc 'psql -U deepmtg_user -d postgres -c "DROP DATABASE IF EXISTS deepmtg;"'
+
+docker compose \
+  --project-name deepmtg_2_prod \
+  --env-file .env.prod \
+  -f docker-compose.prod.yml \
+  exec db \
+  sh -lc 'psql -U deepmtg_user -d postgres -c "CREATE DATABASE deepmtg;"'
+
+cat deepmtg_dev.dump | docker compose \
+  --project-name deepmtg_2_prod \
+  --env-file .env.prod \
+  -f docker-compose.prod.yml \
+  exec -T db \
+  sh -lc 'pg_restore -U deepmtg_user -d deepmtg --no-owner --no-privileges'
+
+docker compose \
+  --project-name deepmtg_2_prod \
+  --env-file .env.prod \
+  -f docker-compose.prod.yml \
+  run --rm web python manage.py migrate
+
+docker compose \
+  --project-name deepmtg_2_prod \
+  --env-file .env.prod \
+  -f docker-compose.prod.yml \
+  up -d
+```
+
+Then re-embed cards and upsert to qdrant:
+
+```bash
+docker compose \
+  --project-name deepmtg_2_prod \
+  --env-file .env.prod \
+  -f docker-compose.prod.yml \
+  exec web python app/manage.py 3_embed_cards
+```
