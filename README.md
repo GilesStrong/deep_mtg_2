@@ -224,10 +224,10 @@ ingress:
 Set permissions:
 
 ```bash
-chmod 755 .cloudflared
-chmod 644 .cloudflared/config.yml
-chmod 644 .cloudflared/[tunnel_id].json
-chmod 644 .cloudflared/cert.pem
+chmod 700 .cloudflared
+chmod 600 .cloudflared/config.yml
+chmod 600 .cloudflared/[tunnel_id].json
+chmod 600 .cloudflared/cert.pem
 ```
 
 ## Card Data Pipeline (Load New Expansion)

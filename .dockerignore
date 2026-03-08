@@ -43,3 +43,7 @@ dist
 build
 media
 staticfiles
+./cloudflared
+cloudflared
+*.pem
+*.key
