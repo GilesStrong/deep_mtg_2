@@ -98,16 +98,23 @@ export default function DashboardPage() {
     useEffect(() => {
         if (status !== "authenticated") {
             setIsBackendReady(false);
+            setIsLoading(true);
+            setIsLoadingSetCodes(true);
             return;
         }
 
         const syncBackendTokens = async () => {
+            setIsLoading(true);
+            setIsLoadingSetCodes(true);
+
             try {
                 await ensureBackendTokens(session);
                 setIsBackendReady(true);
             } catch (error) {
                 console.error("Error syncing backend tokens for dashboard:", error);
                 setIsBackendReady(false);
+                setIsLoading(false);
+                setIsLoadingSetCodes(false);
             }
         };
 
