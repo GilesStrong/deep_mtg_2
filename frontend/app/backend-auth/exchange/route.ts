@@ -24,15 +24,30 @@ const ACCESS_TOKEN_COOKIE = "backend_access_token";
 const REFRESH_TOKEN_COOKIE = "backend_refresh_token";
 const CSRF_COOKIE = "backend_csrf_token";
 
-const getCookieSecurity = (request: NextRequest) => {
+/**
+ * Builds cookie security attributes from environment and request proxy metadata.
+ *
+ * Args:
+ *     request: Incoming Next.js request.
+ *
+ * Returns:
+ *     Cookie options that keep auth cookies Secure in production.
+ */
+const getCookieSecurity = (request: NextRequest): {
+    httpOnly: true;
+    sameSite: "lax";
+    secure: boolean;
+    path: "/";
+} => {
     const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
     const isSecureRequest = request.nextUrl.protocol === "https:" || forwardedProto === "https";
+    const isProduction = process.env.NODE_ENV === "production";
 
     return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: isSecureRequest,
-    path: "/",
+        httpOnly: true,
+        sameSite: "lax" as const,
+        secure: isProduction || isSecureRequest,
+        path: "/",
     };
 };
 
