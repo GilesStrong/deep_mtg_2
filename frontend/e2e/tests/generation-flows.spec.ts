@@ -224,20 +224,19 @@ test("generate redirects to deck detail with task and shows fine-grained status 
     });
     await mockGenerationResponse(page, { task_id: "task-flow-4", deck_id: DECK_ID });
 
-    let deckDetailRequestCount = 0;
+    let allowCompletion = false;
     await page.route("**/api/app/cards/deck/*/full/", async (route) => {
         if (route.request().method() !== "GET") {
             await route.continue();
             return;
         }
 
-        deckDetailRequestCount += 1;
         await route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({
                 ...deckDetail,
-                creation_status: deckDetailRequestCount > 3 ? "COMPLETED" : "BUILDING_DECK",
+                creation_status: allowCompletion ? "COMPLETED" : "BUILDING_DECK",
             }),
         });
     });
@@ -247,30 +246,27 @@ test("generate redirects to deck detail with task and shows fine-grained status 
             return;
         }
 
-        deckDetailRequestCount += 1;
         await route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({
                 ...deckDetail,
-                creation_status: deckDetailRequestCount > 3 ? "COMPLETED" : "BUILDING_DECK",
+                creation_status: allowCompletion ? "COMPLETED" : "BUILDING_DECK",
             }),
         });
     });
 
-    let buildStatusRequestCount = 0;
     await page.route("**/api/app/ai/deck/build_status/task-flow-4/", async (route) => {
         if (route.request().method() !== "GET") {
             await route.continue();
             return;
         }
 
-        buildStatusRequestCount += 1;
         await route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({
-                status: buildStatusRequestCount > 3 ? "COMPLETED" : "BUILDING_DECK",
+                status: allowCompletion ? "COMPLETED" : "BUILDING_DECK",
                 deck_id: DECK_ID,
                 prompt: "Build an Izzet spells deck with strong card selection.",
                 n_cards_so_far: 54,
@@ -284,12 +280,11 @@ test("generate redirects to deck detail with task and shows fine-grained status 
             return;
         }
 
-        buildStatusRequestCount += 1;
         await route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({
-                status: buildStatusRequestCount > 3 ? "COMPLETED" : "BUILDING_DECK",
+                status: allowCompletion ? "COMPLETED" : "BUILDING_DECK",
                 deck_id: DECK_ID,
                 prompt: "Build an Izzet spells deck with strong card selection.",
                 n_cards_so_far: 54,
@@ -307,5 +302,6 @@ test("generate redirects to deck detail with task and shows fine-grained status 
     await expect(page.getByText("Prompt: Build an Izzet spells deck with strong card selection.")).toBeVisible();
     await expect(page.getByText(/BUILDING_DECK \(54 cards, 13 searches\)/)).toBeVisible();
 
+    allowCompletion = true;
     await expect(page).toHaveURL(new RegExp(`/decks/${DECK_ID}$`), { timeout: 15_000 });
 });
