@@ -46,6 +46,15 @@ const PROMPT_MAX_LENGTH = 3000;
 const DAILY_THEME_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const TOAST_DURATION_MS = 4000;
 
+type BuildStatusResponse = {
+    status: string;
+    deck_id: string;
+    n_cards_so_far?: number | null;
+    n_searches_so_far?: number | null;
+    n_replacemants_so_far?: number | null;
+    n_replacemants_total?: number | null;
+};
+
 function GenerateDeckPageContent() {
     const { data: session } = useSession();
     const router = useRouter();
@@ -63,6 +72,10 @@ function GenerateDeckPageContent() {
     const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
     const [taskId, setTaskId] = useState<string | null>(null);
     const [status, setStatus] = useState<string | null>(null);
+    const [cardsSoFar, setCardsSoFar] = useState<number | null>(null);
+    const [searchesSoFar, setSearchesSoFar] = useState<number | null>(null);
+    const [replacementsSoFar, setReplacementsSoFar] = useState<number | null>(null);
+    const [replacementsTotal, setReplacementsTotal] = useState<number | null>(null);
     const [remainingQuota, setRemainingQuota] = useState<number | null>(null);
     const [isLoadingQuota, setIsLoadingQuota] = useState(true);
     const [generationError, setGenerationError] = useState<string | null>(null);
@@ -241,8 +254,12 @@ function GenerateDeckPageContent() {
                     throw new Error("Failed to fetch build status");
                 }
 
-                const statusData = (await statusResponse.json()) as { status: string; deck_id: string };
+                const statusData = (await statusResponse.json()) as BuildStatusResponse;
                 setStatus(statusData.status);
+                setCardsSoFar(statusData.n_cards_so_far ?? null);
+                setSearchesSoFar(statusData.n_searches_so_far ?? null);
+                setReplacementsSoFar(statusData.n_replacemants_so_far ?? null);
+                setReplacementsTotal(statusData.n_replacemants_total ?? null);
 
                 if (statusData.status === "COMPLETED") {
                     clearInterval(interval);
@@ -371,6 +388,10 @@ function GenerateDeckPageContent() {
         setGenerationError(null);
         setIsGenerating(true);
         setStatus("PENDING");
+        setCardsSoFar(null);
+        setSearchesSoFar(null);
+        setReplacementsSoFar(null);
+        setReplacementsTotal(null);
         setGenerationStartedAt(Date.now());
 
         try {
@@ -574,6 +595,17 @@ function GenerateDeckPageContent() {
                                 </p>
                             ) : null}
                             {status ? <p className="text-sm text-muted-foreground">Current status: {status}</p> : null}
+                            {status === "BUILDING_DECK" ? (
+                                <p className="text-sm text-muted-foreground">
+                                    Progress: {cardsSoFar ?? 0} cards added • {searchesSoFar ?? 0} searches run
+                                </p>
+                            ) : null}
+                            {status === "FINDING_REPLACEMENT_CARDS" ? (
+                                <p className="text-sm text-muted-foreground">
+                                    Replacement progress: {replacementsSoFar ?? 0}/
+                                    {replacementsTotal ?? "?"}
+                                </p>
+                            ) : null}
                             {generationError ? <p className="text-sm">{generationError}</p> : null}
                             {taskId ? <p className="text-xs text-muted-foreground">Task ID: {taskId}</p> : null}
                         </CardContent>

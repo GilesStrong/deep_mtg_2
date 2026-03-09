@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -476,5 +476,121 @@ describe("GenerateDeckPage", () => {
         await user.click(screen.getByRole("button", { name: "Generate this deck" }));
 
         expect(screen.getByLabelText("Prompt")).toHaveValue(dailyTheme);
+    });
+
+    it("shows card and search progress while status is BUILDING_DECK", async () => {
+        const user = userEvent.setup();
+        let intervalCallback: (() => Promise<void> | void) | undefined;
+        const setIntervalSpy = vi.spyOn(global, "setInterval").mockImplementation((callback: TimerHandler) => {
+            if (typeof callback === "function") {
+                intervalCallback = callback as () => Promise<void> | void;
+            }
+
+            return 1 as unknown as ReturnType<typeof setInterval>;
+        });
+        const clearIntervalSpy = vi.spyOn(global, "clearInterval").mockImplementation(() => { });
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/deck/daily_theme/") {
+                return mockJsonResponse("Today's spellslinger theme");
+            }
+
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["BRO", "ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 3 });
+            }
+
+            if (url === "/api/app/ai/deck/" && init?.method === "POST") {
+                return mockJsonResponse({ task_id: "task-build-1" });
+            }
+
+            if (url === "/api/app/ai/deck/build_status/task-build-1/") {
+                return mockJsonResponse({
+                    status: "BUILDING_DECK",
+                    deck_id: "deck-1",
+                    n_cards_so_far: 47,
+                    n_searches_so_far: 12,
+                });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+        expect(await screen.findByText("Remaining builds today: 3")).toBeInTheDocument();
+
+        await user.type(screen.getByLabelText("Prompt"), "Blue red spells with cheap interaction and burn finishers.");
+        await user.click(screen.getByRole("button", { name: "Submit Generation Task" }));
+
+        await act(async () => {
+            await intervalCallback?.();
+        });
+
+        expect(await screen.findByText("Current status: BUILDING_DECK")).toBeInTheDocument();
+        expect(screen.getByText("Progress: 47 cards added • 12 searches run")).toBeInTheDocument();
+
+        setIntervalSpy.mockRestore();
+        clearIntervalSpy.mockRestore();
+    });
+
+    it("shows replacement fraction while status is FINDING_REPLACEMENT_CARDS", async () => {
+        const user = userEvent.setup();
+        let intervalCallback: (() => Promise<void> | void) | undefined;
+        const setIntervalSpy = vi.spyOn(global, "setInterval").mockImplementation((callback: TimerHandler) => {
+            if (typeof callback === "function") {
+                intervalCallback = callback as () => Promise<void> | void;
+            }
+
+            return 1 as unknown as ReturnType<typeof setInterval>;
+        });
+        const clearIntervalSpy = vi.spyOn(global, "clearInterval").mockImplementation(() => { });
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/deck/daily_theme/") {
+                return mockJsonResponse("Today's spellslinger theme");
+            }
+
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["BRO", "ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 3 });
+            }
+
+            if (url === "/api/app/ai/deck/" && init?.method === "POST") {
+                return mockJsonResponse({ task_id: "task-replace-1" });
+            }
+
+            if (url === "/api/app/ai/deck/build_status/task-replace-1/") {
+                return mockJsonResponse({
+                    status: "FINDING_REPLACEMENT_CARDS",
+                    deck_id: "deck-1",
+                    n_replacemants_so_far: 5,
+                    n_replacemants_total: 14,
+                });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+        expect(await screen.findByText("Remaining builds today: 3")).toBeInTheDocument();
+
+        await user.type(screen.getByLabelText("Prompt"), "Blue red spells with cheap interaction and burn finishers.");
+        await user.click(screen.getByRole("button", { name: "Submit Generation Task" }));
+
+        await act(async () => {
+            await intervalCallback?.();
+        });
+
+        expect(await screen.findByText("Current status: FINDING_REPLACEMENT_CARDS")).toBeInTheDocument();
+        expect(screen.getByText("Replacement progress: 5/14")).toBeInTheDocument();
+
+        setIntervalSpy.mockRestore();
+        clearIntervalSpy.mockRestore();
     });
 });

@@ -312,4 +312,77 @@ describe("DashboardPage", () => {
         setIntervalSpy.mockRestore();
         clearIntervalSpy.mockRestore();
     });
+
+    it("shows fine-grained status details for active build states", async () => {
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/ai/deck/statuses/") {
+                return mockJsonResponse({
+                    all: [
+                        "PENDING",
+                        "IN_PROGRESS",
+                        "BUILDING_DECK",
+                        "CLASSIFYING_DECK_CARDS",
+                        "FINDING_REPLACEMENT_CARDS",
+                        "COMPLETED",
+                        "FAILED",
+                    ],
+                    pollable: [
+                        "PENDING",
+                        "IN_PROGRESS",
+                        "BUILDING_DECK",
+                        "CLASSIFYING_DECK_CARDS",
+                        "FINDING_REPLACEMENT_CARDS",
+                    ],
+                });
+            }
+
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["ONE", "DMU"] });
+            }
+
+            if (url === "/api/app/cards/deck/") {
+                return mockJsonResponse([
+                    {
+                        id: "deck-1",
+                        name: "Izzet Spells",
+                        short_summary: "Blue-red tempo",
+                        set_codes: ["DMU"],
+                        tags: ["Control", "Tempo"],
+                        date_updated: "2026-02-01T10:00:00.000Z",
+                        generation_status: "BUILDING_DECK",
+                        generation_task_id: "task-1",
+                        n_cards_so_far: 53,
+                        n_searches_so_far: 11,
+                    },
+                    {
+                        id: "deck-2",
+                        name: "Mono White",
+                        short_summary: "Aggro",
+                        set_codes: ["ONE"],
+                        tags: ["Aggro"],
+                        date_updated: "2026-02-02T10:00:00.000Z",
+                        generation_status: "FINDING_REPLACEMENT_CARDS",
+                        generation_task_id: "task-2",
+                        n_replacemants_so_far: 3,
+                        n_replacemants_total: 8,
+                    },
+                ]);
+            }
+
+            if (url === "/api/app/ai/deck/build_status/task-1/") {
+                return mockJsonResponse({ status: "BUILDING_DECK", deck_id: "deck-1" });
+            }
+
+            if (url === "/api/app/ai/deck/build_status/task-2/") {
+                return mockJsonResponse({ status: "FINDING_REPLACEMENT_CARDS", deck_id: "deck-2" });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<DashboardPage />);
+
+        expect(await screen.findByText("Build progress: 53 cards • 11 searches")).toBeInTheDocument();
+        expect(screen.getByText("Replacement progress: 3/8")).toBeInTheDocument();
+    });
 });
