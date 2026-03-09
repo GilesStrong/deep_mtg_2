@@ -36,6 +36,7 @@ class DeckBuildTask(models.Model):
     result = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    prompt = models.TextField(null=True, blank=True)
     deck_size = models.IntegerField(
         null=True,
         blank=True,

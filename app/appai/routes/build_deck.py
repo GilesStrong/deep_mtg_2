@@ -146,7 +146,7 @@ def build_deck(request: HttpRequest, payload: BuildDeckPostIn) -> BuildDeckPostO
         deck_id = payload.deck_id
 
     # Enqueue the task to build the deck
-    build = DeckBuildTask.objects.create(deck_id=deck_id, status=DeckBuildStatus.PENDING)
+    build = DeckBuildTask.objects.create(deck_id=deck_id, status=DeckBuildStatus.PENDING, prompt=payload.prompt)
 
     task: AsyncResult = cast(Any, construct_deck.apply_async)(
         kwargs={
@@ -202,6 +202,7 @@ def check_deck_build_status(request: HttpRequest, path_params: Path[BuildDeckSta
     return BuildDeckStatusOut(
         status=build.status,
         deck_id=deck_id,
+        prompt=build.prompt,
         n_cards_so_far=build.deck_size,
         n_searches_so_far=build.n_searches,
         n_replacemants_so_far=build.n_replacements,

@@ -492,7 +492,13 @@ export default function DashboardPage() {
                             <Card
                                 key={deck.id}
                                 className="cursor-pointer transition-colors hover:bg-secondary/20"
-                                onClick={() => router.push(`/decks/${deck.id}`)}
+                                onClick={() =>
+                                    router.push(
+                                        deck.generation_task_id
+                                            ? `/decks/${deck.id}?taskId=${deck.generation_task_id}`
+                                            : `/decks/${deck.id}`
+                                    )
+                                }
                             >
                                 <CardHeader>
                                     <CardTitle className="text-xl">{deck.name}</CardTitle>

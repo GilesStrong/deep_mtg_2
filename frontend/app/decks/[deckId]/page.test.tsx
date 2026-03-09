@@ -18,10 +18,11 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockUseSession, mockUseRouter, mockUseParams, mockBackendFetch, mockGetAvatarUrlFromSession } = vi.hoisted(() => ({
+const { mockUseSession, mockUseRouter, mockUseParams, mockUseSearchParams, mockBackendFetch, mockGetAvatarUrlFromSession } = vi.hoisted(() => ({
     mockUseSession: vi.fn(),
     mockUseRouter: vi.fn(),
     mockUseParams: vi.fn(),
+    mockUseSearchParams: vi.fn(),
     mockBackendFetch: vi.fn(),
     mockGetAvatarUrlFromSession: vi.fn(),
 }));
@@ -34,6 +35,7 @@ vi.mock("next-auth/react", () => ({
 vi.mock("next/navigation", () => ({
     useRouter: mockUseRouter,
     useParams: mockUseParams,
+    useSearchParams: mockUseSearchParams,
 }));
 
 vi.mock("@/lib/backend-auth", () => ({
@@ -70,8 +72,26 @@ const mockFailedResponse = (status: number, body: unknown): Response =>
     text: vi.fn().mockResolvedValue(JSON.stringify(body)),
 } as unknown as Response);
 
+const DEFAULT_STATUSES = [
+    "PENDING",
+    "IN_PROGRESS",
+    "BUILDING_DECK",
+    "CLASSIFYING_DECK_CARDS",
+    "FINDING_REPLACEMENT_CARDS",
+    "COMPLETED",
+    "FAILED",
+];
+const DEFAULT_POLLABLE = [
+    "PENDING",
+    "IN_PROGRESS",
+    "BUILDING_DECK",
+    "CLASSIFYING_DECK_CARDS",
+    "FINDING_REPLACEMENT_CARDS",
+];
+
 describe("DeckPage", () => {
     const push = vi.fn();
+    const replace = vi.fn();
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -84,11 +104,35 @@ describe("DeckPage", () => {
                 },
             },
         });
-        mockUseRouter.mockReturnValue({ push });
+        mockUseRouter.mockReturnValue({ push, replace });
         mockUseParams.mockReturnValue({ deckId: "deck-1" });
+        mockUseSearchParams.mockReturnValue({
+            get: () => null,
+        });
         mockGetAvatarUrlFromSession.mockReturnValue("https://images.test/avatar.png");
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/ai/deck/statuses/") {
+                return mockJsonResponse({
+                    all: [
+                        "PENDING",
+                        "IN_PROGRESS",
+                        "BUILDING_DECK",
+                        "CLASSIFYING_DECK_CARDS",
+                        "FINDING_REPLACEMENT_CARDS",
+                        "COMPLETED",
+                        "FAILED",
+                    ],
+                    pollable: [
+                        "PENDING",
+                        "IN_PROGRESS",
+                        "BUILDING_DECK",
+                        "CLASSIFYING_DECK_CARDS",
+                        "FINDING_REPLACEMENT_CARDS",
+                    ],
+                });
+            }
+
             if (url === "/api/app/cards/deck/deck-1/full/") {
                 return mockJsonResponse({
                     id: "deck-1",
@@ -286,6 +330,12 @@ describe("DeckPage", () => {
         });
     });
 
+    it("hides build status section when deck status is COMPLETED", async () => {
+        render(<DeckPage />);
+        expect(await screen.findByText("Deck Details")).toBeInTheDocument();
+        expect(screen.queryByText("Build Status")).not.toBeInTheDocument();
+    });
+
     it("sets regenerate marker and navigates to regenerate flow", async () => {
         const user = userEvent.setup();
 
@@ -316,6 +366,10 @@ describe("DeckPage", () => {
 
     it("shows not found state when deck fetch fails", async () => {
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/ai/deck/statuses/") {
+                return mockJsonResponse({ all: [], pollable: [] });
+            }
+
             if (url === "/api/app/cards/deck/deck-1/full/") {
                 return mockErrorResponse();
             }
@@ -364,6 +418,10 @@ describe("DeckPage", () => {
         const user = userEvent.setup();
 
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/ai/deck/statuses/") {
+                return mockJsonResponse({ all: DEFAULT_STATUSES, pollable: DEFAULT_POLLABLE });
+            }
+
             if (url === "/api/app/cards/deck/deck-1/full/") {
                 return mockJsonResponse({
                     id: "deck-1",
@@ -400,6 +458,10 @@ describe("DeckPage", () => {
 
     it("disables deck alterations while build is in a pollable in-progress status", async () => {
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/ai/deck/statuses/") {
+                return mockJsonResponse({ all: DEFAULT_STATUSES, pollable: DEFAULT_POLLABLE });
+            }
+
             if (url === "/api/app/cards/deck/deck-1/full/") {
                 return mockJsonResponse({
                     id: "deck-1",
@@ -486,4 +548,99 @@ describe("DeckPage", () => {
             expect(screen.queryByRole("dialog", { name: /Replacement cards for Sunfall/i })).not.toBeInTheDocument();
         });
     });
+
+    it("shows build timeline, prompt, and fine-grained progress on deck details", async () => {
+        mockUseSearchParams.mockReturnValue({
+            get: (key: string) => (key === "taskId" ? "task-1" : null),
+        });
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/ai/deck/statuses/") {
+                return mockJsonResponse({ all: DEFAULT_STATUSES, pollable: DEFAULT_POLLABLE });
+            }
+
+            if (url === "/api/app/cards/deck/deck-1/full/") {
+                return mockJsonResponse({
+                    id: "deck-1",
+                    name: "Azorius Control",
+                    short_summary: "Control shell",
+                    full_summary: "Long summary",
+                    set_codes: ["ONE"],
+                    tags: ["Control"],
+                    date_updated: "2026-02-01T10:00:00.000Z",
+                    creation_status: "BUILDING_DECK",
+                    cards: [],
+                });
+            }
+
+            if (url === "/api/app/ai/deck/build_status/task-1/") {
+                return mockJsonResponse({
+                    status: "BUILDING_DECK",
+                    deck_id: "deck-1",
+                    prompt: "Blue white control with sweepers and card draw",
+                    n_cards_so_far: 42,
+                    n_searches_so_far: 9,
+                });
+            }
+
+            if (url === "/api/app/cards/deck/deck-1/" && init?.method === "PATCH") {
+                return mockJsonResponse({});
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<DeckPage />);
+
+        expect(await screen.findByText("Build Status")).toBeInTheDocument();
+        expect(screen.getByText("Prompt: Blue white control with sweepers and card draw")).toBeInTheDocument();
+        expect(screen.getByText("→ BUILDING_DECK (42 cards, 9 searches)")).toBeInTheDocument();
+        expect(screen.getByText("✓ PENDING")).toBeInTheDocument();
+        expect(screen.getByText("✓ IN_PROGRESS")).toBeInTheDocument();
+    });
+
+    it("shows failed build status history and does not show COMPLETED as upcoming", async () => {
+        mockUseSearchParams.mockReturnValue({
+            get: (key: string) => (key === "taskId" ? "task-1" : null),
+        });
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
+            if (url === "/api/app/ai/deck/statuses/") {
+                return mockJsonResponse({ all: DEFAULT_STATUSES, pollable: DEFAULT_POLLABLE });
+            }
+
+            if (url === "/api/app/cards/deck/deck-1/full/") {
+                return mockJsonResponse({
+                    id: "deck-1",
+                    name: "Azorius Control",
+                    short_summary: "Control shell",
+                    full_summary: "Long summary",
+                    set_codes: ["ONE"],
+                    tags: ["Control"],
+                    date_updated: "2026-02-01T10:00:00.000Z",
+                    creation_status: "FAILED",
+                    cards: [],
+                });
+            }
+
+            if (url === "/api/app/ai/deck/build_status/task-1/") {
+                return mockJsonResponse({
+                    status: "FAILED",
+                    deck_id: "deck-1",
+                    prompt: "Blue white control with sweepers and card draw",
+                });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<DeckPage />);
+
+        expect(await screen.findByText("Build Status")).toBeInTheDocument();
+        expect(screen.getByText("→ FAILED")).toBeInTheDocument();
+        expect(screen.queryByText("• FAILED")).not.toBeInTheDocument();
+        expect(screen.queryByText("• COMPLETED")).not.toBeInTheDocument();
+        expect(screen.queryByText("✓ COMPLETED")).not.toBeInTheDocument();
+    });
+
 });
