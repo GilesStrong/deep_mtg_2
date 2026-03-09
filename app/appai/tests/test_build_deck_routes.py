@@ -338,9 +338,17 @@ class BuildDeckStatusRouteTests(TestCase):
         """
         GIVEN an existing build task for a deck owned by the authenticated user
         WHEN check_deck_build_status is called
-        THEN it returns the task status and deck_id
+        THEN it returns status, deck_id, and progress counters from DeckBuildTask
         """
-        build = SimpleNamespace(id=_TASK_ID, deck=SimpleNamespace(id=_DECK_ID), status=DeckBuildStatus.COMPLETED)
+        build = SimpleNamespace(
+            id=_TASK_ID,
+            deck=SimpleNamespace(id=_DECK_ID),
+            status=DeckBuildStatus.COMPLETED,
+            deck_size=60,
+            n_searches=7,
+            n_replacements=5,
+            n_total_replacements=12,
+        )
         mock_build_task.DoesNotExist = DeckBuildTaskModel.DoesNotExist
         mock_build_task.objects.get.return_value = build
         mock_get_user.return_value = SimpleNamespace(id=_USER_ID)
@@ -350,3 +358,40 @@ class BuildDeckStatusRouteTests(TestCase):
 
         self.assertEqual(response.status, DeckBuildStatus.COMPLETED)
         self.assertEqual(response.deck_id, _DECK_ID)
+        self.assertEqual(response.n_cards_so_far, 60)
+        self.assertEqual(response.n_searches_so_far, 7)
+        self.assertEqual(response.n_replacemants_so_far, 5)
+        self.assertEqual(response.n_replacemants_total, 12)
+
+    @patch(f"{_MODULE}.BuildDeckStatusOut", side_effect=lambda **kwargs: SimpleNamespace(**kwargs))
+    @patch(f"{_MODULE}.Deck")
+    @patch(f"{_MODULE}.get_user_from_request")
+    @patch(f"{_MODULE}.DeckBuildTask")
+    def test_returns_nullable_progress_fields_for_in_progress_build(self, mock_build_task, mock_get_user, mock_deck, _):
+        """
+        GIVEN an in-progress build task where nullable progress fields are not yet set
+        WHEN check_deck_build_status is called
+        THEN it returns None for the nullable progress counters
+        """
+        build = SimpleNamespace(
+            id=_TASK_ID,
+            deck=SimpleNamespace(id=_DECK_ID),
+            status=DeckBuildStatus.IN_PROGRESS,
+            deck_size=None,
+            n_searches=0,
+            n_replacements=0,
+            n_total_replacements=None,
+        )
+        mock_build_task.DoesNotExist = DeckBuildTaskModel.DoesNotExist
+        mock_build_task.objects.get.return_value = build
+        mock_get_user.return_value = SimpleNamespace(id=_USER_ID)
+        mock_deck.objects.filter.return_value.exists.return_value = True
+
+        response = check_deck_build_status(MagicMock(), SimpleNamespace(task_id=_TASK_ID))
+
+        self.assertEqual(response.status, DeckBuildStatus.IN_PROGRESS)
+        self.assertEqual(response.deck_id, _DECK_ID)
+        self.assertIsNone(response.n_cards_so_far)
+        self.assertEqual(response.n_searches_so_far, 0)
+        self.assertEqual(response.n_replacemants_so_far, 0)
+        self.assertIsNone(response.n_replacemants_total)
