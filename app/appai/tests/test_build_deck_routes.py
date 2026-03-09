@@ -344,6 +344,7 @@ class BuildDeckStatusRouteTests(TestCase):
             id=_TASK_ID,
             deck=SimpleNamespace(id=_DECK_ID),
             status=DeckBuildStatus.COMPLETED,
+            prompt="Blue-white control with sweepers and card draw.",
             deck_size=60,
             n_searches=7,
             n_replacements=5,
@@ -358,6 +359,7 @@ class BuildDeckStatusRouteTests(TestCase):
 
         self.assertEqual(response.status, DeckBuildStatus.COMPLETED)
         self.assertEqual(response.deck_id, _DECK_ID)
+        self.assertEqual(response.prompt, "Blue-white control with sweepers and card draw.")
         self.assertEqual(response.n_cards_so_far, 60)
         self.assertEqual(response.n_searches_so_far, 7)
         self.assertEqual(response.n_replacemants_so_far, 5)
@@ -377,6 +379,7 @@ class BuildDeckStatusRouteTests(TestCase):
             id=_TASK_ID,
             deck=SimpleNamespace(id=_DECK_ID),
             status=DeckBuildStatus.IN_PROGRESS,
+            prompt="Blue-white control with sweepers and card draw.",
             deck_size=None,
             n_searches=0,
             n_replacements=0,
@@ -391,6 +394,7 @@ class BuildDeckStatusRouteTests(TestCase):
 
         self.assertEqual(response.status, DeckBuildStatus.IN_PROGRESS)
         self.assertEqual(response.deck_id, _DECK_ID)
+        self.assertEqual(response.prompt, "Blue-white control with sweepers and card draw.")
         self.assertIsNone(response.n_cards_so_far)
         self.assertEqual(response.n_searches_so_far, 0)
         self.assertEqual(response.n_replacemants_so_far, 0)
