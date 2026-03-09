@@ -181,6 +181,13 @@ def check_deck_build_status(request: HttpRequest, path_params: Path[BuildDeckSta
     Check the status of a deck building task using the task ID.
 
     You can use the task ID received when you initiated the deck building process to check if the task is still processing, has completed successfully, or has failed. The response will include the current status of the task and the associated deck ID.
+
+    Args:
+        request (HttpRequest): The incoming HTTP request object, used to identify the user making the request.
+        path_params (Path[BuildDeckStatusIn]): The path parameters containing the task ID for which to check the status.
+
+    Returns:
+        BuildDeckStatusOut: An object containing the current status of the deck building task
     """
 
     try:
@@ -192,4 +199,11 @@ def check_deck_build_status(request: HttpRequest, path_params: Path[BuildDeckSta
     except DeckBuildTask.DoesNotExist:
         raise HttpError(404, 'Deck build task not found')
 
-    return BuildDeckStatusOut(status=build.status, deck_id=deck_id)
+    return BuildDeckStatusOut(
+        status=build.status,
+        deck_id=deck_id,
+        n_cards_so_far=build.deck_size,
+        n_searches_so_far=build.n_searches,
+        n_replacemants_so_far=build.n_replacements,
+        n_replacemants_total=build.n_total_replacements,
+    )

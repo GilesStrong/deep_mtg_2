@@ -21,6 +21,7 @@ from asgiref.sync import sync_to_async
 from django.db.models import Sum
 from pydantic_ai import RunContext
 
+from appai.models.deck_build import DeckBuildTask
 from appai.services.agents.deps import DeckBuildingDeps
 
 
@@ -62,6 +63,7 @@ async def add_card_to_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID, num
     total_cards = await DeckCard.objects.filter(deck=deck).aaggregate(Sum('quantity'))
     total_cards = total_cards['quantity__sum'] or 0
     message = f"Added {number_to_add}x '{card.name}' to deck '{deck.name}'. Deck now has {total_cards} total cards ({deck_card.quantity}x {card.name})."
+    await DeckBuildTask.objects.filter(id=ctx.deps.build_task_id).aupdate(deck_size=total_cards)
     return message
 
 
@@ -108,13 +110,15 @@ async def remove_card_from_deck(ctx: RunContext[DeckBuildingDeps], card_id: UUID
         message = (
             f"Removed all copies of '{card.name}' from deck '{deck.name}'. Deck now has {total_cards} total cards."
         )
-        return message
     else:
         await deck_card.asave()
         total_cards = await DeckCard.objects.filter(deck=deck).aaggregate(Sum('quantity'))
         total_cards = total_cards['quantity__sum'] or 0
         message = f"Removed {number_to_remove}x '{card.name}' from deck '{deck.name}'. Deck now has {total_cards} total cards ({deck_card.quantity}x {card.name} remaining)."
-        return message
+
+    await DeckBuildTask.objects.filter(id=ctx.deps.build_task_id).aupdate(deck_size=total_cards)
+
+    return message
 
 
 @beartype
@@ -133,6 +137,8 @@ async def clear_deck(ctx: RunContext[DeckBuildingDeps]) -> str:
 
     await DeckCard.objects.filter(deck=deck).adelete()
     message = f"All cards removed from deck '{deck.name}'."
+
+    await DeckBuildTask.objects.filter(id=ctx.deps.build_task_id).aupdate(deck_size=0)
     return message
 
 

@@ -36,6 +36,10 @@ class DeckBuildTask(models.Model):
     result = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    deck_size = models.IntegerField(null=True, blank=True)
+    n_searches = models.IntegerField(default=0)
+    n_replacements = models.IntegerField(default=0)
+    n_total_replacements = models.IntegerField(null=True, blank=True)
 
     if TYPE_CHECKING:
         deck_id: UUID

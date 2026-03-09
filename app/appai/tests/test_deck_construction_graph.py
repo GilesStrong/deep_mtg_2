@@ -18,7 +18,7 @@ import importlib
 import sys
 import types
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 from uuid import UUID
 
 from django.test import TestCase
@@ -79,13 +79,24 @@ class BuildDeckNodeTests(TestCase):
         ctx = _make_ctx(deck_id=deck_id, deck_description="Mono-red aggro", build_count=0, generation_history=["g1"])
 
         mock_run_deck_constructor_agent = AsyncMock()
-        with patch.object(dc, "run_deck_constructor_agent", mock_run_deck_constructor_agent):
+        mock_build_task_cls = MagicMock()
+        mock_build_task_queryset = MagicMock()
+        mock_build_task_queryset.aupdate = AsyncMock()
+        mock_build_task_cls.objects.filter.return_value = mock_build_task_queryset
+
+        with (
+            patch.object(dc, "run_deck_constructor_agent", mock_run_deck_constructor_agent),
+            patch.object(dc, "DeckBuildTask", mock_build_task_cls),
+        ):
             result = await dc.BuildDeck().run(ctx)
 
         self.assertIsInstance(result, dc.ValidateDeck)
         self.assertEqual(ctx.state.build_count, 1)
+        mock_build_task_cls.objects.filter.assert_called_once_with(id=_BUILD_TASK_ID)
+        mock_build_task_queryset.aupdate.assert_awaited_once_with(status=dc.DeckBuildStatus.BUILDING_DECK)
         mock_run_deck_constructor_agent.assert_awaited_once_with(
             deck_id=deck_id,
+            build_task_id=_BUILD_TASK_ID,
             deck_description="Mono-red aggro",
             available_set_codes={"FDN", "BLB"},
             generation_history=["g1"],
@@ -165,10 +176,20 @@ class ClassifyCardsNodeTests(TestCase):
         ctx = _make_ctx(deck_id=deck_id, deck_description="Tempo")
 
         mock_run_card_classifier_agent = AsyncMock()
-        with patch.object(dc, "run_card_classifier_agent", mock_run_card_classifier_agent):
+        mock_build_task_cls = MagicMock()
+        mock_build_task_queryset = MagicMock()
+        mock_build_task_queryset.aupdate = AsyncMock()
+        mock_build_task_cls.objects.filter.return_value = mock_build_task_queryset
+
+        with (
+            patch.object(dc, "run_card_classifier_agent", mock_run_card_classifier_agent),
+            patch.object(dc, "DeckBuildTask", mock_build_task_cls),
+        ):
             result = await dc.ClassifyCards().run(ctx)
 
         self.assertIsInstance(result, dc.SetSwaps)
+        mock_build_task_cls.objects.filter.assert_called_once_with(id=_BUILD_TASK_ID)
+        mock_build_task_queryset.aupdate.assert_awaited_once_with(status=dc.DeckBuildStatus.CLASSIFYING_DECK_CARDS)
         mock_run_card_classifier_agent.assert_awaited_once_with(
             deck_id=deck_id,
             deck_description="Tempo",
@@ -187,6 +208,10 @@ class SetSwapsNodeTests(TestCase):
         mock_get_colors_from_deck = MagicMock(return_value={"R"})
         mock_deck_cls = MagicMock()
         mock_deck_card_cls = MagicMock()
+        mock_build_task_cls = MagicMock()
+        mock_build_task_queryset = MagicMock()
+        mock_build_task_queryset.aupdate = AsyncMock()
+        mock_build_task_cls.objects.filter.return_value = mock_build_task_queryset
 
         replace_me = MagicMock()
         replace_me.importance = "Supporting"
@@ -220,11 +245,26 @@ class SetSwapsNodeTests(TestCase):
             patch.object(dc, "get_colors_from_deck", mock_get_colors_from_deck),
             patch.object(dc, "Deck", mock_deck_cls),
             patch.object(dc, "DeckCard", mock_deck_card_cls),
+            patch.object(dc, "DeckBuildTask", mock_build_task_cls),
         ):
             result = await dc.SetSwaps().run(ctx)
 
         self.assertEqual(result.__class__.__name__, "End")
         mock_replace_card.assert_awaited_once()
+        self.assertEqual(
+            mock_build_task_cls.objects.filter.call_args_list,
+            [call(id=_BUILD_TASK_ID), call(id=_BUILD_TASK_ID), call(id=_BUILD_TASK_ID)],
+        )
+        self.assertEqual(mock_build_task_queryset.aupdate.await_count, 3)
+        mock_build_task_queryset.aupdate.assert_any_await(status=dc.DeckBuildStatus.FINDING_REPLACEMENT_CARDS)
+        mock_build_task_queryset.aupdate.assert_any_await(n_total_replacements=1)
+        replacement_count_update = [
+            await_call.kwargs["n_replacements"]
+            for await_call in mock_build_task_queryset.aupdate.await_args_list
+            if "n_replacements" in await_call.kwargs
+        ][0]
+        self.assertEqual(replacement_count_update.lhs.name, "n_replacements")
+        self.assertEqual(replacement_count_update.rhs.value, 1)
         call_kwargs = mock_replace_card.call_args.kwargs
         self.assertEqual(call_kwargs["deck_strategy"], "Burn strategy")
         self.assertIs(call_kwargs["deck_card_to_replace"], replace_me)
@@ -239,6 +279,10 @@ class SetSwapsNodeTests(TestCase):
         dc = _load_deck_construction_module()
         mock_replace_card = AsyncMock()
         mock_deck_card_cls = MagicMock()
+        mock_build_task_cls = MagicMock()
+        mock_build_task_queryset = MagicMock()
+        mock_build_task_queryset.aupdate = AsyncMock()
+        mock_build_task_cls.objects.filter.return_value = mock_build_task_queryset
 
         critical_card = MagicMock()
         critical_card.importance = "Critical"
@@ -257,10 +301,13 @@ class SetSwapsNodeTests(TestCase):
         with (
             patch.object(dc, "replace_card", mock_replace_card),
             patch.object(dc, "DeckCard", mock_deck_card_cls),
+            patch.object(dc, "DeckBuildTask", mock_build_task_cls),
         ):
             result = await dc.SetSwaps().run(ctx)
 
         self.assertEqual(result.__class__.__name__, "End")
+        mock_build_task_cls.objects.filter.assert_called_once_with(id=_BUILD_TASK_ID)
+        mock_build_task_queryset.aupdate.assert_awaited_once_with(status=dc.DeckBuildStatus.FINDING_REPLACEMENT_CARDS)
         mock_replace_card.assert_not_awaited()
 
 
