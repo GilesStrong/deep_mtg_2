@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 from uuid import UUID
 
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
@@ -26,6 +25,4 @@ class DeckBuildingDeps(BaseModel):
         description="The set codes that the deck is allowed to include cards from",
     )
     deck_description: str = Field(..., description="A natural language description of the desired deck")
-    build_task_id: Optional[UUID] = Field(
-        ..., description="The ID of the deck build task associated with this deck construction"
-    )
+    build_task_id: UUID = Field(..., description="The ID of the deck build task associated with this deck construction")

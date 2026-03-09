@@ -26,6 +26,7 @@ from appcards.modules.deck_info import get_colors_from_deck
 from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.search_dsl import Filter, MatchAnyCondition
 from asgiref.sync import sync_to_async
+from django.db.models import F
 from pydantic import BaseModel, Field
 from pydantic_graph import BaseNode, End, Graph, GraphRunContext
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -85,6 +86,9 @@ class SetSwaps(BaseNode[DeckConstructionState, DeckBuildingDeps, None]):
         if len(cards_to_replace) == 0:
             logfire.info("No cards to replace in deck. Skipping replacement step.")
             return End(None)
+        await DeckBuildTask.objects.filter(id=ctx.deps.build_task_id).aupdate(
+            n_total_replacements=len(cards_to_replace)
+        )
 
         # Build filters
         deck = await Deck.objects.aget(id=ctx.deps.deck_id)
@@ -116,6 +120,9 @@ class SetSwaps(BaseNode[DeckConstructionState, DeckBuildingDeps, None]):
                     deck_card_to_replace=deck_card,
                     card_filter=search_filter,
                     exclude_ids=existing_card_str_ids,
+                )
+                await DeckBuildTask.objects.filter(id=ctx.deps.build_task_id).aupdate(
+                    n_replacements=F("n_replacements") + 1
                 )
 
         await asyncio.gather(*[_run_replacement_for_card(deck_card) for deck_card in cards_to_replace])
@@ -210,6 +217,7 @@ class BuildDeck(BaseNode[DeckConstructionState, DeckBuildingDeps]):
         await DeckBuildTask.objects.filter(id=ctx.deps.build_task_id).aupdate(status=DeckBuildStatus.BUILDING_DECK)
         await run_deck_constructor_agent(
             deck_id=ctx.deps.deck_id,
+            build_task_id=ctx.deps.build_task_id,
             deck_description=ctx.deps.deck_description,
             available_set_codes=ctx.deps.available_set_codes,
             generation_history=ctx.state.generation_history,

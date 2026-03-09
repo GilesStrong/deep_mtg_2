@@ -166,7 +166,11 @@ class DeckConstructionOutput(BaseModel):
 @beartype
 @retry(stop=stop_after_attempt(APP_SETTINGS.DECK_BUILD_RETRY_LIMIT), wait=wait_exponential(multiplier=1, min=2, max=10))
 async def run_deck_constructor_agent(
-    deck_id: UUID, deck_description: str, generation_history: list[str], available_set_codes: Optional[set[str]] = None
+    deck_id: UUID,
+    build_task_id: UUID,
+    deck_description: str,
+    generation_history: list[str],
+    available_set_codes: Optional[set[str]] = None,
 ) -> DeckConstructionOutput:
     """
     Constructs a deck based on a natural language description.
@@ -174,6 +178,7 @@ async def run_deck_constructor_agent(
 
     Args:
         deck_id (UUID): The ID of the deck to construct.
+        build_task_id (UUID): The ID of the deck build task associated with this deck construction, used for tracking and updating the status of the build task.
         deck_description (str): A natural language description of the desired deck, including its strategy, key cards, and any specific requirements or constraints.
         generation_history (list[str]): A list of previous generation requests for the deck, used to inform the construction process.
         available_set_codes (Optional[set[str]]): An optional set of available set codes to restrict the card selection to specific sets. If not provided, it will default to the current standard set codes.
@@ -201,7 +206,7 @@ async def run_deck_constructor_agent(
         deck_id=deck_id,
         deck_description=deck_description,
         available_set_codes=available_set_codes if available_set_codes is not None else CURRENT_STANDARD_SET_CODES,
-        build_task_id=None,
+        build_task_id=build_task_id,
     )
 
     deck = await Deck.objects.aget(id=deck_id)

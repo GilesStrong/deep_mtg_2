@@ -29,6 +29,7 @@ from appai.services.agents.deck_constructor import (
 )
 
 _MODULE = "appai.services.agents.deck_constructor"
+_BUILD_TASK_ID = UUID("f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1")
 
 
 def _make_deck_card(name: str, quantity: int = 1) -> MagicMock:
@@ -207,6 +208,7 @@ class RunDeckConstructorAgentRetryTests(TestCase):
             wait=wait_exponential(multiplier=0, min=0, max=0),
         )(
             deck_id=deck_id,
+            build_task_id=_BUILD_TASK_ID,
             deck_description="Blue-red tempo with efficient interaction",
             generation_history=[],
             available_set_codes={"FDN"},

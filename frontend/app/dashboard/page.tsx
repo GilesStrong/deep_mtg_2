@@ -44,6 +44,10 @@ type DeckSummary = {
     date_updated: string;
     generation_status: string | null;
     generation_task_id: string | null;
+    n_cards_so_far?: number | null;
+    n_searches_so_far?: number | null;
+    n_replacements_so_far?: number | null;
+    n_replacements_total?: number | null;
 };
 
 const DEFAULT_POLLABLE_STATUSES = new Set([
@@ -57,6 +61,15 @@ const DEFAULT_POLLABLE_STATUSES = new Set([
 type BuildStatusesResponse = {
     all: string[];
     pollable: string[];
+};
+
+type BuildStatusResponse = {
+    status: string;
+    deck_id: string;
+    n_cards_so_far?: number | null;
+    n_searches_so_far?: number | null;
+    n_replacements_so_far?: number | null;
+    n_replacements_total?: number | null;
 };
 
 const parseApiError = async (response: Response, fallbackMessage: string): Promise<string> => {
@@ -129,7 +142,22 @@ export default function DashboardPage() {
         }
 
         const data = (await response.json()) as DeckSummary[];
-        setDecks(data);
+        setDecks((currentDecks) =>
+            data.map((deck) => {
+                const currentDeck = currentDecks.find((item) => item.id === deck.id);
+                if (!currentDeck) {
+                    return deck;
+                }
+
+                return {
+                    ...deck,
+                    n_cards_so_far: currentDeck.n_cards_so_far,
+                    n_searches_so_far: currentDeck.n_searches_so_far,
+                    n_replacements_so_far: currentDeck.n_replacements_so_far,
+                    n_replacements_total: currentDeck.n_replacements_total,
+                };
+            })
+        );
     }, [session]);
 
     useEffect(() => {
@@ -235,10 +263,19 @@ export default function DashboardPage() {
                             return;
                         }
 
-                        const statusData = (await statusResponse.json()) as { status: string; deck_id: string };
+                        const statusData = (await statusResponse.json()) as BuildStatusResponse;
                         setDecks((current) =>
                             current.map((item) =>
-                                item.id === statusData.deck_id ? { ...item, generation_status: statusData.status } : item
+                                item.id === statusData.deck_id
+                                    ? {
+                                        ...item,
+                                        generation_status: statusData.status,
+                                        n_cards_so_far: statusData.n_cards_so_far ?? null,
+                                        n_searches_so_far: statusData.n_searches_so_far ?? null,
+                                        n_replacements_so_far: statusData.n_replacements_so_far ?? null,
+                                        n_replacements_total: statusData.n_replacements_total ?? null,
+                                    }
+                                    : item
                             )
                         );
                     })
@@ -455,7 +492,13 @@ export default function DashboardPage() {
                             <Card
                                 key={deck.id}
                                 className="cursor-pointer transition-colors hover:bg-secondary/20"
-                                onClick={() => router.push(`/decks/${deck.id}`)}
+                                onClick={() =>
+                                    router.push(
+                                        deck.generation_task_id
+                                            ? `/decks/${deck.id}?taskId=${deck.generation_task_id}`
+                                            : `/decks/${deck.id}`
+                                    )
+                                }
                             >
                                 <CardHeader>
                                     <CardTitle className="text-xl">{deck.name}</CardTitle>
@@ -464,6 +507,16 @@ export default function DashboardPage() {
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-2">
+                                    {deck.generation_status === "BUILDING_DECK" ? (
+                                        <p className="text-xs text-muted-foreground">
+                                            Build progress: {deck.n_cards_so_far ?? 0} cards • {deck.n_searches_so_far ?? 0} searches
+                                        </p>
+                                    ) : null}
+                                    {deck.generation_status === "FINDING_REPLACEMENT_CARDS" ? (
+                                        <p className="text-xs text-muted-foreground">
+                                            Replacement progress: {deck.n_replacements_so_far ?? 0}/{deck.n_replacements_total ?? "?"}
+                                        </p>
+                                    ) : null}
                                     <p className="text-sm text-muted-foreground">
                                         {deck.short_summary ?? "No summary available yet."}
                                     </p>

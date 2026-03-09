@@ -101,6 +101,22 @@ type DeckDetail = {
 
 type GenerationResponse = {
     task_id: string;
+    deck_id?: string;
+};
+
+type DeckBuildStatusesResponse = {
+    all: string[];
+    pollable: string[];
+};
+
+type BuildStatusResponse = {
+    status: string;
+    deck_id: string;
+    prompt?: string | null;
+    n_cards_so_far?: number | null;
+    n_searches_so_far?: number | null;
+    n_replacements_so_far?: number | null;
+    n_replacements_total?: number | null;
 };
 
 type DeleteRequestResponse = {
@@ -401,7 +417,8 @@ export const mockBuildStatus = async (
     page: Page,
     taskId: string,
     deckId: string,
-    status: "COMPLETED" | "FAILED" = "COMPLETED"
+    status: "COMPLETED" | "FAILED" | "BUILDING_DECK" | "FINDING_REPLACEMENT_CARDS" = "COMPLETED",
+    details?: Omit<BuildStatusResponse, "status" | "deck_id">
 ): Promise<void> => {
     const handler = async (route: Route) => {
         if (route.request().method() !== "GET") {
@@ -420,12 +437,33 @@ export const mockBuildStatus = async (
         await route.fulfill({
             status: 200,
             contentType: "application/json",
-            body: JSON.stringify({ status, deck_id: deckId }),
+            body: JSON.stringify({ status, deck_id: deckId, ...details }),
         });
     };
 
     await page.route("**/api/app/ai/deck/build_status/*/", handler);
     await page.route("**/backend-api/ai/deck/build_status/*/", handler);
+};
+
+export const mockDeckBuildStatuses = async (
+    page: Page,
+    response: DeckBuildStatusesResponse
+): Promise<void> => {
+    const handler = async (route: Route) => {
+        if (route.request().method() !== "GET" || !isPath(route.request().url(), "/api/app/ai/deck/statuses/")) {
+            await route.continue();
+            return;
+        }
+
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify(response),
+        });
+    };
+
+    await page.route("**/api/app/ai/deck/statuses/", handler);
+    await page.route("**/backend-api/ai/deck/statuses/", handler);
 };
 
 export const mockAccountExport = async (page: Page, payload: Record<string, unknown>): Promise<void> => {

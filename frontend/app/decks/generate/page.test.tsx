@@ -107,7 +107,7 @@ describe("GenerateDeckPage", () => {
             }
 
             if (url === "/api/app/ai/deck/" && init?.method === "POST") {
-                return mockJsonResponse({ task_id: "task-1" });
+                return mockJsonResponse({ task_id: "task-1", deck_id: "deck-1" });
             }
 
             if (url === "/api/app/ai/deck/build_status/task-1/") {
@@ -363,7 +363,7 @@ describe("GenerateDeckPage", () => {
             }
 
             if (url === "/api/app/ai/deck/" && init?.method === "POST") {
-                return mockJsonResponse({ task_id: "task-regen-1" });
+                return mockJsonResponse({ task_id: "task-regen-1", deck_id: "deck-1" });
             }
 
             if (url === "/api/app/ai/deck/build_status/task-regen-1/") {
@@ -415,7 +415,7 @@ describe("GenerateDeckPage", () => {
             }
 
             if (url === "/api/app/ai/deck/" && init?.method === "POST") {
-                return mockJsonResponse({ task_id: "task-theme-1" });
+                return mockJsonResponse({ task_id: "task-theme-1", deck_id: "deck-1" });
             }
 
             if (url === "/api/app/ai/deck/build_status/task-theme-1/") {
@@ -476,5 +476,39 @@ describe("GenerateDeckPage", () => {
         await user.click(screen.getByRole("button", { name: "Generate this deck" }));
 
         expect(screen.getByLabelText("Prompt")).toHaveValue(dailyTheme);
+    });
+
+    it("redirects to deck details with task ID after generation starts", async () => {
+        const user = userEvent.setup();
+
+        mockBackendFetch.mockImplementation(async (_session: unknown, url: string, init?: RequestInit) => {
+            if (url === "/api/app/cards/deck/daily_theme/") {
+                return mockJsonResponse("Today's spellslinger theme");
+            }
+
+            if (url === "/api/app/cards/card/set_codes/") {
+                return mockJsonResponse({ set_codes: ["BRO", "ONE"] });
+            }
+
+            if (url === "/api/app/ai/deck/remaining_quota/") {
+                return mockJsonResponse({ remaining: 3 });
+            }
+
+            if (url === "/api/app/ai/deck/" && init?.method === "POST") {
+                return mockJsonResponse({ task_id: "task-build-1", deck_id: "deck-1" });
+            }
+
+            throw new Error(`Unexpected backend URL in test: ${url}`);
+        });
+
+        render(<GenerateDeckPage />);
+        expect(await screen.findByText("Remaining builds today: 3")).toBeInTheDocument();
+
+        await user.type(screen.getByLabelText("Prompt"), "Blue red spells with cheap interaction and burn finishers.");
+        await user.click(screen.getByRole("button", { name: "Submit Generation Task" }));
+
+        await waitFor(() => {
+            expect(push).toHaveBeenCalledWith("/decks/deck-1?taskId=task-build-1");
+        });
     });
 });

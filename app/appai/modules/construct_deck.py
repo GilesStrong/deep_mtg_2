@@ -16,10 +16,12 @@ from typing import Optional
 from uuid import UUID
 
 import logfire
-from appcards.models.deck import Deck
+from appcards.models.deck import Deck, DeckCard
 from appcore.modules.beartype import beartype
+from django.db.models import Sum
 from pydantic import BaseModel, Field
 
+from appai.models.deck_build import DeckBuildTask
 from appai.services.graphs.deck_construction import construct_deck as construct_deck_graph
 
 
@@ -76,6 +78,12 @@ async def construct_deck(
     else:
         deck = await Deck.objects.acreate(name="New Deck", user_id=user_id)
         logfire.info(f"Constructing new deck, with ID: {deck.id}")
+
+    total_cards = await DeckCard.objects.filter(deck=deck).aaggregate(Sum('quantity'))
+    total_cards = total_cards['quantity__sum'] or 0
+    await DeckBuildTask.objects.filter(id=build_task_id).aupdate(
+        deck_size=total_cards, n_searches=0, n_replacements=None, n_total_replacements=None
+    )
 
     # Run deck build
     generation_history = deck.generation_history if deck.generation_history else []

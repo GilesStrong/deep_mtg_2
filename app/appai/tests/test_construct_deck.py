@@ -36,7 +36,34 @@ def _make_deck(deck_id=_DECK_ID, generation_history=None):
     return deck
 
 
-class ConstructDeckNewDeckTests(TestCase):
+class ConstructDeckTestBase(TestCase):
+    """Shared setup for construct_deck tests."""
+
+    def setUp(self) -> None:
+        """
+        GIVEN construct_deck updates progress counters before graph execution
+        WHEN tests invoke construct_deck
+        THEN DeckCard and DeckBuildTask interactions are mocked consistently
+        """
+        super().setUp()
+        self._deck_card_patcher = patch(f"{_MODULE}.DeckCard")
+        self._build_task_patcher = patch(f"{_MODULE}.DeckBuildTask")
+
+        self.mock_deck_card_cls = self._deck_card_patcher.start()
+        self.mock_build_task_cls = self._build_task_patcher.start()
+        self.addCleanup(self._deck_card_patcher.stop)
+        self.addCleanup(self._build_task_patcher.stop)
+
+        deck_card_queryset = MagicMock()
+        deck_card_queryset.aaggregate = AsyncMock(return_value={"quantity__sum": 0})
+        self.mock_deck_card_cls.objects.filter.return_value = deck_card_queryset
+
+        build_task_queryset = MagicMock()
+        build_task_queryset.aupdate = AsyncMock()
+        self.mock_build_task_cls.objects.filter.return_value = build_task_queryset
+
+
+class ConstructDeckNewDeckTests(ConstructDeckTestBase):
     """Tests for construct_deck when no deck_id is provided."""
 
     @patch(f"{_MODULE}.construct_deck_graph", new_callable=AsyncMock)
@@ -88,7 +115,7 @@ class ConstructDeckNewDeckTests(TestCase):
         self.assertIsNone(result)
 
 
-class ConstructDeckExistingDeckTests(TestCase):
+class ConstructDeckExistingDeckTests(ConstructDeckTestBase):
     """Tests for construct_deck when a deck_id is provided."""
 
     @patch(f"{_MODULE}.construct_deck_graph", new_callable=AsyncMock)
@@ -152,7 +179,7 @@ class ConstructDeckExistingDeckTests(TestCase):
         self.assertIsNone(result)
 
 
-class ConstructDeckGenerationHistoryTests(TestCase):
+class ConstructDeckGenerationHistoryTests(ConstructDeckTestBase):
     """Tests for generation history handling in construct_deck."""
 
     @patch(f"{_MODULE}.construct_deck_graph", new_callable=AsyncMock)
@@ -244,7 +271,7 @@ class ConstructDeckGenerationHistoryTests(TestCase):
         self.assertEqual(trimmed[1:], ["h7", "h8", "h9", "h10"])
 
 
-class ConstructDeckGraphCallTests(TestCase):
+class ConstructDeckGraphCallTests(ConstructDeckTestBase):
     """Tests for how construct_deck delegates to the graph layer."""
 
     @patch(f"{_MODULE}.construct_deck_graph", new_callable=AsyncMock)

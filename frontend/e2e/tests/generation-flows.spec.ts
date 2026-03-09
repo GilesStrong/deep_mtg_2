@@ -20,6 +20,7 @@ import {
     captureGenerationRequest,
     mockAuth,
     mockBuildStatus,
+    mockDeckBuildStatuses,
     mockDeckDetail,
     mockDeckListing,
     mockGenerationResponse,
@@ -98,6 +99,24 @@ const assertDeckIdPresent = (payload: Record<string, unknown>, deckId: string) =
 const setupCommonApiMocks = async (page: Page) => {
     await mockDeckListing(page, deckListing);
     await mockDeckDetail(page, deckDetail);
+    await mockDeckBuildStatuses(page, {
+        all: [
+            "PENDING",
+            "IN_PROGRESS",
+            "BUILDING_DECK",
+            "CLASSIFYING_DECK_CARDS",
+            "FINDING_REPLACEMENT_CARDS",
+            "COMPLETED",
+            "FAILED",
+        ],
+        pollable: [
+            "PENDING",
+            "IN_PROGRESS",
+            "BUILDING_DECK",
+            "CLASSIFYING_DECK_CARDS",
+            "FINDING_REPLACEMENT_CARDS",
+        ],
+    });
     await mockSetCodes(page, ["DMU", "WOE"]);
     await mockRemainingQuota(page, 3);
 };
@@ -111,7 +130,7 @@ test("redirects unauthenticated users to login for protected routes", async ({ p
 test("main page -> generate -> submit excludes deck_id", async ({ page }) => {
     await mockAuth(page);
     await setupCommonApiMocks(page);
-    await mockGenerationResponse(page, { task_id: "task-flow-1" });
+    await mockGenerationResponse(page, { task_id: "task-flow-1", deck_id: DECK_ID });
     await mockBuildStatus(page, "task-flow-1", DECK_ID, "COMPLETED");
 
     await page.goto("/");
@@ -133,7 +152,7 @@ test("main page -> generate -> submit excludes deck_id", async ({ page }) => {
 test("deck detail -> regenerate -> submit includes inspected deck_id", async ({ page }) => {
     await mockAuth(page);
     await setupCommonApiMocks(page);
-    await mockGenerationResponse(page, { task_id: "task-flow-2" });
+    await mockGenerationResponse(page, { task_id: "task-flow-2", deck_id: DECK_ID });
     await mockBuildStatus(page, "task-flow-2", DECK_ID, "COMPLETED");
 
     await page.goto(`/decks/${DECK_ID}`);
@@ -155,7 +174,7 @@ test("deck detail -> regenerate -> submit includes inspected deck_id", async ({ 
 test("deck detail -> regenerate -> dashboard -> generate -> submit excludes deck_id", async ({ page }) => {
     await mockAuth(page);
     await setupCommonApiMocks(page);
-    await mockGenerationResponse(page, { task_id: "task-flow-3" });
+    await mockGenerationResponse(page, { task_id: "task-flow-3", deck_id: DECK_ID });
     await mockBuildStatus(page, "task-flow-3", DECK_ID, "COMPLETED");
 
     await page.goto(`/decks/${DECK_ID}`);
@@ -177,5 +196,112 @@ test("deck detail -> regenerate -> dashboard -> generate -> submit excludes deck
     const payload = (await generationRequest).postDataJSON() as Record<string, unknown>;
     assertDeckIdAbsent(payload);
 
+    await expect(page).toHaveURL(new RegExp(`/decks/${DECK_ID}$`), { timeout: 15_000 });
+});
+
+test("generate redirects to deck detail with task and shows fine-grained status timeline", async ({ page }) => {
+    await mockAuth(page);
+    await mockDeckListing(page, deckListing);
+    await mockSetCodes(page, ["DMU", "WOE"]);
+    await mockRemainingQuota(page, 3);
+    await mockDeckBuildStatuses(page, {
+        all: [
+            "PENDING",
+            "IN_PROGRESS",
+            "BUILDING_DECK",
+            "CLASSIFYING_DECK_CARDS",
+            "FINDING_REPLACEMENT_CARDS",
+            "COMPLETED",
+            "FAILED",
+        ],
+        pollable: [
+            "PENDING",
+            "IN_PROGRESS",
+            "BUILDING_DECK",
+            "CLASSIFYING_DECK_CARDS",
+            "FINDING_REPLACEMENT_CARDS",
+        ],
+    });
+    await mockGenerationResponse(page, { task_id: "task-flow-4", deck_id: DECK_ID });
+
+    let allowCompletion = false;
+    await page.route("**/api/app/cards/deck/*/full/", async (route) => {
+        if (route.request().method() !== "GET") {
+            await route.continue();
+            return;
+        }
+
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                ...deckDetail,
+                creation_status: allowCompletion ? "COMPLETED" : "BUILDING_DECK",
+            }),
+        });
+    });
+    await page.route("**/backend-api/cards/deck/*/full/", async (route) => {
+        if (route.request().method() !== "GET") {
+            await route.continue();
+            return;
+        }
+
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                ...deckDetail,
+                creation_status: allowCompletion ? "COMPLETED" : "BUILDING_DECK",
+            }),
+        });
+    });
+
+    await page.route("**/api/app/ai/deck/build_status/task-flow-4/", async (route) => {
+        if (route.request().method() !== "GET") {
+            await route.continue();
+            return;
+        }
+
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                status: allowCompletion ? "COMPLETED" : "BUILDING_DECK",
+                deck_id: DECK_ID,
+                prompt: "Build an Izzet spells deck with strong card selection.",
+                n_cards_so_far: 54,
+                n_searches_so_far: 13,
+            }),
+        });
+    });
+    await page.route("**/backend-api/ai/deck/build_status/task-flow-4/", async (route) => {
+        if (route.request().method() !== "GET") {
+            await route.continue();
+            return;
+        }
+
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                status: allowCompletion ? "COMPLETED" : "BUILDING_DECK",
+                deck_id: DECK_ID,
+                prompt: "Build an Izzet spells deck with strong card selection.",
+                n_cards_so_far: 54,
+                n_searches_so_far: 13,
+            }),
+        });
+    });
+
+    await page.goto("/decks/generate");
+    await page.getByLabel("Prompt").fill("Build an Izzet spells deck with strong card selection.");
+    await page.getByRole("button", { name: "Submit Generation Task" }).click();
+
+    await expect(page).toHaveURL(new RegExp(`/decks/${DECK_ID}\\?taskId=task-flow-4$`), { timeout: 15_000 });
+    await expect(page.getByText("Build Status")).toBeVisible();
+    await expect(page.getByText("Prompt: Build an Izzet spells deck with strong card selection.")).toBeVisible();
+    await expect(page.getByText(/BUILDING_DECK \(54 cards, 13 searches\)/)).toBeVisible();
+
+    allowCompletion = true;
     await expect(page).toHaveURL(new RegExp(`/decks/${DECK_ID}$`), { timeout: 15_000 });
 });

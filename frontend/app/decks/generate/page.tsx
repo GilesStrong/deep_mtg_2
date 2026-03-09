@@ -40,7 +40,6 @@ import { getAvatarUrlFromSession } from "@/lib/avatar";
 
 const REGENERATE_NAV_MARKER_KEY = "deep-mtg.regenerate-nav";
 const REGENERATE_NAV_MARKER_MAX_AGE_MS = 60_000;
-const BUILD_STATUS_TIMEOUT_MS = 120_000;
 const PROMPT_MIN_LENGTH = 20;
 const PROMPT_MAX_LENGTH = 3000;
 const DAILY_THEME_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
@@ -61,12 +60,9 @@ function GenerateDeckPageContent() {
     const [selectedSetCodes, setSelectedSetCodes] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isLoadingSetCodes, setIsLoadingSetCodes] = useState(true);
-    const [taskId, setTaskId] = useState<string | null>(null);
-    const [status, setStatus] = useState<string | null>(null);
     const [remainingQuota, setRemainingQuota] = useState<number | null>(null);
     const [isLoadingQuota, setIsLoadingQuota] = useState(true);
     const [generationError, setGenerationError] = useState<string | null>(null);
-    const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
     const [dailyTheme, setDailyTheme] = useState<string | null>(null);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -226,50 +222,6 @@ function GenerateDeckPageContent() {
         void loadRegenerationDeckName();
     }, [regenerationDeckId, session]);
 
-    const pollBuildStatus = useCallback((newTaskId: string) => {
-        const interval = setInterval(async () => {
-            if (generationStartedAt && Date.now() - generationStartedAt > BUILD_STATUS_TIMEOUT_MS) {
-                clearInterval(interval);
-                setIsGenerating(false);
-                setGenerationError("Generation is taking longer than expected. Please try again in a moment.");
-                return;
-            }
-
-            try {
-                const statusResponse = await backendFetch(session, `/api/app/ai/deck/build_status/${newTaskId}/`);
-                if (!statusResponse.ok) {
-                    throw new Error("Failed to fetch build status");
-                }
-
-                const statusData = (await statusResponse.json()) as { status: string; deck_id: string };
-                setStatus(statusData.status);
-
-                if (statusData.status === "COMPLETED") {
-                    clearInterval(interval);
-                    setIsGenerating(false);
-                    setGenerationStartedAt(null);
-                    router.push(`/decks/${statusData.deck_id}`);
-                    return;
-                }
-
-                if (statusData.status === "FAILED") {
-                    clearInterval(interval);
-                    setIsGenerating(false);
-                    setGenerationStartedAt(null);
-                    setGenerationError("Deck generation failed. Please revise your prompt and try again.");
-                }
-            } catch (error) {
-                console.error("Error polling build status:", error);
-                clearInterval(interval);
-                setIsGenerating(false);
-                setGenerationStartedAt(null);
-                setGenerationError("Could not fetch generation status. Please try again.");
-            }
-        }, 2500);
-
-        return interval;
-    }, [generationStartedAt, router, session]);
-
     useEffect(() => {
         const loadSetCodes = async () => {
             try {
@@ -334,15 +286,6 @@ function GenerateDeckPageContent() {
         return () => clearInterval(interval);
     }, [loadRemainingQuota, session]);
 
-    useEffect(() => {
-        if (!taskId) {
-            return;
-        }
-
-        const interval = pollBuildStatus(taskId);
-        return () => clearInterval(interval);
-    }, [taskId, pollBuildStatus]);
-
     const toggleSetCode = (code: string) => {
         if (isGenerating) {
             return;
@@ -370,8 +313,6 @@ function GenerateDeckPageContent() {
 
         setGenerationError(null);
         setIsGenerating(true);
-        setStatus("PENDING");
-        setGenerationStartedAt(Date.now());
 
         try {
             const payload: { prompt: string; set_codes: string[]; deck_id?: string } = {
@@ -397,8 +338,12 @@ function GenerateDeckPageContent() {
                 throw new Error(errorMessage);
             }
 
-            const data = (await response.json()) as { task_id: string };
-            setTaskId(data.task_id);
+            const data = (await response.json()) as { task_id: string; deck_id: string };
+            if (!data.task_id || !data.deck_id) {
+                throw new Error("Build task was created but response was missing task or deck identifiers.");
+            }
+
+            router.push(`/decks/${data.deck_id}?taskId=${data.task_id}`);
             setRemainingQuota((current) => {
                 if (current === null) {
                     return current;
@@ -409,7 +354,6 @@ function GenerateDeckPageContent() {
         } catch (error) {
             console.error("Error generating deck:", error);
             setIsGenerating(false);
-            setGenerationStartedAt(null);
             setGenerationError(error instanceof Error ? error.message : "Failed to start deck generation");
             void loadRemainingQuota();
         }
@@ -573,9 +517,7 @@ function GenerateDeckPageContent() {
                                     You have no remaining builds for today. Generation will be available again after midnight.
                                 </p>
                             ) : null}
-                            {status ? <p className="text-sm text-muted-foreground">Current status: {status}</p> : null}
                             {generationError ? <p className="text-sm">{generationError}</p> : null}
-                            {taskId ? <p className="text-xs text-muted-foreground">Task ID: {taskId}</p> : null}
                         </CardContent>
                     </Card>
                 </div>

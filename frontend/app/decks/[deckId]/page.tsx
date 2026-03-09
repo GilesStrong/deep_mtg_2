@@ -18,7 +18,7 @@ limitations under the License.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,13 +40,22 @@ const ROLE_DISPLAY_ORDER = [
   "Land",
 ] as const;
 const IMPORTANCE_DISPLAY_ORDER = ["Critical", "High Synergy", "Functional", "Generic"] as const;
-const POLLABLE_BUILD_STATUSES = new Set([
+const DEFAULT_POLLABLE_BUILD_STATUSES = [
   "PENDING",
   "IN_PROGRESS",
   "BUILDING_DECK",
   "CLASSIFYING_DECK_CARDS",
   "FINDING_REPLACEMENT_CARDS",
-]);
+];
+const DEFAULT_BUILD_STATUSES = [
+  "PENDING",
+  "IN_PROGRESS",
+  "BUILDING_DECK",
+  "CLASSIFYING_DECK_CARDS",
+  "FINDING_REPLACEMENT_CARDS",
+  "COMPLETED",
+  "FAILED",
+];
 const roleOrderIndex = new Map<string, number>(
   ROLE_DISPLAY_ORDER.map((role, index) => [role, index])
 );
@@ -102,11 +111,28 @@ type ApiCardInfo = Omit<CardInfo, "tags"> & {
   tags?: string[];
 };
 
+type BuildStatusesResponse = {
+  all: string[];
+  pollable: string[];
+};
+
+type BuildStatusResponse = {
+  status: string;
+  deck_id: string;
+  prompt?: string | null;
+  n_cards_so_far?: number | null;
+  n_searches_so_far?: number | null;
+  n_replacements_so_far?: number | null;
+  n_replacements_total?: number | null;
+};
+
 export default function DeckPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const deckId = params.deckId as string;
+  const buildTaskId = searchParams.get("taskId");
   const [deck, setDeck] = useState<Deck | null>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
@@ -119,7 +145,16 @@ export default function DeckPage() {
   const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(new Set());
   const [replacementModalCard, setReplacementModalCard] = useState<DeckCard | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [buildStatuses, setBuildStatuses] = useState<string[]>(DEFAULT_BUILD_STATUSES);
+  const [pollableBuildStatuses, setPollableBuildStatuses] = useState<string[]>(DEFAULT_POLLABLE_BUILD_STATUSES);
+  const [buildStatusInfo, setBuildStatusInfo] = useState<BuildStatusResponse | null>(null);
   const toastTimeoutRef = useRef<number | null>(null);
+  const currentBuildStatus = buildStatusInfo?.status ?? deck?.creation_status ?? null;
+  const buildPrompt = buildStatusInfo?.prompt ?? null;
+  const pollableBuildStatusSet = useMemo(
+    () => new Set(pollableBuildStatuses),
+    [pollableBuildStatuses]
+  );
 
   const showToast = useCallback((message: string) => {
     setToastMessage(message);
@@ -291,11 +326,103 @@ export default function DeckPage() {
     }
   }, [deckId, session]);
 
+  const fetchBuildStatuses = useCallback(async () => {
+    try {
+      const response = await backendFetch(session, "/api/app/ai/deck/statuses/");
+      if (!response.ok) {
+        return;
+      }
+
+      const data = (await response.json()) as BuildStatusesResponse;
+      if (Array.isArray(data.all) && data.all.length > 0) {
+        setBuildStatuses(data.all);
+      }
+      if (Array.isArray(data.pollable) && data.pollable.length > 0) {
+        setPollableBuildStatuses(data.pollable);
+      }
+    } catch (error) {
+      console.error("Error loading build statuses:", error);
+    }
+  }, [session]);
+
+  const fetchBuildStatus = useCallback(async (): Promise<BuildStatusResponse | null> => {
+    if (!buildTaskId) {
+      return null;
+    }
+
+    const response = await backendFetch(session, `/api/app/ai/deck/build_status/${buildTaskId}/`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch build status");
+    }
+
+    const data = (await response.json()) as BuildStatusResponse;
+    setBuildStatusInfo(data);
+    return data;
+  }, [buildTaskId, session]);
+
   useEffect(() => {
     if (deckId) {
       void fetchDeck();
     }
   }, [deckId, fetchDeck]);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    void fetchBuildStatuses();
+  }, [fetchBuildStatuses, session]);
+
+  useEffect(() => {
+    if (!buildTaskId) {
+      setBuildStatusInfo(null);
+      return;
+    }
+
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const poll = async () => {
+      try {
+        const [statusData] = await Promise.all([fetchBuildStatus(), fetchDeck()]);
+        if (cancelled || !statusData) {
+          return;
+        }
+
+        if (!pollableBuildStatusSet.has(statusData.status)) {
+          if (intervalId !== null) {
+            clearInterval(intervalId);
+          }
+          router.replace(`/decks/${deckId}`);
+        }
+      } catch (error) {
+        console.error("Error polling deck build state:", error);
+      }
+    };
+
+    void poll();
+    intervalId = setInterval(() => {
+      void poll();
+    }, 2500);
+
+    return () => {
+      cancelled = true;
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [buildTaskId, deckId, fetchBuildStatus, fetchDeck, pollableBuildStatusSet, router]);
+
+  useEffect(() => {
+    if (!buildTaskId || !currentBuildStatus) {
+      return;
+    }
+
+    if (!pollableBuildStatusSet.has(currentBuildStatus)) {
+      router.replace(`/decks/${deckId}`);
+    }
+  }, [buildTaskId, currentBuildStatus, deckId, pollableBuildStatusSet, router]);
 
   useEffect(() => {
     if (!replacementModalCard) {
@@ -437,9 +564,30 @@ export default function DeckPage() {
   const avatarUrl = getAvatarUrlFromSession(session);
 
   const totalCards = deck?.cards.reduce((sum, card) => sum + card.qty, 0) || 0;
-  const isDeckBuilding = deck?.creation_status !== null && deck?.creation_status !== undefined
-    ? POLLABLE_BUILD_STATUSES.has(deck.creation_status)
+  const isDeckBuilding = currentBuildStatus !== null
+    ? pollableBuildStatusSet.has(currentBuildStatus)
     : false;
+  const showBuildStatusSection = currentBuildStatus !== null && currentBuildStatus !== "COMPLETED";
+  const displayBuildStatuses = useMemo(() => {
+    if (currentBuildStatus === "FAILED") {
+      return buildStatuses.filter((statusValue) => statusValue !== "COMPLETED");
+    }
+
+    return buildStatuses.filter((statusValue) => statusValue !== "FAILED");
+  }, [buildStatuses, currentBuildStatus]);
+  const activeStatusIndex = currentBuildStatus ? displayBuildStatuses.indexOf(currentBuildStatus) : -1;
+
+  const getStatusProgressText = (statusValue: string): string | null => {
+    if (statusValue === "BUILDING_DECK") {
+      return `${buildStatusInfo?.n_cards_so_far ?? 0} cards, ${buildStatusInfo?.n_searches_so_far ?? 0} searches`;
+    }
+
+    if (statusValue === "FINDING_REPLACEMENT_CARDS") {
+      return `${buildStatusInfo?.n_replacements_so_far ?? 0}/${buildStatusInfo?.n_replacements_total ?? "?"} replacements`;
+    }
+
+    return null;
+  };
 
   const cardsByRole = useMemo(() => {
     if (!deck) {
@@ -634,6 +782,38 @@ export default function DeckPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  {showBuildStatusSection ? (
+                    <div className="space-y-2 rounded border p-3">
+                      <p className="text-sm font-medium">Build Status</p>
+                      <p className="text-xs text-muted-foreground">
+                        Prompt: {buildPrompt ?? "Unavailable"}
+                      </p>
+                      <div className="space-y-1">
+                        {displayBuildStatuses.map((statusValue, index) => {
+                          const isActive = index === activeStatusIndex;
+                          const isCompleted = activeStatusIndex > -1 && index < activeStatusIndex;
+                          const prefix = isActive ? "→" : isCompleted ? "✓" : "•";
+                          const details = getStatusProgressText(statusValue);
+
+                          return (
+                            <p
+                              key={statusValue}
+                              className={`text-xs ${isActive
+                                ? "font-semibold text-foreground"
+                                : isCompleted
+                                  ? "text-foreground"
+                                  : "text-muted-foreground"
+                                }`}
+                            >
+                              {prefix} {statusValue}
+                              {details ? ` (${details})` : ""}
+                            </p>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="space-y-2">
                     <Label htmlFor="deckName">Name</Label>
                     <Textarea

@@ -23,9 +23,11 @@ from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.search import run_query_from_dsl
 from appsearch.services.qdrant.search_dsl import Filter, MatchAnyCondition, Query
 from asgiref.sync import sync_to_async
+from django.db.models import F
 from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 
+from appai.models.deck_build import DeckBuildTask
 from appai.services.agents.deps import DeckBuildingDeps
 from appai.services.agents.filter_constructor import filter_constructor
 
@@ -132,6 +134,8 @@ async def search_for_cards(
             card_infos.append(await sync_to_async(card_to_info)(card))
         except Card.DoesNotExist:
             continue
+
+    await DeckBuildTask.objects.filter(id=ctx.deps.build_task_id).aupdate(n_searches=F("n_searches") + 1)
     return CardSearchResults(cards=card_infos, max_results=max_results)
 
 

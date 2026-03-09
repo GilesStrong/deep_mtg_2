@@ -93,6 +93,11 @@ class BuildDeckStatusIn(Schema):
 class BuildDeckStatusOut(Schema):
     status: str
     deck_id: UUID
+    prompt: str | None
+    n_cards_so_far: int | None
+    n_searches_so_far: int | None
+    n_replacements_so_far: int | None
+    n_replacements_total: int | None
 
     @field_validator('deck_id', mode='after')
     @classmethod
