@@ -205,6 +205,6 @@ def check_deck_build_status(request: HttpRequest, path_params: Path[BuildDeckSta
         prompt=build.prompt,
         n_cards_so_far=build.deck_size,
         n_searches_so_far=build.n_searches,
-        n_replacemants_so_far=build.n_replacements,
-        n_replacemants_total=build.n_total_replacements,
+        n_replacements_so_far=build.n_replacements,
+        n_replacements_total=build.n_total_replacements,
     )

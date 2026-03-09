@@ -46,8 +46,8 @@ type DeckSummary = {
     generation_task_id: string | null;
     n_cards_so_far?: number | null;
     n_searches_so_far?: number | null;
-    n_replacemants_so_far?: number | null;
-    n_replacemants_total?: number | null;
+    n_replacements_so_far?: number | null;
+    n_replacements_total?: number | null;
 };
 
 const DEFAULT_POLLABLE_STATUSES = new Set([
@@ -68,8 +68,8 @@ type BuildStatusResponse = {
     deck_id: string;
     n_cards_so_far?: number | null;
     n_searches_so_far?: number | null;
-    n_replacemants_so_far?: number | null;
-    n_replacemants_total?: number | null;
+    n_replacements_so_far?: number | null;
+    n_replacements_total?: number | null;
 };
 
 const parseApiError = async (response: Response, fallbackMessage: string): Promise<string> => {
@@ -153,8 +153,8 @@ export default function DashboardPage() {
                     ...deck,
                     n_cards_so_far: currentDeck.n_cards_so_far,
                     n_searches_so_far: currentDeck.n_searches_so_far,
-                    n_replacemants_so_far: currentDeck.n_replacemants_so_far,
-                    n_replacemants_total: currentDeck.n_replacemants_total,
+                    n_replacements_so_far: currentDeck.n_replacements_so_far,
+                    n_replacements_total: currentDeck.n_replacements_total,
                 };
             })
         );
@@ -272,8 +272,8 @@ export default function DashboardPage() {
                                         generation_status: statusData.status,
                                         n_cards_so_far: statusData.n_cards_so_far ?? null,
                                         n_searches_so_far: statusData.n_searches_so_far ?? null,
-                                        n_replacemants_so_far: statusData.n_replacemants_so_far ?? null,
-                                        n_replacemants_total: statusData.n_replacemants_total ?? null,
+                                        n_replacements_so_far: statusData.n_replacements_so_far ?? null,
+                                        n_replacements_total: statusData.n_replacements_total ?? null,
                                     }
                                     : item
                             )
@@ -514,7 +514,7 @@ export default function DashboardPage() {
                                     ) : null}
                                     {deck.generation_status === "FINDING_REPLACEMENT_CARDS" ? (
                                         <p className="text-xs text-muted-foreground">
-                                            Replacement progress: {deck.n_replacemants_so_far ?? 0}/{deck.n_replacemants_total ?? "?"}
+                                            Replacement progress: {deck.n_replacements_so_far ?? 0}/{deck.n_replacements_total ?? "?"}
                                         </p>
                                     ) : null}
                                     <p className="text-sm text-muted-foreground">

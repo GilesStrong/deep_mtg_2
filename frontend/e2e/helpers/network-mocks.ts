@@ -115,8 +115,8 @@ type BuildStatusResponse = {
     prompt?: string | null;
     n_cards_so_far?: number | null;
     n_searches_so_far?: number | null;
-    n_replacemants_so_far?: number | null;
-    n_replacemants_total?: number | null;
+    n_replacements_so_far?: number | null;
+    n_replacements_total?: number | null;
 };
 
 type DeleteRequestResponse = {

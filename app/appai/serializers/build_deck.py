@@ -96,8 +96,8 @@ class BuildDeckStatusOut(Schema):
     prompt: str | None
     n_cards_so_far: int | None
     n_searches_so_far: int | None
-    n_replacemants_so_far: int | None
-    n_replacemants_total: int | None
+    n_replacements_so_far: int | None
+    n_replacements_total: int | None
 
     @field_validator('deck_id', mode='after')
     @classmethod

@@ -363,8 +363,8 @@ describe("DashboardPage", () => {
                         date_updated: "2026-02-02T10:00:00.000Z",
                         generation_status: "FINDING_REPLACEMENT_CARDS",
                         generation_task_id: "task-2",
-                        n_replacemants_so_far: 3,
-                        n_replacemants_total: 8,
+                        n_replacements_so_far: 3,
+                        n_replacements_total: 8,
                     },
                 ]);
             }

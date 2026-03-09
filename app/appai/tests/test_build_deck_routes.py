@@ -362,8 +362,8 @@ class BuildDeckStatusRouteTests(TestCase):
         self.assertEqual(response.prompt, "Blue-white control with sweepers and card draw.")
         self.assertEqual(response.n_cards_so_far, 60)
         self.assertEqual(response.n_searches_so_far, 7)
-        self.assertEqual(response.n_replacemants_so_far, 5)
-        self.assertEqual(response.n_replacemants_total, 12)
+        self.assertEqual(response.n_replacements_so_far, 5)
+        self.assertEqual(response.n_replacements_total, 12)
 
     @patch(f"{_MODULE}.BuildDeckStatusOut", side_effect=lambda **kwargs: SimpleNamespace(**kwargs))
     @patch(f"{_MODULE}.Deck")
@@ -397,5 +397,5 @@ class BuildDeckStatusRouteTests(TestCase):
         self.assertEqual(response.prompt, "Blue-white control with sweepers and card draw.")
         self.assertIsNone(response.n_cards_so_far)
         self.assertEqual(response.n_searches_so_far, 0)
-        self.assertEqual(response.n_replacemants_so_far, 0)
-        self.assertIsNone(response.n_replacemants_total)
+        self.assertEqual(response.n_replacements_so_far, 0)
+        self.assertIsNone(response.n_replacements_total)

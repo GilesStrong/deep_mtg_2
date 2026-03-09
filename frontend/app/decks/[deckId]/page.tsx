@@ -40,13 +40,13 @@ const ROLE_DISPLAY_ORDER = [
   "Land",
 ] as const;
 const IMPORTANCE_DISPLAY_ORDER = ["Critical", "High Synergy", "Functional", "Generic"] as const;
-const POLLABLE_BUILD_STATUSES = new Set([
+const DEFAULT_POLLABLE_BUILD_STATUSES = [
   "PENDING",
   "IN_PROGRESS",
   "BUILDING_DECK",
   "CLASSIFYING_DECK_CARDS",
   "FINDING_REPLACEMENT_CARDS",
-]);
+];
 const DEFAULT_BUILD_STATUSES = [
   "PENDING",
   "IN_PROGRESS",
@@ -122,8 +122,8 @@ type BuildStatusResponse = {
   prompt?: string | null;
   n_cards_so_far?: number | null;
   n_searches_so_far?: number | null;
-  n_replacemants_so_far?: number | null;
-  n_replacemants_total?: number | null;
+  n_replacements_so_far?: number | null;
+  n_replacements_total?: number | null;
 };
 
 export default function DeckPage() {
@@ -146,10 +146,15 @@ export default function DeckPage() {
   const [replacementModalCard, setReplacementModalCard] = useState<DeckCard | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [buildStatuses, setBuildStatuses] = useState<string[]>(DEFAULT_BUILD_STATUSES);
+  const [pollableBuildStatuses, setPollableBuildStatuses] = useState<string[]>(DEFAULT_POLLABLE_BUILD_STATUSES);
   const [buildStatusInfo, setBuildStatusInfo] = useState<BuildStatusResponse | null>(null);
   const toastTimeoutRef = useRef<number | null>(null);
   const currentBuildStatus = buildStatusInfo?.status ?? deck?.creation_status ?? null;
   const buildPrompt = buildStatusInfo?.prompt ?? null;
+  const pollableBuildStatusSet = useMemo(
+    () => new Set(pollableBuildStatuses),
+    [pollableBuildStatuses]
+  );
 
   const showToast = useCallback((message: string) => {
     setToastMessage(message);
@@ -332,6 +337,9 @@ export default function DeckPage() {
       if (Array.isArray(data.all) && data.all.length > 0) {
         setBuildStatuses(data.all);
       }
+      if (Array.isArray(data.pollable) && data.pollable.length > 0) {
+        setPollableBuildStatuses(data.pollable);
+      }
     } catch (error) {
       console.error("Error loading build statuses:", error);
     }
@@ -382,7 +390,7 @@ export default function DeckPage() {
           return;
         }
 
-        if (!POLLABLE_BUILD_STATUSES.has(statusData.status)) {
+        if (!pollableBuildStatusSet.has(statusData.status)) {
           if (intervalId !== null) {
             clearInterval(intervalId);
           }
@@ -404,17 +412,17 @@ export default function DeckPage() {
         clearInterval(intervalId);
       }
     };
-  }, [buildTaskId, deckId, fetchBuildStatus, fetchDeck, router]);
+  }, [buildTaskId, deckId, fetchBuildStatus, fetchDeck, pollableBuildStatusSet, router]);
 
   useEffect(() => {
     if (!buildTaskId || !currentBuildStatus) {
       return;
     }
 
-    if (!POLLABLE_BUILD_STATUSES.has(currentBuildStatus)) {
+    if (!pollableBuildStatusSet.has(currentBuildStatus)) {
       router.replace(`/decks/${deckId}`);
     }
-  }, [buildTaskId, currentBuildStatus, deckId, router]);
+  }, [buildTaskId, currentBuildStatus, deckId, pollableBuildStatusSet, router]);
 
   useEffect(() => {
     if (!replacementModalCard) {
@@ -557,7 +565,7 @@ export default function DeckPage() {
 
   const totalCards = deck?.cards.reduce((sum, card) => sum + card.qty, 0) || 0;
   const isDeckBuilding = currentBuildStatus !== null
-    ? POLLABLE_BUILD_STATUSES.has(currentBuildStatus)
+    ? pollableBuildStatusSet.has(currentBuildStatus)
     : false;
   const showBuildStatusSection = currentBuildStatus !== null && currentBuildStatus !== "COMPLETED";
   const displayBuildStatuses = useMemo(() => {
@@ -575,7 +583,7 @@ export default function DeckPage() {
     }
 
     if (statusValue === "FINDING_REPLACEMENT_CARDS") {
-      return `${buildStatusInfo?.n_replacemants_so_far ?? 0}/${buildStatusInfo?.n_replacemants_total ?? "?"} replacements`;
+      return `${buildStatusInfo?.n_replacements_so_far ?? 0}/${buildStatusInfo?.n_replacements_total ?? "?"} replacements`;
     }
 
     return null;
