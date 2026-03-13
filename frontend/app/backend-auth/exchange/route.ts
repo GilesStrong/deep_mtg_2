@@ -179,7 +179,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (!response.ok || !data.access_token || !data.refresh_token) {
         return NextResponse.json(
-            { detail: data.detail ?? "Failed to exchange Google token" },
+            { detail: data.detail ?? "Please login to continue" },
             { status: response.status || 500 },
         );
     }

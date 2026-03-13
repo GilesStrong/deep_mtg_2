@@ -464,14 +464,23 @@ export default function DashboardPage() {
                             <CardHeader>
                                 <CardTitle>No decks found</CardTitle>
                                 <CardDescription>
-                                    {decks.length === 0
-                                        ? "Create your first deck to get started."
-                                        : "Try adjusting your set code filter."}
+                                    {decks.length === 0 ? (
+                                        <>
+                                            Welcome to Deep MTG! Use card search to find inspiration, and the deck builder to get started on your collection.
+                                        </>
+                                    ) : (
+                                        "Try adjusting your set code filter."
+                                    )}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
                                 {decks.length === 0 ? (
-                                    <Button onClick={() => router.push("/decks/generate")}>Go to Deck Generation</Button>
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button variant="outline" onClick={() => router.push("/cards/search")}>
+                                            Open Card Search
+                                        </Button>
+                                        <Button onClick={() => router.push("/decks/generate")}>Open Deck Builder</Button>
+                                    </div>
                                 ) : (
                                     <Button
                                         onClick={() => {
