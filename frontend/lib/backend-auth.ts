@@ -43,7 +43,7 @@ const exchangeGoogleToken = async (): Promise<void> => {
     });
 
     if (!response.ok) {
-        throw new Error(await parseBackendErrorMessage(response, "Failed to exchange Google token"));
+        throw new Error(await parseBackendErrorMessage(response, "Please login to continue"));
     }
 };
 

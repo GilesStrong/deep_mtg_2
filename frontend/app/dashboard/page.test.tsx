@@ -199,6 +199,8 @@ describe("DashboardPage", () => {
     });
 
     it("shows empty states when deck and set code requests fail", async () => {
+        const user = userEvent.setup();
+
         mockBackendFetch.mockImplementation(async (_session: unknown, url: string) => {
             if (
                 url === "/api/app/ai/deck/statuses/" ||
@@ -215,7 +217,19 @@ describe("DashboardPage", () => {
 
         expect(await screen.findByText("No set codes available.")).toBeInTheDocument();
         expect(await screen.findByText("No decks found")).toBeInTheDocument();
-        expect(screen.getByText("Create your first deck to get started.")).toBeInTheDocument();
+        expect(screen.getByText(/Welcome to Deep MTG/i)).toBeInTheDocument();
+
+        const openCardSearchButton = screen.getByRole("button", { name: "Open Card Search" });
+        const openDeckBuilderButton = screen.getByRole("button", { name: "Open Deck Builder" });
+
+        expect(openCardSearchButton).toBeInTheDocument();
+        expect(openDeckBuilderButton).toBeInTheDocument();
+
+        await user.click(openCardSearchButton);
+        expect(push).toHaveBeenCalledWith("/cards/search");
+
+        await user.click(openDeckBuilderButton);
+        expect(push).toHaveBeenCalledWith("/decks/generate");
     });
 
     it("clears tokens and signs out from the user menu", async () => {
