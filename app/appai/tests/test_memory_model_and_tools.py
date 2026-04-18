@@ -1,0 +1,277 @@
+# Copyright 2026 Giles Strong
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID, uuid4
+
+from django.test import TestCase
+
+from appai.constants.storage import MEMORY_COLLECTION_NAME
+from appai.models.memory import Memory as PGMemory
+from appai.services.agents.tools.memory_tools import (
+    MIN_RELEVANCE_SCORE,
+    card_memory_search,
+    semantic_memory_search,
+    write_memory,
+)
+
+_MODEL_MODULE = "appai.models.memory"
+_TOOLS_MODULE = "appai.services.agents.tools.memory_tools"
+
+
+class MemoryModelTests(TestCase):
+    @patch(f"{_MODEL_MODULE}.QDRANT_CLIENT")
+    def test_delete_removes_vector_point_and_row(self, mock_client):
+        """
+        GIVEN a persisted memory
+        WHEN it is deleted
+        THEN the corresponding vector point is deleted from Qdrant and the row is removed
+        """
+        memory = PGMemory.objects.create(name="Tempo Insight", text="Keep two-mana interaction density high")
+        memory_id = str(memory.id)
+
+        memory.delete()
+
+        mock_client.delete.assert_called_once_with(
+            collection_name=MEMORY_COLLECTION_NAME,
+            points_selector=[memory_id],
+        )
+        self.assertFalse(PGMemory.objects.filter(id=memory.id).exists())
+
+
+class SemanticMemorySearchTests(TestCase):
+    @patch(f"{_TOOLS_MODULE}.run_query_from_dsl")
+    @patch(f"{_TOOLS_MODULE}.QDRANT_CLIENT")
+    @patch(f"{_TOOLS_MODULE}.create_collection_if_not_exists")
+    async def test_returns_empty_when_memory_collection_has_no_points(
+        self,
+        mock_create_collection,
+        mock_qdrant_client,
+        mock_run_query,
+    ):
+        """
+        GIVEN an empty memory collection
+        WHEN semantic_memory_search is called
+        THEN it returns no memories without running the DSL query
+        """
+        mock_qdrant_client.count.return_value = SimpleNamespace(count=0)
+
+        with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
+            result = await semantic_memory_search("find interaction synergies")
+
+        mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+        self.assertEqual(result.total_memories, 0)
+        self.assertEqual(result.memories, [])
+        mock_run_query.assert_not_called()
+
+    @patch(f"{_TOOLS_MODULE}.run_query_from_dsl")
+    @patch(f"{_TOOLS_MODULE}.QDRANT_CLIENT")
+    @patch(f"{_TOOLS_MODULE}.create_collection_if_not_exists")
+    async def test_forwards_score_threshold_and_parses_payloads(
+        self,
+        mock_create_collection,
+        mock_qdrant_client,
+        mock_run_query,
+    ):
+        """
+        GIVEN stored memories and search results with one missing payload
+        WHEN semantic_memory_search is called
+        THEN it applies the minimum relevance threshold and returns parsed memory objects
+        """
+        related_uuid = uuid4()
+        mock_qdrant_client.count.return_value = SimpleNamespace(count=3)
+        mock_run_query.return_value = [
+            SimpleNamespace(
+                payload={
+                    "name": "Go-wide pressure",
+                    "text": "Token payoffs overperform in grindy mirrors",
+                    "related_card_uuids": [str(related_uuid)],
+                }
+            ),
+            SimpleNamespace(payload=None),
+        ]
+
+        with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
+            result = await semantic_memory_search("token mirror matchups")
+
+        self.assertEqual(result.total_memories, 3)
+        self.assertEqual(len(result.memories), 1)
+        self.assertEqual(result.memories[0].name, "Go-wide pressure")
+        self.assertEqual(result.memories[0].related_card_uuids, [related_uuid])
+
+        query_arg = mock_run_query.call_args.args[0]
+        self.assertEqual(query_arg.collection_name, MEMORY_COLLECTION_NAME)
+        self.assertEqual(query_arg.query_string, "token mirror matchups")
+        self.assertEqual(mock_run_query.call_args.kwargs["score_threshold"], MIN_RELEVANCE_SCORE)
+        mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+
+
+class CardMemorySearchTests(TestCase):
+    @patch(f"{_TOOLS_MODULE}.run_query_from_dsl")
+    @patch(f"{_TOOLS_MODULE}.QDRANT_CLIENT")
+    @patch(f"{_TOOLS_MODULE}.create_collection_if_not_exists")
+    async def test_returns_empty_for_empty_card_list(
+        self,
+        mock_create_collection,
+        mock_qdrant_client,
+        mock_run_query,
+    ):
+        """
+        GIVEN a non-empty memory collection and no card UUIDs
+        WHEN card_memory_search is called
+        THEN it returns no memories and does not run the DSL query
+        """
+        mock_qdrant_client.count.return_value = SimpleNamespace(count=5)
+
+        with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
+            result = await card_memory_search([])
+
+        self.assertEqual(result.total_memories, 5)
+        self.assertEqual(result.memories, [])
+        mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+        mock_run_query.assert_not_called()
+
+    @patch(f"{_TOOLS_MODULE}.run_query_from_dsl")
+    @patch(f"{_TOOLS_MODULE}.QDRANT_CLIENT")
+    @patch(f"{_TOOLS_MODULE}.create_collection_if_not_exists")
+    async def test_builds_related_card_filter_and_uses_score_threshold(
+        self,
+        mock_create_collection,
+        mock_qdrant_client,
+        mock_run_query,
+    ):
+        """
+        GIVEN card UUIDs and matching memory search results
+        WHEN card_memory_search is called
+        THEN it builds a card UUID filter and forwards minimum relevance threshold
+        """
+        first_card = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        second_card = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        mock_qdrant_client.count.return_value = SimpleNamespace(count=2)
+        mock_run_query.return_value = [
+            SimpleNamespace(
+                payload={
+                    "name": "Prowess sequencing",
+                    "text": "Cheap cantrips improve trigger density",
+                    "related_card_uuids": [str(first_card), str(second_card)],
+                }
+            )
+        ]
+
+        with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
+            result = await card_memory_search([first_card, second_card])
+
+        self.assertEqual(result.total_memories, 2)
+        self.assertEqual(len(result.memories), 1)
+        query_arg = mock_run_query.call_args.args[0]
+        self.assertIsNotNone(query_arg.filter)
+        self.assertEqual(query_arg.filter.min_should_count, 1)
+        self.assertEqual(query_arg.filter.should[0].key, "related_card_uuids")
+        self.assertEqual(query_arg.filter.should[0].any, [str(first_card), str(second_card)])
+        self.assertEqual(mock_run_query.call_args.kwargs["score_threshold"], MIN_RELEVANCE_SCORE)
+        mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+
+
+class WriteMemoryTests(TestCase):
+    @patch(f"{_TOOLS_MODULE}.upsert_documents")
+    @patch(f"{_TOOLS_MODULE}.dense_embed")
+    @patch(f"{_TOOLS_MODULE}.PGMemory")
+    @patch(f"{_TOOLS_MODULE}.Agent")
+    @patch(f"{_TOOLS_MODULE}.create_collection_if_not_exists")
+    async def test_refused_memory_is_not_persisted(
+        self,
+        mock_create_collection,
+        mock_agent_cls,
+        mock_pg_memory,
+        mock_dense_embed,
+        mock_upsert_documents,
+    ):
+        """
+        GIVEN the memory-writing subagent refuses to emit a memory
+        WHEN write_memory is called
+        THEN no database create or vector upsert occurs
+        """
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=SimpleNamespace(output=None))
+        mock_agent_cls.return_value = mock_agent
+        mock_pg_memory.objects.acreate = AsyncMock()
+
+        await write_memory("User likes this deck and had fun piloting it")
+
+        mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+        mock_pg_memory.objects.acreate.assert_not_awaited()
+        mock_dense_embed.assert_not_called()
+        mock_upsert_documents.assert_not_called()
+
+    @patch(f"{_TOOLS_MODULE}.upsert_documents")
+    @patch(f"{_TOOLS_MODULE}.dense_embed")
+    @patch(f"{_TOOLS_MODULE}.PGMemory")
+    @patch(f"{_TOOLS_MODULE}.Agent")
+    @patch(f"{_TOOLS_MODULE}.create_collection_if_not_exists")
+    async def test_persists_memory_and_upserts_vector_point(
+        self,
+        mock_create_collection,
+        mock_agent_cls,
+        mock_pg_memory,
+        mock_dense_embed,
+        mock_upsert_documents,
+    ):
+        """
+        GIVEN a valid structured memory output from the writing subagent
+        WHEN write_memory is called
+        THEN it persists the memory and upserts a vector point with matching payload
+        """
+        related_uuid = UUID("11111111-1111-1111-1111-111111111111")
+        output = SimpleNamespace(
+            name="Tempo mirror heuristic",
+            text="Prioritise one-mana interaction to avoid falling behind on board",
+            related_card_uuids=[related_uuid],
+        )
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=SimpleNamespace(output=output))
+        mock_agent_cls.return_value = mock_agent
+
+        created_at = datetime(2026, 4, 18, 10, 0, tzinfo=timezone.utc)
+        memory_id = UUID("22222222-2222-2222-2222-222222222222")
+        mock_pg_memory.objects.acreate = AsyncMock(
+            return_value=SimpleNamespace(
+                id=memory_id,
+                name=output.name,
+                text=output.text,
+                related_card_uuids=[str(related_uuid)],
+                created_at=created_at,
+            )
+        )
+        mock_dense_embed.return_value = [0.12, 0.34, 0.56]
+
+        await write_memory("Store durable tempo-sideboarding insight")
+
+        mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+        mock_pg_memory.objects.acreate.assert_awaited_once_with(
+            name=output.name,
+            text=output.text,
+            related_card_uuids=[str(related_uuid)],
+        )
+        mock_dense_embed.assert_called_once_with(output.text)
+
+        self.assertEqual(mock_upsert_documents.call_args.kwargs["collection_name"], MEMORY_COLLECTION_NAME)
+        points = mock_upsert_documents.call_args.kwargs["points"]
+        self.assertEqual(len(points), 1)
+        self.assertEqual(points[0].id, str(memory_id))
+        self.assertEqual(points[0].payload["related_card_uuids"], [str(related_uuid)])
