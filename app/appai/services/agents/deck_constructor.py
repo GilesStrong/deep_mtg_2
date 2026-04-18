@@ -112,13 +112,15 @@ In general, a 60-card deck contains around 24 lands, but this can vary based on 
 
 In general, you should aim to build the deck iteratively, starting with a core strategy and key cards, and then filling in the rest of the deck with supporting cards and a suitable mana base.
 1. Read the current deck list using the list_deck_cards tool; you may well be required to finish or modify an existing deck, so understanding the current state of the deck is essential before making changes.
-2. Based on the core strategy, build a mana base based on the expected colors and mana costs of the cards that will be included in the deck. This can be refined later on.
-3. Add the key cards that are central to the deck's strategy, ensuring that you include enough copies of each card to maximize the effectiveness of the deck.
-4. Fill in the rest of the deck with supporting cards that enhance the overall strategy and synergy of the deck, while also considering the balance of the deck.
-5. Finalise the mana base, ensuring that it can support the cards included in the deck and provides a good balance of colors and mana costs.
-6. Review the deck to ensure that it meets the user's requirements and constraints, and that it is a cohesive and effective deck that follows the core strategy.
-7. Use the rename_deck tool to give the deck a name that reflects its strategy and key features.
-8. Validate the deck using the validate_deck tool to ensure that it is legal and meets all necessary requirements.
+2. Check for existing memories that may be relevant to the deck you are building using the subagent_memory_search tool, and use any relevant insights from those memories to inform your construction process.
+3. Based on the core strategy, build a mana base based on the expected colors and mana costs of the cards that will be included in the deck. This can be refined later on.
+4. Add the key cards that are central to the deck's strategy, ensuring that you include enough copies of each card to maximize the effectiveness of the deck.
+5. Fill in the rest of the deck with supporting cards that enhance the overall strategy and synergy of the deck, while also considering the balance of the deck.
+6. Finalise the mana base, ensuring that it can support the cards included in the deck and provides a good balance of colors and mana costs.
+7. Review the deck to ensure that it meets the user's requirements and constraints, and that it is a cohesive and effective deck that follows the core strategy.
+8. Use the rename_deck tool to give the deck a name that reflects its strategy and key features.
+9. Validate the deck using the validate_deck tool to ensure that it is legal and meets all necessary requirements.
+10. Consider whether there are any insights or knowledge gained during the deck construction process that could be useful for future tasks, and if so, write them down in the memory system using the write_memory tool to help inform future efforts.
 
 A successful deck ensures that all cards work together to achieve a common strategy, and that the deck is consistent and effective in executing that strategy.
 It needs to ensure that it is able to survive the early game, establish its strategy in the mid game, and have a plan or win condition for in the late game.
@@ -194,6 +196,8 @@ async def run_deck_constructor_agent(
         model=TOOL_MODEL_THINKING,
         deps_type=DeckBuildingDeps,
         tools=[
+            subagent_memory_search,
+            write_memory,
             list_deck_cards,
             add_card_to_deck,
             remove_card_from_deck,
@@ -201,8 +205,6 @@ async def run_deck_constructor_agent(
             inspect_card,
             validate_deck,
             clear_deck,
-            write_memory,
-            subagent_memory_search,
         ],
         instrument=True,
         retries=10,

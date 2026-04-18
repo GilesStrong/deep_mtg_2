@@ -36,7 +36,9 @@ MIN_RELEVANCE_SCORE = 0.5
 
 
 def _validate_related_card_uuids(v: list[UUID]) -> list[UUID]:
-    existing_card_uuids = set(Card.objects.filter(uuid__in=v).values_list("uuid", flat=True))
+    if len(v) == 0:
+        return v
+    existing_card_uuids = set(Card.objects.filter(id__in=v).values_list("id", flat=True))
     non_existing_uuids = set(v) - existing_card_uuids
     if non_existing_uuids:
         raise ValueError(
@@ -93,7 +95,8 @@ Use you own judgement to determine whether the information is worth remembering 
 async def write_memory(content: str) -> None:
     """
     Tool for recroding memories that you think will be useful for future reference.
-    The memories recorded here are not necessarily beneficial for you, however they may be beneficial for future agents.
+    The memories recorded here are not necessarily beneficial for your current task, however they may be beneficial for you during future tasks.
+    Therefore it is beneficial to record insights and information that you think will be useful for future reference, even if they are not directly relevant to your current task.
     Memories can be, e.g.:
     - Synergies that you discover between cards that you think will be useful to remember later
     - Deck building strategies that you think will be useful to remember later
