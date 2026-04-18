@@ -34,7 +34,7 @@ from pydantic_ai import Agent, ModelRetry, UsageLimits
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC, TOOL_MODEL_THINKING
-from appai.constants.prompt_gotchas import GOTCHAS
+from appai.constants.prompt_gotchas import GOTCHAS, MEMORY_SUB_PROMPT
 from appai.services.agents.deps import DeckBuildingDeps
 from appai.services.agents.tools.card_tools import inspect_card
 from appai.services.agents.tools.deck_tools import (
@@ -44,6 +44,7 @@ from appai.services.agents.tools.deck_tools import (
     remove_card_from_deck,
     validate_deck,
 )
+from appai.services.agents.tools.memory_tools import subagent_memory_search, write_memory
 from appai.services.agents.tools.query_tools import search_for_cards
 
 DECK_CONSTRUCTION_SYSTEM_PROMPT = f"""
@@ -123,6 +124,10 @@ A successful deck ensures that all cards work together to achieve a common strat
 It needs to ensure that it is able to survive the early game, establish its strategy in the mid game, and have a plan or win condition for in the late game.
 Unless going for a fast agro deck, staying on curve and ensuring card draw and mana sources in the early-mid game is essential.
 
+## Memories
+{MEMORY_SUB_PROMPT}
+
+## Gotchas
 {GOTCHAS}
 """
 
@@ -196,6 +201,8 @@ async def run_deck_constructor_agent(
             inspect_card,
             validate_deck,
             clear_deck,
+            write_memory,
+            subagent_memory_search,
         ],
         instrument=True,
         retries=10,

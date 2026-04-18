@@ -12,7 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deck_build import DeckBuildStatus, DeckBuildTask
-from .memory import Memory
-
-__all__ = ["DeckBuildTask", "DeckBuildStatus", "Memory"]
+MEMORY_COLLECTION_NAME = "memories"

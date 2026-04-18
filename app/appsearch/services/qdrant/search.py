@@ -30,6 +30,7 @@ def run_query(
     query_vector: Optional[list[float]],
     query_filter: Optional[qm.Filter],
     limit: int = 10,
+    score_threshold: float = 0.0,
 ) -> list[qm.ScoredPoint]:
     """
     Execute a vector similarity search query against a Qdrant collection.
@@ -41,6 +42,8 @@ def run_query(
         query_filter (Optional[qm.Filter]): Optional Qdrant filter to apply to the query,
             allowing to narrow down results based on payload conditions.
         limit (int, optional): Maximum number of results to return. Defaults to 10.
+        score_threshold (float, optional): Minimum relevance score for results to be included.
+            Defaults to 0.0, meaning all results are included regardless of score.
 
     Returns:
         list[qm.ScoredPoint]: A list of scored points from the Qdrant collection,
@@ -66,13 +69,17 @@ def run_query(
         limit=limit,
         with_payload=True,
         with_vectors=False,
+        score_threshold=score_threshold,
     )
     return res.points
 
 
 @beartype
 def run_query_from_dsl(
-    dsl_query: DSLQuery, exclude_ids: Optional[list[str]] = None, include_ids: Optional[list[str]] = None
+    dsl_query: DSLQuery,
+    exclude_ids: Optional[list[str]] = None,
+    include_ids: Optional[list[str]] = None,
+    score_threshold: float = 0.0,
 ) -> list[qm.ScoredPoint]:
     """
     Execute a Qdrant search query from a DSL (Domain Specific Language) query object.
@@ -91,6 +98,8 @@ def run_query_from_dsl(
             search results. Defaults to None.
         include_ids (Optional[list[str]]): List of document IDs that must be
             included in search results. Defaults to None.
+        score_threshold (float, optional): Minimum relevance score for results to be included.
+            Defaults to 0.0, meaning all results are included regardless of score.
 
     Returns:
         list[qm.ScoredPoint]: A list of scored points from the Qdrant search,
@@ -124,4 +133,5 @@ def run_query_from_dsl(
         query_vector=query_vector,
         query_filter=query_filter,
         limit=dsl_query.limit,
+        score_threshold=score_threshold,
     )
