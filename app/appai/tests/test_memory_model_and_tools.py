@@ -20,10 +20,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 from django.test import TestCase
+from pydantic_ai import ModelRetry
 
 from appai.constants.storage import MEMORY_COLLECTION_NAME
 from appai.models.memory import Memory as PGMemory
 from appai.services.agents.tools.memory_tools import (
+    MAX_MEMORY_SEARCHES,
     MIN_RELEVANCE_SCORE,
     card_memory_search,
     semantic_memory_search,
@@ -32,6 +34,24 @@ from appai.services.agents.tools.memory_tools import (
 
 _MODEL_MODULE = "appai.models.memory"
 _TOOLS_MODULE = "appai.services.agents.tools.memory_tools"
+
+
+def _build_ctx(*, memory_searches: int = 0, memories_written: int = 0) -> SimpleNamespace:
+    """Build a minimal context object for memory tool calls in tests.
+
+    Args:
+        memory_searches (int): Number of searches already used in the current run.
+        memories_written (int): Number of memories already written in the current run.
+
+    Returns:
+        SimpleNamespace: A context-like object exposing deps with required counters.
+    """
+    return SimpleNamespace(
+        deps=SimpleNamespace(
+            memory_searches=memory_searches,
+            memories_written=memories_written,
+        )
+    )
 
 
 class MemoryModelTests(TestCase):
@@ -70,13 +90,15 @@ class SemanticMemorySearchTests(TestCase):
         THEN it returns no memories without running the DSL query
         """
         mock_qdrant_client.count.return_value = SimpleNamespace(count=0)
+        ctx = _build_ctx()
 
         with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
-            result = await semantic_memory_search("find interaction synergies")
+            result = await semantic_memory_search(ctx, "find interaction synergies")
 
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
         self.assertEqual(result.total_memories, 0)
         self.assertEqual(result.memories, [])
+        self.assertEqual(ctx.deps.memory_searches, 0)
         mock_run_query.assert_not_called()
 
     @patch(f"{_TOOLS_MODULE}.run_query_from_dsl")
@@ -105,20 +127,47 @@ class SemanticMemorySearchTests(TestCase):
             ),
             SimpleNamespace(payload=None),
         ]
+        ctx = _build_ctx()
 
         with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
-            result = await semantic_memory_search("token mirror matchups")
+            result = await semantic_memory_search(ctx, "token mirror matchups")
 
         self.assertEqual(result.total_memories, 3)
         self.assertEqual(len(result.memories), 1)
         self.assertEqual(result.memories[0].name, "Go-wide pressure")
         self.assertEqual(result.memories[0].related_card_uuids, [related_uuid])
+        self.assertEqual(ctx.deps.memory_searches, 1)
 
         query_arg = mock_run_query.call_args.args[0]
         self.assertEqual(query_arg.collection_name, MEMORY_COLLECTION_NAME)
         self.assertEqual(query_arg.query_string, "token mirror matchups")
         self.assertEqual(mock_run_query.call_args.kwargs["score_threshold"], MIN_RELEVANCE_SCORE)
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+
+    @patch(f"{_TOOLS_MODULE}.run_query_from_dsl")
+    @patch(f"{_TOOLS_MODULE}.QDRANT_CLIENT")
+    @patch(f"{_TOOLS_MODULE}.create_collection_if_not_exists")
+    async def test_raises_when_search_budget_is_exhausted(
+        self,
+        mock_create_collection,
+        mock_qdrant_client,
+        mock_run_query,
+    ):
+        """
+        GIVEN the per-run memory search budget is exhausted
+        WHEN semantic_memory_search is called
+        THEN it raises ModelRetry and skips running the DSL query
+        """
+        mock_qdrant_client.count.return_value = SimpleNamespace(count=3)
+        ctx = _build_ctx(memory_searches=MAX_MEMORY_SEARCHES)
+
+        with self.assertRaises(ModelRetry):
+            await semantic_memory_search(ctx, "find control matchup insights")
+
+        self.assertEqual(ctx.deps.memory_searches, MAX_MEMORY_SEARCHES)
+        mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+        mock_qdrant_client.count.assert_called_once_with(collection_name=MEMORY_COLLECTION_NAME)
+        mock_run_query.assert_not_called()
 
 
 class CardMemorySearchTests(TestCase):
@@ -137,12 +186,14 @@ class CardMemorySearchTests(TestCase):
         THEN it returns no memories and does not run the DSL query
         """
         mock_qdrant_client.count.return_value = SimpleNamespace(count=5)
+        ctx = _build_ctx()
 
         with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
-            result = await card_memory_search([])
+            result = await card_memory_search(ctx, [])
 
         self.assertEqual(result.total_memories, 5)
         self.assertEqual(result.memories, [])
+        self.assertEqual(ctx.deps.memory_searches, 1)
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
         mock_run_query.assert_not_called()
 
@@ -172,9 +223,10 @@ class CardMemorySearchTests(TestCase):
                 }
             )
         ]
+        ctx = _build_ctx()
 
         with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
-            result = await card_memory_search([first_card, second_card])
+            result = await card_memory_search(ctx, [first_card, second_card])
 
         self.assertEqual(result.total_memories, 2)
         self.assertEqual(len(result.memories), 1)
@@ -184,7 +236,32 @@ class CardMemorySearchTests(TestCase):
         self.assertEqual(query_arg.filter.should[0].key, "related_card_uuids")
         self.assertEqual(query_arg.filter.should[0].any, [str(first_card), str(second_card)])
         self.assertEqual(mock_run_query.call_args.kwargs["score_threshold"], MIN_RELEVANCE_SCORE)
+        self.assertEqual(ctx.deps.memory_searches, 1)
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+
+    @patch(f"{_TOOLS_MODULE}.run_query_from_dsl")
+    @patch(f"{_TOOLS_MODULE}.QDRANT_CLIENT")
+    @patch(f"{_TOOLS_MODULE}.create_collection_if_not_exists")
+    async def test_raises_when_search_budget_is_exhausted(
+        self,
+        mock_create_collection,
+        mock_qdrant_client,
+        mock_run_query,
+    ):
+        """
+        GIVEN the per-run memory search budget is exhausted
+        WHEN card_memory_search is called
+        THEN it raises ModelRetry and skips collection/query work
+        """
+        ctx = _build_ctx(memory_searches=MAX_MEMORY_SEARCHES)
+
+        with self.assertRaises(ModelRetry):
+            await card_memory_search(ctx, [uuid4()])
+
+        self.assertEqual(ctx.deps.memory_searches, MAX_MEMORY_SEARCHES)
+        mock_create_collection.assert_not_called()
+        mock_qdrant_client.count.assert_not_called()
+        mock_run_query.assert_not_called()
 
 
 class WriteMemoryTests(TestCase):
@@ -210,13 +287,17 @@ class WriteMemoryTests(TestCase):
         mock_agent.run = AsyncMock(return_value=SimpleNamespace(output=None))
         mock_agent_cls.return_value = mock_agent
         mock_pg_memory.objects.acreate = AsyncMock()
+        ctx = _build_ctx()
 
-        await write_memory("User likes this deck and had fun piloting it")
+        await write_memory(ctx, "User likes this deck and had fun piloting it")
 
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+        self.assertEqual(mock_agent_cls.call_args.kwargs["retries"], 10)
+        self.assertEqual(mock_agent_cls.call_args.kwargs["output_retries"], 10)
         mock_pg_memory.objects.acreate.assert_not_awaited()
         mock_dense_embed.assert_not_called()
         mock_upsert_documents.assert_not_called()
+        self.assertEqual(ctx.deps.memories_written, 0)
 
     @patch(f"{_TOOLS_MODULE}.upsert_documents")
     @patch(f"{_TOOLS_MODULE}.dense_embed")
@@ -259,10 +340,13 @@ class WriteMemoryTests(TestCase):
             )
         )
         mock_dense_embed.return_value = [0.12, 0.34, 0.56]
+        ctx = _build_ctx()
 
-        await write_memory("Store durable tempo-sideboarding insight")
+        await write_memory(ctx, "Store durable tempo-sideboarding insight")
 
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
+        self.assertEqual(mock_agent_cls.call_args.kwargs["retries"], 10)
+        self.assertEqual(mock_agent_cls.call_args.kwargs["output_retries"], 10)
         mock_pg_memory.objects.acreate.assert_awaited_once_with(
             name=output.name,
             text=output.text,
@@ -275,3 +359,4 @@ class WriteMemoryTests(TestCase):
         self.assertEqual(len(points), 1)
         self.assertEqual(points[0].id, str(memory_id))
         self.assertEqual(points[0].payload["related_card_uuids"], [str(related_uuid)])
+        self.assertEqual(ctx.deps.memories_written, 1)
