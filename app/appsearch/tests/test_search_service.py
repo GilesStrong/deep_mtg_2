@@ -110,12 +110,14 @@ class RunQueryFromDslTests(TestCase):
         self.assertEqual(len(called_filter.must_not or []), 1)
 
     @patch(f"{_MODULE}.run_query")
-    def test_forwards_score_threshold_to_run_query(self, mock_run_query):
+    @patch(f"{_MODULE}.dense_embed")
+    def test_forwards_score_threshold_to_run_query(self, mock_dense_embed, mock_run_query):
         """
         GIVEN a DSL query and explicit score threshold
         WHEN run_query_from_dsl is called
         THEN it forwards score_threshold to run_query
         """
+        mock_dense_embed.return_value = [0.1, 0.2, 0.3]
         mock_run_query.return_value = []
         dsl = Query(collection_name="cards", query_string="tempo", filter=None, limit=4)
 
