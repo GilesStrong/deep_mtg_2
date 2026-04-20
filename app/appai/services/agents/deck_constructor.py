@@ -30,7 +30,7 @@ from appcards.models.deck import (
 from appcore.modules.beartype import beartype
 from asgiref.sync import sync_to_async
 from pydantic import BaseModel, Field, create_model, field_validator
-from pydantic_ai import Agent, ModelRetry, UsageLimits
+from pydantic_ai import Agent, ModelRetry, RunContext, UsageLimits
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC, TOOL_MODEL_THINKING
@@ -216,7 +216,25 @@ async def run_deck_constructor_agent(
         deck_description=deck_description,
         available_set_codes=available_set_codes if available_set_codes is not None else CURRENT_STANDARD_SET_CODES,
         build_task_id=build_task_id,
+        memories_written=0,
+        checked_memories=False,
+        memory_searches=0,
     )
+
+    @agent.output_validator
+    async def _validate_output(
+        ctx: RunContext[DeckBuildingDeps], output: DeckConstructionOutput
+    ) -> DeckConstructionOutput:
+        if ctx.deps.memories_written == 0 and not ctx.deps.checked_memories:
+            ctx.deps.checked_memories = True
+            raise ModelRetry(
+                """
+Your are about to finish building the deck, but have not written any memories.
+Are you sure there is nothing worth recording? 
+If not, please proceed to return the final output, and it will be accepted.
+"""
+            )
+        return output
 
     deck = await Deck.objects.aget(id=deck_id)
     input_message = f"# Generation request\n{deck_description}"

@@ -24,15 +24,17 @@ from appsearch.services.qdrant.search_dsl import Filter, MatchAnyCondition, Quer
 from appsearch.services.qdrant.upsert import create_collection_if_not_exists, upsert_documents
 from asgiref.sync import sync_to_async
 from pydantic import BaseModel, Field, field_validator
-from pydantic_ai import Agent
+from pydantic_ai import Agent, ModelRetry, RunContext
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC
 from appai.constants.storage import MEMORY_COLLECTION_NAME
 from appai.models.memory import Memory as PGMemory
 from appai.modules.dense_embedding import dense_embed
+from appai.services.agents.deps import DeckBuildingDeps
 
 MAX_SEARCH_RESULTS = 5
 MIN_RELEVANCE_SCORE = 0.5
+MAX_MEMORY_SEARCHES = 10
 
 
 def _validate_related_card_uuids(v: list[UUID]) -> list[UUID]:
@@ -92,7 +94,7 @@ Use you own judgement to determine whether the information is worth remembering 
 
 # TODO: Add memory clearing task to remove old memories that are no longer relevant
 @beartype
-async def write_memory(content: str) -> None:
+async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str) -> None:
     """
     Tool for recroding memories that you think will be useful for future reference.
     The memories recorded here are not necessarily beneficial for your current task, however they may be beneficial for you during future tasks.
@@ -109,6 +111,8 @@ async def write_memory(content: str) -> None:
     Args:
         content (str): The unstructured memory content that you want to remember.
             A subagent will process this content and convert it into a structured memory format, which will then be stored in the database and the vector search index for future retrieval.
+            If there are specific cards that are related to the memory, make sure to mention them by name an UUID in the content.
+            If the UUID is not mentioned then it cannot be included in the structured memory.
 
     Returns:
         None: This tool does not return any output, it simply records the memory for future reference.
@@ -142,7 +146,7 @@ async def write_memory(content: str) -> None:
     embedding = dense_embed(output.text)
     point = qm.PointStruct(
         id=str(memory.id),
-        vector=embedding,
+        vector={'dense': embedding},
         payload={
             "name": output.name,
             "text": output.text,
@@ -151,11 +155,13 @@ async def write_memory(content: str) -> None:
         },
     )
     await sync_to_async(upsert_documents)(collection_name=MEMORY_COLLECTION_NAME, points=[point])
+    ctx.deps.memories_written += 1
     logfire.info(
         "Memory successfully recorded and upserted to vector database.",
         name=memory.name,
         text=memory.text,
         related_card_uuids=memory.related_card_uuids,
+        total_memories_written=ctx.deps.memories_written,
     )
 
 
@@ -168,7 +174,7 @@ class MemorySearchResult(BaseModel):
 
 
 @beartype
-async def semantic_memory_search(query: str) -> MemorySearchResult:
+async def semantic_memory_search(ctx: RunContext[DeckBuildingDeps], query: str) -> MemorySearchResult:
     """
     Semantic search for memories based on a natural language query.
     The search will be performed using a vector search between the query and the memory embeddings, which are based on the text content of the memories.
@@ -179,11 +185,19 @@ async def semantic_memory_search(query: str) -> MemorySearchResult:
     Returns:
         MemorySearchResult: An object containing upto five relevant memories based on the search query.
     """
+
     await sync_to_async(create_collection_if_not_exists)(MEMORY_COLLECTION_NAME)
     total_memories = await sync_to_async(QDRANT_CLIENT.count)(collection_name=MEMORY_COLLECTION_NAME)
     if total_memories.count == 0:
         return MemorySearchResult(memories=[], total_memories=0)
-
+    if ctx.deps.memory_searches >= MAX_MEMORY_SEARCHES:
+        message = "Maximum number of memory searches reached for this deck construction process. No more memory searches will be performed."
+        logfire.warning(
+            message,
+            total_memory_searches=ctx.deps.memory_searches,
+        )
+        raise ModelRetry(message)
+    ctx.deps.memory_searches += 1
     # Run search
     found_memories = await sync_to_async(run_query_from_dsl)(
         Query(
@@ -210,7 +224,7 @@ async def semantic_memory_search(query: str) -> MemorySearchResult:
 
 
 @beartype
-async def card_memory_search(card_uuids: list[UUID]) -> MemorySearchResult:
+async def card_memory_search(ctx: RunContext[DeckBuildingDeps], card_uuids: list[UUID]) -> MemorySearchResult:
     """
     Search for memories that are related to specific cards, based on the related_card_uuids field of the memories.
 
@@ -220,6 +234,14 @@ async def card_memory_search(card_uuids: list[UUID]) -> MemorySearchResult:
     Returns:
         MemorySearchResult: An object containing the relevant memories based on the card UUIDs.
     """
+    if ctx.deps.memory_searches >= MAX_MEMORY_SEARCHES:
+        message = "Maximum number of memory searches reached for this deck construction process. No more memory searches will be performed."
+        logfire.warning(
+            message,
+            total_memory_searches=ctx.deps.memory_searches,
+        )
+        raise ModelRetry(message)
+    ctx.deps.memory_searches += 1
     await sync_to_async(create_collection_if_not_exists)(MEMORY_COLLECTION_NAME)
     total_memories = await sync_to_async(QDRANT_CLIENT.count)(collection_name=MEMORY_COLLECTION_NAME)
     if total_memories.count == 0:
@@ -299,7 +321,7 @@ class SubagentMemorySearchResult(BaseModel):
 
 
 @beartype
-async def subagent_memory_search(query: str) -> SubagentMemorySearchResult:
+async def subagent_memory_search(ctx: RunContext[DeckBuildingDeps], query: str) -> SubagentMemorySearchResult:
     """
     Tool for searching for relevant memories based on a natural language query, and returning a summary message based on the retrieved memories.
     The memories have been previously recorded from past agents, and contain valuable insights and information that have been deemed worth remembering for future reference.
@@ -310,6 +332,13 @@ async def subagent_memory_search(query: str) -> SubagentMemorySearchResult:
     Returns:
         SubagentMemorySearchResult: The result of the memory search, including a summary of the relevant memories and the total number of memories in the database.
     """
+    if ctx.deps.memory_searches >= MAX_MEMORY_SEARCHES:
+        message = "Maximum number of memory searches reached for this deck construction process. No more memory searches will be performed."
+        logfire.warning(
+            message,
+            total_memory_searches=ctx.deps.memory_searches,
+        )
+        raise ModelRetry(message)
     await sync_to_async(create_collection_if_not_exists)(MEMORY_COLLECTION_NAME)
     total_memories = await sync_to_async(QDRANT_CLIENT.count)(collection_name=MEMORY_COLLECTION_NAME)
     if total_memories.count == 0:
@@ -325,6 +354,7 @@ async def subagent_memory_search(query: str) -> SubagentMemorySearchResult:
         output_type=MemorySummary,
         retries=10,
         output_retries=10,
+        deps_type=DeckBuildingDeps,
     )
-    response = await agent.run(query)
+    response = await agent.run(query, deps=ctx.deps)
     return SubagentMemorySearchResult(memory_summary=response.output, total_memories=total_memories.count)

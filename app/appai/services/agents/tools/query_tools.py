@@ -16,7 +16,7 @@ from datetime import datetime
 from uuid import UUID
 
 from appcards.constants.storage import CARD_COLLECTION_NAME, THEME_COLLECTION_NAME
-from appcards.models import Card
+from appcards.models.card import Card
 from appcards.models.deck import DeckCard
 from appcards.modules.card_info import CardInfo, card_to_info
 from appcore.modules.beartype import beartype
