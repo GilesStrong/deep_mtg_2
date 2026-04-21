@@ -13,23 +13,13 @@
 # limitations under the License.
 
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from appcore.modules.beartype import beartype
+from appcards.models.card import Card
 from appsearch.services.qdrant.client import QDRANT_CLIENT
-from django.core.exceptions import ValidationError
 from django.db import models
 
 from appai.constants.storage import MEMORY_COLLECTION_NAME
-
-
-@beartype
-def _validate_uuid_list(value: list[str]) -> None:
-    for v in value:
-        try:
-            UUID(v)
-        except ValueError:
-            raise ValidationError(f"Invalid UUID: {v}")
 
 
 class Memory(models.Model):
@@ -38,7 +28,7 @@ class Memory(models.Model):
     text = models.TextField(blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    related_card_uuids = models.JSONField(default=list, blank=True, validators=[_validate_uuid_list])  # make this M2M
+    related_cards = models.ManyToManyField(Card, blank=True)
 
     def __str__(self) -> str:
         return f"Memory(id={self.id}, name={self.name})"

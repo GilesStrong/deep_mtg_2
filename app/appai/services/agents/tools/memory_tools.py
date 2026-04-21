@@ -102,7 +102,7 @@ Grounds for refusal are:
 - The memory focusses on the user's personal preferences or feelings rather than on objective insights that could be useful for future reference.
 - The memory is too specific to the current context and is unlikely to be useful for future reference.
 Memories will be shared across multiple different users and agents, so do not include any personal information or details that are specific to the current user or agent.
-Use you own judgement to determine whether the information is worth remembering for future reference, and do not be afraid to refuse to write a memory if you think it is not worth remembering.
+Use your own judgement to determine whether the information is worth remembering for future reference, and do not be afraid to refuse to write a memory if you think it is not worth remembering.
 """
 
 
@@ -183,14 +183,16 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         return
 
     # Persist the memory to the database
-    final_related_card_uuids = [str(uuid) for uuid in output.related_card_uuids.union(related_card_uuids)]
+    final_related_card_uuids = list(output.related_card_uuids.union(related_card_uuids))
     memory = await PGMemory.objects.acreate(
         name=output.name,
         text=output.text,
-        related_card_uuids=final_related_card_uuids,
     )
+    if len(final_related_card_uuids) > 0:
+        await memory.related_cards.aadd(*final_related_card_uuids)
 
     # Upsert the memory to the vector database
+    str_related_card_uuids = sorted((str(uuid) for uuid in final_related_card_uuids))
     embedding = await sync_to_async(dense_embed)(output.text)
     point = qm.PointStruct(
         id=str(memory.id),
@@ -198,7 +200,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         payload={
             "name": output.name,
             "text": output.text,
-            "related_card_uuids": final_related_card_uuids,
+            "related_card_uuids": str_related_card_uuids,
             "created_at": memory.created_at.isoformat(),
         },
     )
@@ -208,7 +210,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         "Memory successfully recorded and upserted to vector database.",
         name=memory.name,
         text=memory.text,
-        related_card_uuids=memory.related_card_uuids,
+        related_card_uuids=str_related_card_uuids,
         total_memories_written=ctx.deps.memories_written,
     )
 

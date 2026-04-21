@@ -329,12 +329,13 @@ class WriteMemoryTests(TestCase):
 
         created_at = datetime(2026, 4, 18, 10, 0, tzinfo=timezone.utc)
         memory_id = UUID("22222222-2222-2222-2222-222222222222")
+        related_cards_manager = SimpleNamespace(aadd=AsyncMock())
         mock_pg_memory.objects.acreate = AsyncMock(
             return_value=SimpleNamespace(
                 id=memory_id,
                 name=output.name,
                 text=output.text,
-                related_card_uuids=[str(related_uuid)],
+                related_cards=related_cards_manager,
                 created_at=created_at,
             )
         )
@@ -346,13 +347,14 @@ class WriteMemoryTests(TestCase):
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
         self.assertEqual(mock_agent_cls.call_args.kwargs["retries"], 10)
         self.assertEqual(mock_agent_cls.call_args.kwargs["output_retries"], 10)
-        mock_pg_memory.objects.acreate.assert_awaited_once()
-        created_memory_kwargs = mock_pg_memory.objects.acreate.await_args.kwargs
-        self.assertEqual(created_memory_kwargs["name"], output.name)
-        self.assertEqual(created_memory_kwargs["text"], output.text)
+        mock_pg_memory.objects.acreate.assert_awaited_once_with(
+            name=output.name,
+            text=output.text,
+        )
+        related_cards_manager.aadd.assert_awaited_once()
         self.assertEqual(
-            set(created_memory_kwargs["related_card_uuids"]),
-            {str(related_uuid), str(explicit_related_uuid)},
+            set(related_cards_manager.aadd.await_args.args),
+            {related_uuid, explicit_related_uuid},
         )
         mock_check_related_card_uuids.assert_awaited_once_with({explicit_related_uuid})
         mock_dense_embed.assert_called_once_with(output.text)
