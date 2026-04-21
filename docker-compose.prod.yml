@@ -198,8 +198,9 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:2026.2.0
+    user: "1000:1000"
     restart: unless-stopped
-    command: tunnel --config /etc/cloudflared/config.yml run
+    command: ["tunnel", "--config", "/etc/cloudflared/config.yml", "run"]
     volumes:
       - ./.cloudflared:/etc/cloudflared:ro
     networks:
