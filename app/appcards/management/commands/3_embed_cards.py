@@ -25,7 +25,7 @@ from qdrant_client.http import models as qm
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from appcards.constants.storage import CARD_COLLECTION_NAME
-from appcards.models import Card
+from appcards.models.card import Card
 from appcards.modules.card_to_qm_pointstruct import card_to_qm_pointstruct
 
 

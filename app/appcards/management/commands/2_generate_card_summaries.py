@@ -22,7 +22,7 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from appcards.models import Card
+from appcards.models.card import Card
 from appcards.modules.card_info import card_to_info
 from appcards.modules.summarise_card import summarise_card
 

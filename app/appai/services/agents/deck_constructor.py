@@ -30,11 +30,11 @@ from appcards.models.deck import (
 from appcore.modules.beartype import beartype
 from asgiref.sync import sync_to_async
 from pydantic import BaseModel, Field, create_model, field_validator
-from pydantic_ai import Agent, ModelRetry, UsageLimits
+from pydantic_ai import Agent, ModelRetry, RunContext, UsageLimits
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC, TOOL_MODEL_THINKING
-from appai.constants.prompt_gotchas import GOTCHAS
+from appai.constants.prompt_gotchas import GOTCHAS, MEMORY_SUB_PROMPT
 from appai.services.agents.deps import DeckBuildingDeps
 from appai.services.agents.tools.card_tools import inspect_card
 from appai.services.agents.tools.deck_tools import (
@@ -44,6 +44,7 @@ from appai.services.agents.tools.deck_tools import (
     remove_card_from_deck,
     validate_deck,
 )
+from appai.services.agents.tools.memory_tools import subagent_memory_search, write_memory
 from appai.services.agents.tools.query_tools import search_for_cards
 
 DECK_CONSTRUCTION_SYSTEM_PROMPT = f"""
@@ -111,18 +112,24 @@ In general, a 60-card deck contains around 24 lands, but this can vary based on 
 
 In general, you should aim to build the deck iteratively, starting with a core strategy and key cards, and then filling in the rest of the deck with supporting cards and a suitable mana base.
 1. Read the current deck list using the list_deck_cards tool; you may well be required to finish or modify an existing deck, so understanding the current state of the deck is essential before making changes.
-2. Based on the core strategy, build a mana base based on the expected colors and mana costs of the cards that will be included in the deck. This can be refined later on.
-3. Add the key cards that are central to the deck's strategy, ensuring that you include enough copies of each card to maximize the effectiveness of the deck.
-4. Fill in the rest of the deck with supporting cards that enhance the overall strategy and synergy of the deck, while also considering the balance of the deck.
-5. Finalise the mana base, ensuring that it can support the cards included in the deck and provides a good balance of colors and mana costs.
-6. Review the deck to ensure that it meets the user's requirements and constraints, and that it is a cohesive and effective deck that follows the core strategy.
-7. Use the rename_deck tool to give the deck a name that reflects its strategy and key features.
-8. Validate the deck using the validate_deck tool to ensure that it is legal and meets all necessary requirements.
+2. Check for existing memories that may be relevant to the deck you are building using the subagent_memory_search tool, and use any relevant insights from those memories to inform your construction process.
+3. Based on the core strategy, build a mana base based on the expected colors and mana costs of the cards that will be included in the deck. This can be refined later on.
+4. Add the key cards that are central to the deck's strategy, ensuring that you include enough copies of each card to maximize the effectiveness of the deck.
+5. Fill in the rest of the deck with supporting cards that enhance the overall strategy and synergy of the deck, while also considering the balance of the deck.
+6. Finalise the mana base, ensuring that it can support the cards included in the deck and provides a good balance of colors and mana costs.
+7. Review the deck to ensure that it meets the user's requirements and constraints, and that it is a cohesive and effective deck that follows the core strategy.
+8. Use the rename_deck tool to give the deck a name that reflects its strategy and key features.
+9. Validate the deck using the validate_deck tool to ensure that it is legal and meets all necessary requirements.
+10. Consider whether there are any insights or knowledge gained during the deck construction process that could be useful for future tasks, and if so, write them down in the memory system using the write_memory tool to help inform future efforts.
 
 A successful deck ensures that all cards work together to achieve a common strategy, and that the deck is consistent and effective in executing that strategy.
 It needs to ensure that it is able to survive the early game, establish its strategy in the mid game, and have a plan or win condition for in the late game.
 Unless going for a fast agro deck, staying on curve and ensuring card draw and mana sources in the early-mid game is essential.
 
+## Memories
+{MEMORY_SUB_PROMPT}
+
+## Gotchas
 {GOTCHAS}
 """
 
@@ -189,6 +196,8 @@ async def run_deck_constructor_agent(
         model=TOOL_MODEL_THINKING,
         deps_type=DeckBuildingDeps,
         tools=[
+            subagent_memory_search,
+            write_memory,
             list_deck_cards,
             add_card_to_deck,
             remove_card_from_deck,
@@ -207,7 +216,25 @@ async def run_deck_constructor_agent(
         deck_description=deck_description,
         available_set_codes=available_set_codes if available_set_codes is not None else CURRENT_STANDARD_SET_CODES,
         build_task_id=build_task_id,
+        memories_written=0,
+        checked_memories=False,
+        memory_searches=0,
     )
+
+    @agent.output_validator
+    async def _validate_output(
+        ctx: RunContext[DeckBuildingDeps], output: DeckConstructionOutput
+    ) -> DeckConstructionOutput:
+        if ctx.deps.memories_written == 0 and not ctx.deps.checked_memories:
+            ctx.deps.checked_memories = True
+            raise ModelRetry(
+                """
+You are about to finish building the deck, but have not written any memories.
+Are you sure there is nothing worth recording? 
+If not, please proceed to return the final output, and it will be accepted.
+"""
+            )
+        return output
 
     deck = await Deck.objects.aget(id=deck_id)
     input_message = f"# Generation request\n{deck_description}"

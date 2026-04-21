@@ -264,6 +264,9 @@ async def construct_deck(
         deck_description=deck_description,
         available_set_codes=available_set_codes or set(CURRENT_STANDARD_SET_CODES),
         build_task_id=build_task_id,
+        memories_written=0,
+        checked_memories=False,
+        memory_searches=0,
     )
     state = DeckConstructionState(build_count=0, generation_history=generation_history)
 

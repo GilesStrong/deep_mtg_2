@@ -347,6 +347,9 @@ class ConstructDeckFunctionTests(TestCase):
             deck_description="Artifacts deck",
             available_set_codes={"FDN"},
             build_task_id=_BUILD_TASK_ID,
+            memories_written=0,
+            checked_memories=False,
+            memory_searches=0,
         )
         mock_graph_cls.assert_called_once()
         graph_obj.run.assert_awaited_once()
