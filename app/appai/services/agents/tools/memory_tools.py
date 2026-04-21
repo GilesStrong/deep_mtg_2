@@ -233,7 +233,7 @@ async def semantic_memory_search(ctx: RunContext[DeckBuildingDeps], query: str) 
         query (str): The natural language query to search for
 
     Returns:
-        MemorySearchResult: An object containing upto five relevant memories based on the search query.
+        MemorySearchResult: An object containing up to five relevant memories based on the search query.
     """
 
     await sync_to_async(create_collection_if_not_exists)(MEMORY_COLLECTION_NAME)
