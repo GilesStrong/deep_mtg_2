@@ -361,5 +361,8 @@ class WriteMemoryTests(TestCase):
         points = mock_upsert_documents.call_args.kwargs["points"]
         self.assertEqual(len(points), 1)
         self.assertEqual(points[0].id, str(memory_id))
-        self.assertEqual(points[0].payload["related_card_uuids"], [str(related_uuid)])
+        self.assertEqual(
+            set(points[0].payload["related_card_uuids"]),
+            {str(related_uuid), str(explicit_related_uuid)},
+        )
         self.assertEqual(ctx.deps.memories_written, 1)
