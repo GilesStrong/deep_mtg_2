@@ -285,7 +285,7 @@ class WriteMemoryTests(TestCase):
         mock_pg_memory.objects.acreate = AsyncMock()
         ctx = _build_ctx()
 
-        await write_memory(ctx, "User likes this deck and had fun piloting it")
+        await write_memory(ctx, "User likes this deck and had fun piloting it", set())
 
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
         self.assertEqual(mock_agent_cls.call_args.kwargs["retries"], 10)
@@ -295,6 +295,7 @@ class WriteMemoryTests(TestCase):
         mock_upsert_documents.assert_not_called()
         self.assertEqual(ctx.deps.memories_written, 0)
 
+    @patch(f"{_TOOLS_MODULE}._check_related_card_uuids", new_callable=AsyncMock)
     @patch(f"{_TOOLS_MODULE}.upsert_documents")
     @patch(f"{_TOOLS_MODULE}.dense_embed")
     @patch(f"{_TOOLS_MODULE}.PGMemory")
@@ -307,6 +308,7 @@ class WriteMemoryTests(TestCase):
         mock_pg_memory,
         mock_dense_embed,
         mock_upsert_documents,
+        mock_check_related_card_uuids,
     ):
         """
         GIVEN a valid structured memory output from the writing subagent
@@ -314,10 +316,11 @@ class WriteMemoryTests(TestCase):
         THEN it persists the memory and upserts a vector point with matching payload
         """
         related_uuid = UUID("11111111-1111-1111-1111-111111111111")
+        explicit_related_uuid = UUID("33333333-3333-3333-3333-333333333333")
         output = SimpleNamespace(
             name="Tempo mirror heuristic",
             text="Prioritise one-mana interaction to avoid falling behind on board",
-            related_card_uuids=[related_uuid],
+            related_card_uuids={related_uuid},
         )
 
         mock_agent = MagicMock()
@@ -338,16 +341,20 @@ class WriteMemoryTests(TestCase):
         mock_dense_embed.return_value = [0.12, 0.34, 0.56]
         ctx = _build_ctx()
 
-        await write_memory(ctx, "Store durable tempo-sideboarding insight")
+        await write_memory(ctx, "Store durable tempo-sideboarding insight", {explicit_related_uuid})
 
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
         self.assertEqual(mock_agent_cls.call_args.kwargs["retries"], 10)
         self.assertEqual(mock_agent_cls.call_args.kwargs["output_retries"], 10)
-        mock_pg_memory.objects.acreate.assert_awaited_once_with(
-            name=output.name,
-            text=output.text,
-            related_card_uuids=[str(related_uuid)],
+        mock_pg_memory.objects.acreate.assert_awaited_once()
+        created_memory_kwargs = mock_pg_memory.objects.acreate.await_args.kwargs
+        self.assertEqual(created_memory_kwargs["name"], output.name)
+        self.assertEqual(created_memory_kwargs["text"], output.text)
+        self.assertEqual(
+            set(created_memory_kwargs["related_card_uuids"]),
+            {str(related_uuid), str(explicit_related_uuid)},
         )
+        mock_check_related_card_uuids.assert_awaited_once_with({explicit_related_uuid})
         mock_dense_embed.assert_called_once_with(output.text)
 
         self.assertEqual(mock_upsert_documents.call_args.kwargs["collection_name"], MEMORY_COLLECTION_NAME)

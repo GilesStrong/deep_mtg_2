@@ -108,7 +108,7 @@ Use you own judgement to determine whether the information is worth remembering 
 
 # TODO: Add memory clearing task to remove old memories that are no longer relevant
 @beartype
-async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str) -> None:
+async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_card_uuids: set[UUID]) -> None:
     """
     Tool for recording memories that you think will be useful for future reference.
     The memories recorded here are not necessarily beneficial for your current task, however they may be beneficial for you during future tasks.
@@ -125,12 +125,22 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str) -> None:
     Args:
         content (str): The unstructured memory content that you want to remember.
             A subagent will process this content and convert it into a structured memory format, which will then be stored in the database and the vector search index for future retrieval.
+        related_card_uuids (set[UUID]): A set of UUIDs of cards that are related to this memory, which can be used to link the memory to specific cards and retrieve it later based on those cards.
             If there are specific cards that are related to the memory, make sure to mention them by name and UUID in the content.
             If the UUID is not mentioned then it cannot be included in the structured memory.
 
     Returns:
         None: This tool does not return any output, it simply records the memory for future reference.
     """
+    if len(related_card_uuids) > 10:
+        raise ValueError("A maximum of 10 related card UUIDs can be included in a memory.")
+    if len(related_card_uuids) > 0:
+        try:
+            await _check_related_card_uuids(related_card_uuids)
+        except CardValidationError as e:
+            logfire.warning("Memory writing tool called with invalid related_card_uuids.", error=str(e))
+            raise ModelRetry("Invalid related_card_uuids: " + str(e))
+
     await sync_to_async(create_collection_if_not_exists)(MEMORY_COLLECTION_NAME)
 
     # Subagent to convert the content into a structured memory format
@@ -176,7 +186,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str) -> None:
     memory = await PGMemory.objects.acreate(
         name=output.name,
         text=output.text,
-        related_card_uuids=[str(uuid) for uuid in output.related_card_uuids],
+        related_card_uuids=[str(uuid) for uuid in output.related_card_uuids.union(related_card_uuids)],
     )
 
     # Upsert the memory to the vector database
