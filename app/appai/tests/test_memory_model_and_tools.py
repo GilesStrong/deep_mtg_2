@@ -92,8 +92,7 @@ class SemanticMemorySearchTests(TestCase):
         mock_qdrant_client.count.return_value = SimpleNamespace(count=0)
         ctx = _build_ctx()
 
-        with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
-            result = await semantic_memory_search(ctx, "find interaction synergies")
+        result = await semantic_memory_search(ctx, "find interaction synergies")
 
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
         self.assertEqual(result.total_memories, 0)
@@ -129,13 +128,12 @@ class SemanticMemorySearchTests(TestCase):
         ]
         ctx = _build_ctx()
 
-        with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
-            result = await semantic_memory_search(ctx, "token mirror matchups")
+        result = await semantic_memory_search(ctx, "token mirror matchups")
 
         self.assertEqual(result.total_memories, 3)
         self.assertEqual(len(result.memories), 1)
         self.assertEqual(result.memories[0].name, "Go-wide pressure")
-        self.assertEqual(result.memories[0].related_card_uuids, [related_uuid])
+        self.assertEqual(result.memories[0].related_card_uuids, {related_uuid})
         self.assertEqual(ctx.deps.memory_searches, 1)
 
         query_arg = mock_run_query.call_args.args[0]
@@ -188,8 +186,7 @@ class CardMemorySearchTests(TestCase):
         mock_qdrant_client.count.return_value = SimpleNamespace(count=5)
         ctx = _build_ctx()
 
-        with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
-            result = await card_memory_search(ctx, [])
+        result = await card_memory_search(ctx, [])
 
         self.assertEqual(result.total_memories, 5)
         self.assertEqual(result.memories, [])
@@ -225,8 +222,7 @@ class CardMemorySearchTests(TestCase):
         ]
         ctx = _build_ctx()
 
-        with patch(f"{_TOOLS_MODULE}._validate_related_card_uuids", side_effect=lambda v: v):
-            result = await card_memory_search(ctx, [first_card, second_card])
+        result = await card_memory_search(ctx, [first_card, second_card])
 
         self.assertEqual(result.total_memories, 2)
         self.assertEqual(len(result.memories), 1)

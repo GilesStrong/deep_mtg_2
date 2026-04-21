@@ -31,7 +31,7 @@ class DeckBuildingDeps(BaseModel):
     )
     checked_memories: bool = Field(
         False,
-        description="If the agent attempts to return the output and has not written any memories, and this is false, then the output will be rejected, and this will be se to true. This is to remind the agent to save memories of its thought process, which can be used to improve future iterations of the deck construction process. If the agent attempts to return the output and has not written any memories, and this is true, then the output will be accepted, but a warning will be logged. This is to allow the agent to bypass the memory-writing requirement if it determines that it is not necessary, while still encouraging it to save memories in most cases.",
+        description="If the agent attempts to return the output and has not written any memories, and this is false, then the output will be rejected, and this will be se to true. This is to remind the agent to save memories of its thought process, which can be used to improve future iterations of the deck construction process. If the agent attempts to return the output and has not written any memories, and this is true, then the output will be accepted. This allows the agent to bypass the memory-writing suggestion if it determines that it is not necessary, while still encouraging it to save memories in most cases.",
     )
     memory_searches: int = Field(
         0, description="The number of times the agent has searched for memories during this deck construction process"

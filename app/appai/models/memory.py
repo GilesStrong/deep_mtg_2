@@ -38,7 +38,7 @@ class Memory(models.Model):
     text = models.TextField(blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    related_card_uuids = models.JSONField(default=list, blank=True, validators=[_validate_uuid_list])
+    related_card_uuids = models.JSONField(default=list, blank=True, validators=[_validate_uuid_list])  # make this M2M
 
     def __str__(self) -> str:
         return f"Memory(id={self.id}, name={self.name})"

@@ -23,7 +23,7 @@ from appsearch.services.qdrant.search import run_query_from_dsl
 from appsearch.services.qdrant.search_dsl import Filter, MatchAnyCondition, Query
 from appsearch.services.qdrant.upsert import create_collection_if_not_exists, upsert_documents
 from asgiref.sync import sync_to_async
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from pydantic_ai import Agent, ModelRetry, RunContext
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC
@@ -37,16 +37,35 @@ MIN_RELEVANCE_SCORE = 0.5
 MAX_MEMORY_SEARCHES = 10
 
 
-def _validate_related_card_uuids(v: list[UUID]) -> list[UUID]:
-    if len(v) == 0:
-        return v
-    existing_card_uuids = set(Card.objects.filter(id__in=v).values_list("id", flat=True))
-    non_existing_uuids = set(v) - existing_card_uuids
-    if non_existing_uuids:
-        raise ValueError(
+class CardValidationError(ValueError):
+    pass
+
+
+@beartype
+async def _check_related_card_uuids(card_ids: set[UUID]) -> None:
+    """
+    Checks if the given set of card UUIDs correspond to existing cards.
+    Raises a CardValidationError if any of the UUIDs do not correspond to existing cards.
+
+    Args:
+        card_ids (set[UUID]): A set of UUIDs of cards to check for existence
+
+    Raises:
+        CardValidationError: If any of the UUIDs do not correspond to existing cards.
+
+    Returns:
+        None: If all UUIDs correspond to existing cards, the function returns None without raising an error.
+    """
+    if len(card_ids) == 0:
+        return
+    existing_card_uuids: set[UUID] = set(
+        await sync_to_async(list)(Card.objects.filter(id__in=card_ids).values_list("id", flat=True))  # type: ignore [call-arg]
+    )
+    non_existing_uuids = card_ids - existing_card_uuids
+    if len(non_existing_uuids) > 0:
+        raise CardValidationError(
             f"The following related_card_uuids do not correspond to existing cards: {', '.join(str(uuid) for uuid in non_existing_uuids)}"
         )
-    return v
 
 
 class Memory(BaseModel):
@@ -54,16 +73,11 @@ class Memory(BaseModel):
         max_length=64, description="The name of the memory, which can be used to reference it in future queries."
     )
     text: str = Field(description="The content of the memory, which can be any text that the agent wants to remember.")
-    related_card_uuids: list[UUID] = Field(
-        default_factory=list,
+    related_card_uuids: set[UUID] = Field(
+        default_factory=set,
         max_length=10,
         description="A list of UUIDs of cards that are related to this memory, which can be used to link the memory to specific cards and retrieve it later based on those cards. Up to 10 related card UUIDs can be included.",
     )
-
-    @field_validator("related_card_uuids", mode="after")
-    @classmethod
-    def validate_related_card_uuids(cls, v: list[UUID]) -> list[UUID]:
-        return _validate_related_card_uuids(v)
 
 
 MEMORY_WRITING_AGENT_PROMPT = """
@@ -96,7 +110,7 @@ Use you own judgement to determine whether the information is worth remembering 
 @beartype
 async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str) -> None:
     """
-    Tool for recroding memories that you think will be useful for future reference.
+    Tool for recording memories that you think will be useful for future reference.
     The memories recorded here are not necessarily beneficial for your current task, however they may be beneficial for you during future tasks.
     Therefore it is beneficial to record insights and information that you think will be useful for future reference, even if they are not directly relevant to your current task.
     Memories can be, e.g.:
@@ -111,7 +125,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str) -> None:
     Args:
         content (str): The unstructured memory content that you want to remember.
             A subagent will process this content and convert it into a structured memory format, which will then be stored in the database and the vector search index for future retrieval.
-            If there are specific cards that are related to the memory, make sure to mention them by name an UUID in the content.
+            If there are specific cards that are related to the memory, make sure to mention them by name and UUID in the content.
             If the UUID is not mentioned then it cannot be included in the structured memory.
 
     Returns:
@@ -129,6 +143,29 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str) -> None:
         instrument=True,
     )
 
+    @agent.output_validator
+    async def validate_memory_output(output: Memory | None) -> Memory | None:
+        """
+        Validates the output of the memory writing agent.
+
+        Args:
+            output (Memory | None): The output from the memory writing agent.
+
+        Returns:
+            Memory | None: The validated memory output, or None if the output is invalid.
+
+        Raises:
+            ModelRetry: If the output is invalid, a ModelRetry exception is raised to trigger a retry of the output.
+        """
+        if output is None:
+            return None
+        try:
+            await _check_related_card_uuids(output.related_card_uuids)
+        except CardValidationError as e:
+            logfire.warning("Memory writing agent produced invalid related_card_uuids.", error=str(e))
+            raise ModelRetry("Invalid related_card_uuids: " + str(e))
+        return output
+
     response = await agent.run(content)
     output = response.output
     if output is None:
@@ -143,7 +180,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str) -> None:
     )
 
     # Upsert the memory to the vector database
-    embedding = dense_embed(output.text)
+    embedding = await sync_to_async(dense_embed)(output.text)
     point = qm.PointStruct(
         id=str(memory.id),
         vector={'dense': embedding},
@@ -217,7 +254,7 @@ async def semantic_memory_search(ctx: RunContext[DeckBuildingDeps], query: str) 
             Memory(
                 name=payload["name"],
                 text=payload["text"],
-                related_card_uuids=[UUID(uuid) for uuid in payload["related_card_uuids"]],
+                related_card_uuids={UUID(uuid) for uuid in payload["related_card_uuids"]},
             )
         )
     return MemorySearchResult(memories=output, total_memories=total_memories.count)
@@ -272,7 +309,7 @@ async def card_memory_search(ctx: RunContext[DeckBuildingDeps], card_uuids: list
             Memory(
                 name=payload["name"],
                 text=payload["text"],
-                related_card_uuids=[UUID(uuid) for uuid in payload["related_card_uuids"]],
+                related_card_uuids={UUID(uuid) for uuid in payload["related_card_uuids"]},
             )
         )
     return MemorySearchResult(memories=output, total_memories=total_memories.count)
@@ -299,15 +336,10 @@ Do NOT make suggestions or recommendations based on the retrieved memories: simp
 
 class MemorySummary(BaseModel):
     summary: str = Field(description="A summary of the relevant memories that were found based on the search query.")
-    related_card_uuids: list[UUID] = Field(
-        default_factory=list,
-        description="A list of UUIDs of cards that are related to the relevant memories, which can be used to link the summary to specific cards and retrieve it later based on those cards.",
+    related_card_uuids: set[UUID] = Field(
+        default_factory=set,
+        description="A set of UUIDs of cards that are related to the relevant memories, which can be used to link the summary to specific cards and retrieve it later based on those cards.",
     )
-
-    @field_validator("related_card_uuids", mode="after")
-    @classmethod
-    def validate_related_card_uuids(cls, v: list[UUID]) -> list[UUID]:
-        return _validate_related_card_uuids(v)
 
 
 class SubagentMemorySearchResult(BaseModel):
@@ -356,5 +388,15 @@ async def subagent_memory_search(ctx: RunContext[DeckBuildingDeps], query: str) 
         output_retries=10,
         deps_type=DeckBuildingDeps,
     )
+
+    @agent.output_validator
+    async def validate_memory_summary_output(output: MemorySummary) -> MemorySummary:
+        try:
+            await _check_related_card_uuids(output.related_card_uuids)
+        except CardValidationError as e:
+            logfire.warning("Memory search agent produced invalid related_card_uuids.", error=str(e))
+            raise ModelRetry("Invalid related_card_uuids: " + str(e))
+        return output
+
     response = await agent.run(query, deps=ctx.deps)
     return SubagentMemorySearchResult(memory_summary=response.output, total_memories=total_memories.count)

@@ -229,7 +229,7 @@ async def run_deck_constructor_agent(
             ctx.deps.checked_memories = True
             raise ModelRetry(
                 """
-Your are about to finish building the deck, but have not written any memories.
+You are about to finish building the deck, but have not written any memories.
 Are you sure there is nothing worth recording? 
 If not, please proceed to return the final output, and it will be accepted.
 """

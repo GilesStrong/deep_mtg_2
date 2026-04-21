@@ -70,7 +70,7 @@ class RunQueryFromDslTests(TestCase):
             query_vector=[0.3, 0.4, 0.5],
             query_filter=None,
             limit=5,
-            score_threshold=0.0,
+            score_threshold=-1.0,
         )
         self.assertEqual(result, [SimpleNamespace(id="x")])
 
