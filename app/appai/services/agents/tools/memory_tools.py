@@ -183,10 +183,11 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         return
 
     # Persist the memory to the database
+    final_related_card_uuids = [str(uuid) for uuid in output.related_card_uuids.union(related_card_uuids)]
     memory = await PGMemory.objects.acreate(
         name=output.name,
         text=output.text,
-        related_card_uuids=[str(uuid) for uuid in output.related_card_uuids.union(related_card_uuids)],
+        related_card_uuids=final_related_card_uuids,
     )
 
     # Upsert the memory to the vector database
@@ -197,7 +198,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         payload={
             "name": output.name,
             "text": output.text,
-            "related_card_uuids": [str(uuid) for uuid in output.related_card_uuids],
+            "related_card_uuids": final_related_card_uuids,
             "created_at": memory.created_at.isoformat(),
         },
     )
