@@ -50,6 +50,9 @@ def _dense_embed(text: str) -> list[float]:
     )
     response.raise_for_status()
     vector = np.array(response.json()["embedding"])
+    length = np.linalg.norm(vector)
+    if length == 0:
+        raise ValueError("Received zero-length embedding vector")
     vector /= np.linalg.norm(vector)  # Normalize the embedding to unit length
     return vector.tolist()
 

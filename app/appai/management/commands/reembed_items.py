@@ -112,7 +112,8 @@ def _re_embed_items(
         return [item for item in all_items if str(item.id) not in existing_ids]
 
     batchsize = max(1, batchsize)
-    QDRANT_CLIENT.delete_collection(collection_name=collection_name)
+    if collection_name in [c.name for c in QDRANT_CLIENT.get_collections().collections]:
+        QDRANT_CLIENT.delete_collection(collection_name=collection_name)
     assert collection_name not in [c.name for c in QDRANT_CLIENT.get_collections().collections]
     create_collection_if_not_exists(collection_name)
 
@@ -236,6 +237,7 @@ class Command(BaseCommand):
             type=str,
             choices=['cards', 'memories', 'themes'],
             help='Type of items to re-embed',
+            required=True,
         )
         parser.add_argument('--batchsize', type=int, default=64, help='Upsert batch size (default: 64)')
         parser.add_argument('--max-workers', type=int, default=50, help='Maximum number of concurrent workers')
@@ -256,3 +258,5 @@ class Command(BaseCommand):
                 batchsize=options.get('batchsize', 64),
                 max_workers=options.get('max_workers', 50),
             )
+        else:
+            print(f"Unknown item type: {options['item_type']}")
