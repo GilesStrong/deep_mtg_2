@@ -148,8 +148,8 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
     agent = Agent(
         model=TOOL_MODEL_BASIC,
         system_prompt=MEMORY_WRITING_AGENT_PROMPT,
-        # model_settings={'thinking': False},
-        output_type=Memory | None,  # type: ignore [arg-type]
+        model_settings={'thinking': False},
+        output_type=Memory | None,  # type: ignore [arg-type, call-overload]
         retries=10,
         output_retries=10,
         instrument=True,
