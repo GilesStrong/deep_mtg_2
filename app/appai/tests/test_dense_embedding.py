@@ -23,7 +23,9 @@ from appai.modules.dense_embedding import _dense_embed, dense_embed
 _MODULE = "appai.modules.dense_embedding"
 
 _SAMPLE_TEXT = "A red aggro deck with burn spells"
-_SAMPLE_EMBEDDING = [0.1, 0.2, 0.3, 0.4]
+# Unit vector (norm=1.0) so normalization in _dense_embed is a no-op, keeping
+# assertions straightforward regardless of execution path.
+_SAMPLE_EMBEDDING = [0.5, 0.5, 0.5, 0.5]
 
 
 class DenseEmbedInternalTests(TestCase):
