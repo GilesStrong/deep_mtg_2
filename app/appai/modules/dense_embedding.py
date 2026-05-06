@@ -15,6 +15,7 @@
 from functools import lru_cache
 from typing import Any, cast
 
+import numpy as np
 import requests
 from app.app_settings import APP_SETTINGS
 from app.utils import in_celery_task
@@ -48,7 +49,8 @@ def _dense_embed(text: str) -> list[float]:
         timeout=60,
     )
     response.raise_for_status()
-    return response.json()["embedding"]
+    vector = response.json()["embedding"]
+    return vector / np.linalg.norm(vector)  # Normalize the embedding to unit length
 
 
 @beartype
