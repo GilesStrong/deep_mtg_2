@@ -220,6 +220,7 @@ async def filter_constructor(query: str) -> Filter:
     agent = Agent(
         model=TOOL_MODEL_BASIC,
         system_prompt=FILTER_CONSTRUCTION_PROMPT,
+        model_settings={'thinking': False},
         output_retries=10,
         output_type=Filter,
         instrument=True,

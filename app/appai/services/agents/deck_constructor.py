@@ -104,6 +104,7 @@ The state of the deck will be maintained through the tools you use:
   - Is the card affordable in terms of mana cost and mana colors that the deck can produce? If not, is it worth adjusting the mana base to accommodate the card, or should it be avoided in favor of a more affordable option?
 - Consider the balance of the deck, including the mana curve, the mix of card types, and the overall consistency of the deck.
 - Do not assume names of specific cards, beyond basic lands. The legal sets are constantly changing, so you cannot rely on prior knowledge of specific cards being available.
+- When starting off, try to launch multiple searches for cards that will cover different aspects of the deck's strategy. By running searches in parallel, you can save time for the user.
 
 ## General flow:
 Remember, a deck must have at least 60 cards, and no more than 4 copies of any individual card (other than basic lands).
@@ -194,6 +195,7 @@ async def run_deck_constructor_agent(
     agent = Agent(
         system_prompt=DECK_CONSTRUCTION_SYSTEM_PROMPT,
         model=TOOL_MODEL_THINKING,
+        model_settings={'thinking': 'high'},
         deps_type=DeckBuildingDeps,
         tools=[
             subagent_memory_search,
@@ -358,6 +360,7 @@ async def run_card_classifier_agent(deck_id: UUID, deck_description: str) -> Non
     agent = Agent(
         system_prompt=CARD_CLASSIFIER_SYSTEM_PROMPT,
         model=TOOL_MODEL_BASIC,
+        model_settings={'thinking': False},
         tools=[],
         instrument=True,
         retries=0,
@@ -448,6 +451,7 @@ async def run_card_replacement_agent(
     agent = Agent(
         system_prompt=CARD_REPLACEMENT_SYSTEM_PROMPT,
         model=TOOL_MODEL_BASIC,
+        model_settings={'thinking': False},
         tools=[],
         instrument=True,
         retries=0,
