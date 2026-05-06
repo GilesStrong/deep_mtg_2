@@ -133,7 +133,8 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         None: This tool does not return any output, it simply records the memory for future reference.
     """
     if len(related_card_uuids) > 10:
-        raise ValueError("A maximum of 10 related card UUIDs can be included in a memory.")
+        logfire.warning("Memory writing tool called with too many related_card_uuids.", count=len(related_card_uuids))
+        raise ModelRetry("A maximum of 10 related card UUIDs can be included in a memory.")
     if len(related_card_uuids) > 0:
         try:
             await _check_related_card_uuids(related_card_uuids)
@@ -147,6 +148,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
     agent = Agent(
         model=TOOL_MODEL_BASIC,
         system_prompt=MEMORY_WRITING_AGENT_PROMPT,
+        # model_settings={'thinking': False},
         output_type=Memory | None,  # type: ignore [arg-type]
         retries=10,
         output_retries=10,
@@ -394,6 +396,7 @@ async def subagent_memory_search(ctx: RunContext[DeckBuildingDeps], query: str) 
     agent = Agent(
         model=TOOL_MODEL_BASIC,
         system_prompt=MEMORY_SEARCH_PROMPT,
+        model_settings={'thinking': False},
         instrument=True,
         tools=[semantic_memory_search, card_memory_search],
         output_type=MemorySummary,
