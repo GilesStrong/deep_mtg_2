@@ -15,6 +15,7 @@
 from functools import lru_cache
 from typing import Any, cast
 
+import numpy as np
 import requests
 from app.app_settings import APP_SETTINGS
 from app.utils import in_celery_task
@@ -48,7 +49,12 @@ def _dense_embed(text: str) -> list[float]:
         timeout=60,
     )
     response.raise_for_status()
-    return response.json()["embedding"]
+    vector = np.array(response.json()["embedding"])
+    length = np.linalg.norm(vector)
+    if length == 0:
+        raise ValueError("Received zero-length embedding vector")
+    vector /= np.linalg.norm(vector)  # Normalize the embedding to unit length
+    return vector.tolist()
 
 
 @beartype
