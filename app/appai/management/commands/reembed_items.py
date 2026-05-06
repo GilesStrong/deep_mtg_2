@@ -17,8 +17,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Semaphore
 from typing import Any
 
-from appcards.constants.storage import CARD_COLLECTION_NAME
+from appcards.constants.storage import CARD_COLLECTION_NAME, THEME_COLLECTION_NAME
 from appcards.models.card import Card
+from appcards.models.deck import DailyDeckTheme
 from appcards.modules.card_to_qm_pointstruct import card_to_qm_pointstruct
 from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.client import QDRANT_CLIENT
@@ -56,7 +57,8 @@ def re_embed_cards(batchsize: int = 64, max_workers: int = 5) -> None:
                     embedding_results.append(future.result())
                 except Exception as e:
                     print(f"✗ Failed to generate embedding: {e}")
-        upsert_documents(collection_name=CARD_COLLECTION_NAME, points=embedding_results)
+        if embedding_results:
+            upsert_documents(collection_name=CARD_COLLECTION_NAME, points=embedding_results)
 
     def get_un_embedded_cards(cards: list[Card]) -> list[Card]:
         existing_points = QDRANT_CLIENT.retrieve(
@@ -75,6 +77,7 @@ def re_embed_cards(batchsize: int = 64, max_workers: int = 5) -> None:
     create_collection_if_not_exists(CARD_COLLECTION_NAME)
 
     cards = list(Card.objects.prefetch_related("printings").all())
+    print(f"Total cards to process: {len(cards)}")
     n_cards = len(cards)
     for idx in range(0, n_cards, batchsize):
         batch = cards[idx : idx + batchsize]
@@ -121,7 +124,8 @@ def re_embed_memories(batchsize: int = 64, max_workers: int = 5) -> None:
                     embedding_results.append(future.result())
                 except Exception as e:
                     print(f"✗ Failed to generate embedding: {e}")
-        upsert_documents(collection_name=MEMORY_COLLECTION_NAME, points=embedding_results)
+        if embedding_results:
+            upsert_documents(collection_name=MEMORY_COLLECTION_NAME, points=embedding_results)
 
     def get_un_embedded_memories(memories: list[Memory]) -> list[Memory]:
         existing_points = QDRANT_CLIENT.retrieve(
@@ -141,6 +145,7 @@ def re_embed_memories(batchsize: int = 64, max_workers: int = 5) -> None:
 
     memories = list(Memory.objects.prefetch_related("related_cards").all())
     n_memories = len(memories)
+    print(f"Total memories to process: {n_memories}")
     for idx in range(0, n_memories, batchsize):
         batch = memories[idx : idx + batchsize]
         print(f"Processing batch {idx // batchsize + 1} of {((n_memories - 1) // batchsize) + 1}.")
@@ -150,6 +155,70 @@ def re_embed_memories(batchsize: int = 64, max_workers: int = 5) -> None:
     print(f"Finished generating embeddings. {n_remaining} memories remaining without embeddings.")
 
 
+@beartype
+def re_embed_themes(batchsize: int = 64, max_workers: int = 5) -> None:
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(Exception),
+    )
+    def embed_theme(theme: DailyDeckTheme, semaphore: Semaphore) -> qm.PointStruct:
+        with semaphore:
+            embedding = dense_embed(theme.theme)
+
+            point = qm.PointStruct(
+                id=str(theme.id),
+                vector={'dense': embedding},
+                payload={
+                    "description": theme.theme,
+                    "date": theme.date.isoformat(),
+                },
+            )
+            print(f"✓ Generated embedding for: {theme.theme}")
+            return point
+
+    def _embed_theme_batch(batch: list[DailyDeckTheme], max_workers: int) -> None:
+        semaphore = Semaphore(max_workers)
+        embedding_results: list[qm.PointStruct] = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(embed_theme, theme, semaphore) for theme in batch]
+
+            for future in as_completed(futures):
+                try:
+                    embedding_results.append(future.result())
+                except Exception as e:
+                    print(f"✗ Failed to generate embedding: {e}")
+        if embedding_results:
+            upsert_documents(collection_name=THEME_COLLECTION_NAME, points=embedding_results)
+
+    def get_un_embedded_themes(themes: list[DailyDeckTheme]) -> list[DailyDeckTheme]:
+        existing_points = QDRANT_CLIENT.retrieve(
+            collection_name=THEME_COLLECTION_NAME,
+            ids=[str(theme.id) for theme in themes],
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        existing_ids = set(str(p.id) for p in existing_points)
+        return [theme for theme in themes if str(theme.id) not in existing_ids]
+
+    batchsize = max(1, batchsize)
+    QDRANT_CLIENT.delete_collection(collection_name=THEME_COLLECTION_NAME)
+    assert THEME_COLLECTION_NAME not in [c.name for c in QDRANT_CLIENT.get_collections().collections]
+    create_collection_if_not_exists(THEME_COLLECTION_NAME)
+
+    themes = list(DailyDeckTheme.objects.all())
+    n_themes = len(themes)
+    print(f"Total themes to process: {n_themes}")
+    for idx in range(0, n_themes, batchsize):
+        batch = themes[idx : idx + batchsize]
+        print(f"Processing batch {idx // batchsize + 1} of {((n_themes - 1) // batchsize) + 1}.")
+        _embed_theme_batch(batch, max_workers)
+
+    n_remaining = len(get_un_embedded_themes(themes))
+    print(f"Finished generating embeddings. {n_remaining} themes remaining without embeddings.")
+
+
 class Command(BaseCommand):
     help = 'Run re-embedding of qdrant items.'
 
@@ -157,7 +226,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--item-type',
             type=str,
-            choices=['cards', 'memories'],
+            choices=['cards', 'memories', 'themes'],
             help='Type of items to re-embed',
         )
         parser.add_argument('--batchsize', type=int, default=64, help='Upsert batch size (default: 64)')
@@ -171,6 +240,11 @@ class Command(BaseCommand):
             )
         elif options['item_type'] == 'memories':
             re_embed_memories(
+                batchsize=options.get('batchsize', 64),
+                max_workers=options.get('max_workers', 50),
+            )
+        elif options['item_type'] == 'themes':
+            re_embed_themes(
                 batchsize=options.get('batchsize', 64),
                 max_workers=options.get('max_workers', 50),
             )

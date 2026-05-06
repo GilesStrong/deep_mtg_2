@@ -49,8 +49,9 @@ def _dense_embed(text: str) -> list[float]:
         timeout=60,
     )
     response.raise_for_status()
-    vector = response.json()["embedding"]
-    return vector / np.linalg.norm(vector)  # Normalize the embedding to unit length
+    vector = np.array(response.json()["embedding"])
+    vector /= np.linalg.norm(vector)  # Normalize the embedding to unit length
+    return vector.tolist()
 
 
 @beartype
