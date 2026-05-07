@@ -240,6 +240,12 @@ class RunHDBSCAN(BaseNode[MemoryMaintenanceState]):
             message = "Memories and their UMAP coordinates must be set in the state before running HDBSCAN."
             logfire.error(message)
             raise ValueError(message)
+        if len(ctx.state.memories.memories) < HDBSCAN_MIN_CLUSTER_SIZE:
+            message = f"Not enough memories to run HDBSCAN. Found {len(ctx.state.memories.memories)} memories, but HDBSCAN requires at least {HDBSCAN_MIN_CLUSTER_SIZE} samples. Assigning all memories to a single cluster."
+            logfire.warning(message)
+            ctx.state.memories.cluster_assignments = np.zeros(len(ctx.state.memories.memories), dtype=int)
+            return MaintainClusteredMemories()
+
         hdb_clusters = hdbscan.HDBSCAN(
             min_cluster_size=HDBSCAN_MIN_CLUSTER_SIZE,
             min_samples=HDBSCAN_MIN_SAMPLES,
@@ -270,6 +276,12 @@ class RunUMAP(BaseNode[MemoryMaintenanceState]):
             message = "Memories and their embeddings must be set in the state before running UMAP."
             logfire.error(message)
             raise ValueError(message)
+        if len(ctx.state.memories.embeddings) < UMAP_N_NEIGHBORS:
+            message = f"Not enough memories to run UMAP. Found {len(ctx.state.memories.embeddings)} memories, but UMAP requires at least {UMAP_N_NEIGHBORS} samples. Using original embeddings"
+            logfire.warning(message)
+            ctx.state.memories.umap_coords = ctx.state.memories.embeddings
+            return RunHDBSCAN()
+
         coords = umap.UMAP(
             n_neighbors=UMAP_N_NEIGHBORS,
             min_dist=UMAP_MIN_DIST,
@@ -287,10 +299,10 @@ class RunUMAP(BaseNode[MemoryMaintenanceState]):
 
 
 @dataclass
-class RetrieveMemories(BaseNode[MemoryMaintenanceState]):
+class RetrieveMemories(BaseNode[MemoryMaintenanceState, None, None]):
     """Load memories and ensure each has an embedding vector."""
 
-    async def run(self, ctx: GraphRunContext[MemoryMaintenanceState]) -> RunUMAP:
+    async def run(self, ctx: GraphRunContext[MemoryMaintenanceState]) -> RunUMAP | End[None]:
         """Fetch memory records and their vectors from storage.
 
         Missing vectors are generated on demand with the dense embedding model.
@@ -345,7 +357,7 @@ class RetrieveMemories(BaseNode[MemoryMaintenanceState]):
                     id=memory.id,
                     name=memory.name,
                     text=memory.text,
-                    related_card_uuids={UUID(card.uuid) for card in memory.related_cards.all()},
+                    related_card_uuids={card.id for card in memory.related_cards.all()},
                     created_at=memory.created_at.isoformat(),
                 )
             )
@@ -353,6 +365,10 @@ class RetrieveMemories(BaseNode[MemoryMaintenanceState]):
             embeddings.append(vector)  # type: ignore[arg-type]
 
         ctx.state.memories = EmbeddedMemories(memories=embedded_memories, embeddings=np.array(embeddings))
+        logfire.info(f"Retrieved and embedded {len(embedded_memories)} memories.")
+        if len(embedded_memories) == 0:
+            logfire.warning("No memories were retrieved for maintenance. Ending graph execution.")
+            return End(None)
         return RunUMAP()
 
 
