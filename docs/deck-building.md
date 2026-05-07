@@ -14,8 +14,9 @@ At a high level:
 1. User submits prompt from the frontend.
 2. Backend validates request (auth, quota, ownership, guardrails).
 3. Backend creates a `DeckBuildTask` and enqueues Celery work.
-4. Frontend polls build status until completion/failure.
-5. On completion, frontend loads the full deck view.
+4. Main deck agent can read relevant shared memories and write new memories.
+5. Frontend polls build status until completion/failure.
+6. On completion, frontend loads the full deck view.
 
 ---
 
@@ -46,6 +47,11 @@ At a high level:
   - Celery task wrapper and status transitions (`IN_PROGRESS` → `COMPLETED`/`FAILED`)
 - `app/appai/models/deck_build.py`
   - `DeckBuildTask` + `DeckBuildStatus`
+- `app/appai/services/agents/tools/memory_tools.py`
+  - `subagent_memory_search` for retrieval
+  - `write_memory` for persistence
+- `app/appai/models/memory.py`
+  - `Memory` and `MemoryMaintenanceReport`
 - `app/appcards/routes/deck.py`
   - deck list/detail/full-detail/update/delete endpoints consumed before/after build
 - `app/appcards/models/deck.py`
@@ -135,6 +141,8 @@ Runtime characteristics:
 
 Tools available to the main deck-constructor agent:
 
+- `subagent_memory_search`
+- `write_memory`
 - `list_deck_cards`
 - `add_card_to_deck`
 - `remove_card_from_deck`
@@ -145,10 +153,25 @@ Tools available to the main deck-constructor agent:
 
 Tool behavior notes:
 
+- `subagent_memory_search` retrieves a memory-grounded summary and related card UUIDs for the current task context.
+- `write_memory` persists structured memory to Postgres and Qdrant; up to 10 related card UUIDs are allowed.
 - `search_for_cards` applies set-code constraints and can auto-build advanced filters.
 - `inspect_card` returns detailed card info (with short-lived cache).
 - `validate_deck` enforces basic deck legality checks (card count and copy-count constraints).
 - add/remove/clear tools mutate persisted `DeckCard` rows directly.
+
+## 2.3) Memory touchpoints inside build execution
+
+The system prompt in `run_deck_constructor_agent` explicitly nudges memory usage:
+
+1. Early in the run: check prior memories via `subagent_memory_search`.
+2. During/near completion: write durable insights with `write_memory` when useful.
+
+Runtime controls:
+
+- `DeckBuildingDeps.memory_searches` limits memory search calls per build process.
+- Search tool limit is currently `MAX_MEMORY_SEARCHES = 10`.
+- If the agent attempts to finish without checking/writing memories, output validation prompts one extra reflection pass before accepting final output.
 
 ---
 
@@ -216,6 +239,7 @@ Dashboard and deck pages consume deck APIs to show:
 - latest generation status
 - generated card list
 - AI summaries/tags and deck metadata
+- replacement options for non-critical cards (when available)
 
 ---
 
@@ -241,6 +265,7 @@ Clients should poll only statuses returned by `GET /ai/deck/statuses/` as `polla
 - **Relevance guardrail** blocks non-MTG prompts.
 - **Ownership checks** prevent reading/updating/deleting other users’ decks.
 - **In-progress lock** prevents regenerating/deleting/editing while a build is active.
+- **Memory tool constraints** include per-task memory-search limits and strict related-card UUID validation.
 
 ---
 
@@ -262,9 +287,16 @@ If generation starts but results look poor:
    - `3_embed_cards`
 2. Confirm Qdrant collection exists and contains vectors.
 
+If memory-backed behavior seems weak or inconsistent:
+
+1. Confirm `memories` collection exists in Qdrant and has points.
+2. Confirm memory rows exist in Postgres (`appai_memory`).
+3. Check logs for memory tool retries/validation failures (invalid related card UUIDs, search-limit warnings).
+
 ---
 
 ## 8) Related docs
 
 - High-level architecture guide: `docs/developer-architecture-guide.md`
+- Memory system guide: `docs/memory-system.md`
 - Project setup and runtime commands: `README.md`

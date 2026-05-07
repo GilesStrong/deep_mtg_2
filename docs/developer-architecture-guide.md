@@ -11,11 +11,11 @@ Deep MTG is a full-stack app for generating and managing Magic: The Gathering de
 
 - **Frontend**: Next.js app (`frontend/`) for UI, Google sign-in, and user interactions.
 - **Backend**: Django + Django Ninja API (`app/`) for business logic, data, auth token exchange, and deck orchestration.
-- **Async workers**: Celery for long-running AI deck generation tasks.
+- **Async workers**: Celery for long-running AI deck generation tasks and periodic memory maintenance.
 - **Data stores**:
-  - Postgres for relational app data (users, decks, cards, build tasks, refresh tokens)
+  - Postgres for relational app data (users, decks, cards, build tasks, refresh tokens, memories, maintenance reports)
   - Redis for rate limits and quota tracking
-  - Qdrant for vector search over card embeddings
+  - Qdrant for vector search over card embeddings and AI memories
 - **Reverse proxy**: Caddy routes `/` to frontend and `/api/*` to backend in local/dev docker flows.
 
 ---
@@ -94,6 +94,10 @@ Deep MTG is a full-stack app for generating and managing Magic: The Gathering de
   - enforce relevance guardrails
   - enqueue Celery task (`construct_deck`)
   - expose build status polling API
+- Owns long-term AI memory system:
+  - memory write/search tools used by deck-constructor agents
+  - memory persistence in Postgres + Qdrant (`memories` collection)
+  - memory maintenance graph and report generation
 
 ### `appsearch`
 
@@ -117,7 +121,18 @@ Deep MTG is a full-stack app for generating and managing Magic: The Gathering de
 - Deck construction task (`appai/tasks/construct_deck.py`) updates build state transitions (`PENDING` → `IN_PROGRESS` → `COMPLETED`/`FAILED`).
 - Periodic jobs in Django settings run:
   - daily deck theme generation (interval-triggered with internal once-per-day guard)
+  - memory maintenance (`appai/tasks/memory_maintenance.py`) to consolidate or replace clustered memories
   - cleanup of old deck-build task records
+
+### Memory system runtime notes
+
+- Memory records are stored in `appai.models.Memory` and mirrored to Qdrant collection `memories`.
+- During deck construction, agents can search memories and write new memories through `appai/services/agents/tools/memory_tools.py`.
+- The maintenance graph (`appai/services/graphs/memory_maintenance.py`) retrieves memories, embeds missing vectors, runs UMAP + HDBSCAN clustering, then calls a maintenance agent to rewrite clusters.
+- A `MemoryMaintenanceReport` record is persisted for each completed maintenance run.
+- The scheduled maintenance task is checked every 30 minutes, but it short-circuits if:
+  - a report was already created today, or
+  - fewer than 10 new memories were written since the last report.
 
 ---
 
@@ -218,6 +233,14 @@ In typical order:
    - generate card embeddings
    - upsert vectors into Qdrant
 
+## Flow G: AI memory lifecycle
+
+1. Deck-constructor agent can call `subagent_memory_search` to retrieve relevant memory summaries.
+2. Agent can call `write_memory` to persist cross-task insights.
+3. Memory write path stores to Postgres (`Memory`) and upserts embedding payload to Qdrant (`memories`).
+4. Periodic maintenance clusters memory vectors and rewrites stale/duplicate clusters.
+5. Maintenance outputs are recorded in `MemoryMaintenanceReport` for observability.
+
 ---
 
 ## 6) Quick onboarding checklist for new developers
@@ -242,3 +265,4 @@ In typical order:
 - Auth rate limiting trusts forwarded client IP headers only when `REMOTE_ADDR` is in `AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS`; set this to your internal proxy CIDRs in staging/production.
 - Long-running AI work is asynchronous; always think in terms of task IDs + status polling.
 - Search quality and deck generation quality depend on the freshness of card summaries and embeddings.
+- Memories are shared across users/agents; memory content should stay general and non-user-specific.
