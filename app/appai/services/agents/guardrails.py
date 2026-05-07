@@ -87,6 +87,8 @@ def guardrail_agent(user_request: str, context: str) -> RelevancyScore:
 
     agent = Agent(
         model=TEXT_MODEL,
+        name="Guardrail Agent",
+        instrument=True,
         model_settings={'thinking': False},
         system_prompt=get_guardrail_system_prompt(context),
         output_retries=5,

@@ -188,7 +188,9 @@ def get_deck(
         raise HttpError(403, "You do not have permission to access this deck")
 
     deck_cards = list(
-        DeckCard.objects.filter(deck_id=deck.id).select_related('card').prefetch_related('replacement_cards')
+        DeckCard.objects.filter(deck_id=deck.id)
+        .select_related('card')
+        .prefetch_related('replacement_cards', 'card__printings')
     )
     card_infos = [
         DeckCardInfo(
@@ -293,7 +295,9 @@ def update_deck(request: HttpRequest, path_params: Path[GetDeckIn], payload: Upd
     creation_status = latest_build.status if latest_build else None
 
     deck_cards = list(
-        DeckCard.objects.filter(deck_id=deck.id).select_related('card').prefetch_related('replacement_cards')
+        DeckCard.objects.filter(deck_id=deck.id)
+        .select_related('card')
+        .prefetch_related('replacement_cards', 'card__printings', 'replacement_cards__printings')
     )
     card_infos = [
         DeckCardInfo(

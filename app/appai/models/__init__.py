@@ -13,6 +13,6 @@
 # limitations under the License.
 
 from .deck_build import DeckBuildStatus, DeckBuildTask
-from .memory import Memory
+from .memory import Memory, MemoryMaintenanceReport
 
-__all__ = ["DeckBuildTask", "DeckBuildStatus", "Memory"]
+__all__ = ["DeckBuildTask", "DeckBuildStatus", "Memory", "MemoryMaintenanceReport"]

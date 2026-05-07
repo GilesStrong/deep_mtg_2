@@ -80,6 +80,7 @@ def get_daily_deck_theme() -> NewTheme:
     agent = Agent(
         model=TOOL_MODEL_BASIC,
         system_prompt=DECK_THEME_PROMPT,
+        name="Daily Deck Theme Agent",
         model_settings={'thinking': False},
         instrument=True,
         output_type=NewTheme,
