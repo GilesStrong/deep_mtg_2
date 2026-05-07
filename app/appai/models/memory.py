@@ -37,3 +37,9 @@ class Memory(models.Model):
         # Delete the memory from the vector database
         QDRANT_CLIENT.delete(collection_name=MEMORY_COLLECTION_NAME, points_selector=[str(self.id)])
         return super().delete(*args, **kwargs)
+
+
+class MemoryMaintenanceReport(models.Model):
+    id = models.UUIDField(default=uuid4, editable=False, primary_key=True, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    report = models.JSONField(blank=False, null=False)

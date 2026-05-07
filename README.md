@@ -22,6 +22,7 @@ An older version of this project may be found here https://github.com/GilesStron
 
 - High-level backend/frontend architecture and flows: [`docs/developer-architecture-guide.md`](docs/developer-architecture-guide.md)
 - Dedicated deck-building flow guide: [`docs/deck-building.md`](docs/deck-building.md)
+- AI memory system architecture, maintenance, and operations: [`docs/memory-system.md`](docs/memory-system.md)
 
 ## Fresh Clone Setup (Docker)
 
@@ -131,26 +132,27 @@ If you run Ollama in a separate compose project, attach it to `llm_net` using a 
 
 ```yaml
 services:
-	ollama:
-		image: ollama/ollama:latest
-		container_name: ollama
-		restart: unless-stopped
-		volumes:
-			- ~/infra/ollama:/root/.ollama
-		networks:
-			- llm_net
-			- 127.0.0.1:11434:11434
-		deploy:
-			resources:
-				reservations:
-					devices:
-						- driver: nvidia
-							count: all
-							capabilities: [gpu]
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    volumes:
+      - ~/infra/ollama:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    networks:
+      - llm_net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 networks:
-	llm_net:
-		name: llm_net
+  llm_net:
+    name: llm_net
 ```
 
 After starting Ollama, pull the models referenced by your `.env` (`EMBEDDING_MODEL`), for example:
@@ -208,6 +210,25 @@ Run frontend tests:
 
 ```bash
 docker compose exec frontend bun run test --run
+```
+
+## Memory System Operations
+
+The AI memory system is integrated into deck generation and automatically maintained by Celery beat.
+
+- Full guide: [`docs/memory-system.md`](docs/memory-system.md)
+- Scheduled maintenance task: `appai.tasks.memory_maintenance.run_memory_maintenance_task`
+
+Run maintenance manually (direct graph execution):
+
+```bash
+docker compose exec web python app/manage.py shell -c "import asyncio; from appai.services.graphs.memory_maintenance import run_memory_maintenance; asyncio.run(run_memory_maintenance())"
+```
+
+Queue maintenance via Celery (requires `celery_llm_worker` running):
+
+```bash
+docker compose exec web python app/manage.py shell -c "from appai.tasks.memory_maintenance import run_memory_maintenance_task; run_memory_maintenance_task.delay()"
 ```
 
 ## Production Server Commands
@@ -318,7 +339,7 @@ docker compose \
   --project-name deepmtg_2_prod \
   --env-file .env.prod \
   -f docker-compose.prod.yml \
-  run --rm web python manage.py migrate
+  run --rm web python app/manage.py migrate
 
 docker compose \
   --project-name deepmtg_2_prod \

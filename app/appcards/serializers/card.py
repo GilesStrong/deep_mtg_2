@@ -44,7 +44,7 @@ class GetCardIn(Schema):
     def card(self) -> Card:
         if not hasattr(self, '_card_cache'):
             try:
-                object.__setattr__(self, '_card_cache', Card.objects.get(id=self.card_id))
+                object.__setattr__(self, '_card_cache', Card.objects.prefetch_related("printings").get(id=self.card_id))
             except Card.DoesNotExist:
                 raise HttpError(404, f"Card with ID {self.card_id} not found")
         return self._card_cache

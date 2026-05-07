@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deck_build import DeckBuildStatus, DeckBuildTask
-from .memory import Memory, MemoryMaintenanceReport
+import asyncio
+from typing import Any
 
-__all__ = ["DeckBuildTask", "DeckBuildStatus", "Memory", "MemoryMaintenanceReport"]
+from django.core.management.base import BaseCommand
+
+from appai.services.graphs.memory_maintenance import run_memory_maintenance
+
+
+class Command(BaseCommand):
+    help = 'Run memory maintenance.'
+
+    def handle(self, *args: Any, **options: Any) -> None:
+        asyncio.run(run_memory_maintenance())

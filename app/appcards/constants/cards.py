@@ -49,6 +49,7 @@ CURRENT_STANDARD_SET_CODES = {
     "FIN",
     "EOE",
     "SPM",
+    "SOS",
 }
 
 HIERARCHICAL_TAGS = {

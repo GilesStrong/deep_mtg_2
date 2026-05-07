@@ -16,7 +16,7 @@ from uuid import UUID
 
 import logfire
 import qdrant_client.http.models as qm
-from appcards.models.card import Card
+from appcards.modules.card_validation import CardValidationError, check_related_card_uuids
 from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.client import QDRANT_CLIENT
 from appsearch.services.qdrant.search import run_query_from_dsl
@@ -28,6 +28,7 @@ from pydantic_ai import Agent, ModelRetry, RunContext
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC
 from appai.constants.storage import MEMORY_COLLECTION_NAME
+from appai.dataclasses.memory import Memory
 from appai.models.memory import Memory as PGMemory
 from appai.modules.dense_embedding import dense_embed
 from appai.services.agents.deps import DeckBuildingDeps
@@ -35,49 +36,6 @@ from appai.services.agents.deps import DeckBuildingDeps
 MAX_SEARCH_RESULTS = 5
 MIN_RELEVANCE_SCORE = 0.5
 MAX_MEMORY_SEARCHES = 10
-
-
-class CardValidationError(ValueError):
-    pass
-
-
-@beartype
-async def _check_related_card_uuids(card_ids: set[UUID]) -> None:
-    """
-    Checks if the given set of card UUIDs correspond to existing cards.
-    Raises a CardValidationError if any of the UUIDs do not correspond to existing cards.
-
-    Args:
-        card_ids (set[UUID]): A set of UUIDs of cards to check for existence
-
-    Raises:
-        CardValidationError: If any of the UUIDs do not correspond to existing cards.
-
-    Returns:
-        None: If all UUIDs correspond to existing cards, the function returns None without raising an error.
-    """
-    if len(card_ids) == 0:
-        return
-    existing_card_uuids: set[UUID] = set(
-        await sync_to_async(list)(Card.objects.filter(id__in=card_ids).values_list("id", flat=True))  # type: ignore [call-arg]
-    )
-    non_existing_uuids = card_ids - existing_card_uuids
-    if len(non_existing_uuids) > 0:
-        raise CardValidationError(
-            f"The following related_card_uuids do not correspond to existing cards: {', '.join(str(uuid) for uuid in non_existing_uuids)}"
-        )
-
-
-class Memory(BaseModel):
-    name: str = Field(
-        max_length=64, description="The name of the memory, which can be used to reference it in future queries."
-    )
-    text: str = Field(description="The content of the memory, which can be any text that the agent wants to remember.")
-    related_card_uuids: set[UUID] = Field(
-        default_factory=set,
-        max_length=10,
-        description="A list of UUIDs of cards that are related to this memory, which can be used to link the memory to specific cards and retrieve it later based on those cards. Up to 10 related card UUIDs can be included.",
-    )
 
 
 MEMORY_WRITING_AGENT_PROMPT = """
@@ -93,7 +51,7 @@ The text may contain information about the deck being built, specific cards, str
 Read the input text carefully and identify the key information that should be remembered.
 The current main agent will not need the memory again, rather it is being saved for the benefit of future agents.
 Therefore focus on the details that are most likely to be useful for future reference, rather than details that are overly specific to the current context. 
-Identify any cards that are related to the memory, and include their UUIDs in the related_card_uuids field. These should be mentioned in the text sent by the main agent.
+Identify any cards that are related to the memory, and include their UUIDs in the related_card_uuids field.
 
 ## Refusals
 You may refuse to write the memory by returning None, if you are confident that the information is not worth remembering for future reference.
@@ -137,7 +95,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         raise ModelRetry("A maximum of 10 related card UUIDs can be included in a memory.")
     if len(related_card_uuids) > 0:
         try:
-            await _check_related_card_uuids(related_card_uuids)
+            await check_related_card_uuids(related_card_uuids)
         except CardValidationError as e:
             logfire.warning("Memory writing tool called with invalid related_card_uuids.", error=str(e))
             raise ModelRetry("Invalid related_card_uuids: " + str(e))
@@ -148,6 +106,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
     agent = Agent(
         model=TOOL_MODEL_BASIC,
         system_prompt=MEMORY_WRITING_AGENT_PROMPT,
+        name="Memory Writing Agent",
         model_settings={'thinking': False},
         output_type=Memory | None,  # type: ignore [arg-type, call-overload]
         retries=10,
@@ -164,7 +123,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
             output (Memory | None): The output from the memory writing agent.
 
         Returns:
-            Memory | None: The validated memory output, or None if the output is invalid.
+            Memory | None: The validated memory output
 
         Raises:
             ModelRetry: If the output is invalid, a ModelRetry exception is raised to trigger a retry of the output.
@@ -172,7 +131,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         if output is None:
             return None
         try:
-            await _check_related_card_uuids(output.related_card_uuids)
+            await check_related_card_uuids(output.related_card_uuids)
         except CardValidationError as e:
             logfire.warning("Memory writing agent produced invalid related_card_uuids.", error=str(e))
             raise ModelRetry("Invalid related_card_uuids: " + str(e))
@@ -397,6 +356,7 @@ async def subagent_memory_search(ctx: RunContext[DeckBuildingDeps], query: str) 
         model=TOOL_MODEL_BASIC,
         system_prompt=MEMORY_SEARCH_PROMPT,
         model_settings={'thinking': False},
+        name="Memory Search Agent",
         instrument=True,
         tools=[semantic_memory_search, card_memory_search],
         output_type=MemorySummary,
@@ -408,7 +368,7 @@ async def subagent_memory_search(ctx: RunContext[DeckBuildingDeps], query: str) 
     @agent.output_validator
     async def validate_memory_summary_output(output: MemorySummary) -> MemorySummary:
         try:
-            await _check_related_card_uuids(output.related_card_uuids)
+            await check_related_card_uuids(output.related_card_uuids)
         except CardValidationError as e:
             logfire.warning("Memory search agent produced invalid related_card_uuids.", error=str(e))
             raise ModelRetry("Invalid related_card_uuids: " + str(e))

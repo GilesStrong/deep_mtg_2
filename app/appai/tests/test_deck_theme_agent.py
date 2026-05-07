@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from appai.services.agents.deck_theme import get_daily_deck_theme
+from appai.services.agents.deck_theme import MAX_THEME_SEARCHES, get_daily_deck_theme
 
 _MODULE = "appai.services.agents.deck_theme"
 
@@ -45,9 +45,15 @@ class GetDailyDeckThemeTests(TestCase):
         result = get_daily_deck_theme()
 
         self.assertEqual(result, expected_output)
-        mock_agent.run_sync.assert_called_once_with()
+        mock_agent.run_sync.assert_called_once()
+        deps = mock_agent.run_sync.call_args.kwargs["deps"]
+        self.assertEqual(deps.n_searches, 0)
+        self.assertEqual(deps.n_max_searches, MAX_THEME_SEARCHES)
 
         agent_kwargs = mock_agent_cls.call_args.kwargs
         self.assertEqual(agent_kwargs["output_type"].__name__, "NewTheme")
         self.assertIn("tools", agent_kwargs)
         self.assertEqual(len(agent_kwargs["tools"]), 1)
+        self.assertEqual(agent_kwargs["deps_type"].__name__, "ThemeDeps")
+        self.assertEqual(agent_kwargs["retries"], 1)
+        self.assertEqual(agent_kwargs["output_retries"], 3)

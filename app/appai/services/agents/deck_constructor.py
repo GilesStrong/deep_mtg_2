@@ -195,6 +195,7 @@ async def run_deck_constructor_agent(
     agent = Agent(
         system_prompt=DECK_CONSTRUCTION_SYSTEM_PROMPT,
         model=TOOL_MODEL_THINKING,
+        name="Deck Constructor Agent",
         model_settings={'thinking': 'high'},
         deps_type=DeckBuildingDeps,
         tools=[
@@ -360,6 +361,7 @@ async def run_card_classifier_agent(deck_id: UUID, deck_description: str) -> Non
     agent = Agent(
         system_prompt=CARD_CLASSIFIER_SYSTEM_PROMPT,
         model=TOOL_MODEL_BASIC,
+        name="Card Classifier Agent",
         model_settings={'thinking': False},
         tools=[],
         instrument=True,
@@ -451,6 +453,7 @@ async def run_card_replacement_agent(
     agent = Agent(
         system_prompt=CARD_REPLACEMENT_SYSTEM_PROMPT,
         model=TOOL_MODEL_BASIC,
+        name="Card Replacement Agent",
         model_settings={'thinking': False},
         tools=[],
         instrument=True,

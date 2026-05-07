@@ -34,20 +34,12 @@ async def inspect_card(card_id: UUID) -> CardInfo | str:
     Returns:
         CardInfo|str: A description of the card, or an error message if not found.
     """
-    if isinstance(card_id, str):
-        try:
-            card = await Card.objects.aget(name=card_id)
-        except Card.DoesNotExist:
-            message = f"Card with name '{card_id}' does not exist."
-            logfire.warning(message)
-            return message
-    else:
-        try:
-            card = await Card.objects.aget(id=card_id)
-        except Card.DoesNotExist:
-            message = f"Card with ID {card_id} does not exist."
-            logfire.warning(message)
-            return message
+    try:
+        card = await Card.objects.prefetch_related("printings").aget(id=card_id)
+    except Card.DoesNotExist:
+        message = f"Card with ID {card_id} does not exist."
+        logfire.warning(message)
+        return message
 
     card_info = await sync_to_async(card_to_info)(card)
     return card_info

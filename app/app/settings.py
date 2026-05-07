@@ -225,6 +225,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "appai.tasks.daily_theme.make_daily_theme",
         "schedule": crontab(minute="*/30"),  # every 30 minutes, but only completes once a day due to early exit
     },
+    "daily-memory-maintenance-job": {
+        "task": "appai.tasks.memory_maintenance.run_memory_maintenance_task",
+        "schedule": crontab(minute="*/30"),  # every 30 minutes, but only completes once a day due to early exit
+    },
     "cleanup-old-deck-build-tasks": {
         "task": "appai.tasks.cleanup.cleanup_old_deck_build_tasks",
         "schedule": crontab(minute="*/30"),  # every 30 minutes

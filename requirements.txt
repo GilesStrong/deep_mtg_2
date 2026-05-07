@@ -213,6 +213,8 @@ h2==4.3.0
     # via
     #   httpx
     #   hypercorn
+hdbscan==0.8.42
+    # via app
 hf-xet==1.5.0 ; platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'
     # via huggingface-hub
 hpack==4.1.0
@@ -268,6 +270,8 @@ jaraco-context==6.1.0
     # via keyring
 jaraco-functools==4.4.0
     # via keyring
+jaxtyping==0.3.9
+    # via app
 jeepney==0.9.0 ; sys_platform == 'linux'
     # via
     #   keyring
@@ -280,6 +284,11 @@ jmespath==1.1.0
     # via
     #   boto3
     #   botocore
+joblib==1.5.3
+    # via
+    #   hdbscan
+    #   pynndescent
+    #   scikit-learn
 jq==1.11.0
     # via app
 jsonpatch==1.33
@@ -321,6 +330,10 @@ langsmith==0.6.6
     #   langchain-core
 librt==0.7.8 ; platform_python_implementation != 'PyPy'
     # via mypy
+llvmlite==0.47.0
+    # via
+    #   numba
+    #   pynndescent
 logfire==4.22.0
     # via
     #   app
@@ -360,10 +373,19 @@ nexus-rpc==1.4.0
     # via temporalio
 nodeenv==1.10.0
     # via pre-commit
+numba==0.65.1
+    # via
+    #   pynndescent
+    #   umap-learn
 numpy==2.4.1
     # via
+    #   hdbscan
     #   langchain-community
+    #   numba
     #   qdrant-client
+    #   scikit-learn
+    #   scipy
+    #   umap-learn
 oauthlib==3.3.1
     # via requests-oauthlib
 openai==2.34.0
@@ -519,6 +541,8 @@ pyjwt==2.12.1
     # via
     #   app
     #   mcp
+pynndescent==0.6.0
+    # via umap-learn
 pyperclip==1.11.0
     # via
     #   fastmcp
@@ -616,6 +640,17 @@ rsa==4.9.1
 ruff==0.14.14
 s3transfer==0.17.0
     # via boto3
+scikit-learn==1.8.0
+    # via
+    #   hdbscan
+    #   pynndescent
+    #   umap-learn
+scipy==1.17.1
+    # via
+    #   hdbscan
+    #   pynndescent
+    #   scikit-learn
+    #   umap-learn
 secretstorage==3.5.0 ; sys_platform == 'linux'
     # via keyring
 shellingham==1.5.4
@@ -649,6 +684,8 @@ tenacity==9.1.2
     #   langchain-community
     #   langchain-core
     #   pydantic-ai-slim
+threadpoolctl==3.6.0
+    # via scikit-learn
 tiktoken==0.12.0
     # via pydantic-ai-slim
 tokenizers==0.23.1 ; sys_platform != 'emscripten'
@@ -658,6 +695,7 @@ tqdm==4.67.1
     #   app
     #   huggingface-hub
     #   openai
+    #   umap-learn
 typer==0.25.1
     # via huggingface-hub
 types-protobuf==6.32.1.20260221
@@ -717,6 +755,8 @@ tzdata==2025.3
     #   tzlocal
 tzlocal==5.3.1
     # via celery
+umap-learn==0.5.12
+    # via app
 uncalled-for==0.3.1
     # via fastmcp
 uritemplate==4.2.0
@@ -742,6 +782,8 @@ vine==5.1.0
     #   kombu
 virtualenv==20.36.1
     # via pre-commit
+wadler-lindig==0.1.7
+    # via jaxtyping
 watchfiles==1.1.1
     # via fastmcp
 wcwidth==0.5.0
