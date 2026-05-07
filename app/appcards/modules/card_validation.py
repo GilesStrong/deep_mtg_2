@@ -24,7 +24,7 @@ class CardValidationError(ValueError):
 
 
 @beartype
-async def _check_related_card_uuids(card_ids: set[UUID]) -> None:
+async def check_related_card_uuids(card_ids: set[UUID]) -> None:
     """
     Checks if the given set of card UUIDs correspond to existing cards.
     Raises a CardValidationError if any of the UUIDs do not correspond to existing cards.

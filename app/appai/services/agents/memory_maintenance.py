@@ -19,7 +19,7 @@ import qdrant_client.http.models as qm
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
 from appcards.models.card import Card
 from appcards.modules.card_info import card_to_info
-from appcards.modules.card_validation import CardValidationError, _check_related_card_uuids
+from appcards.modules.card_validation import CardValidationError, check_related_card_uuids
 from appsearch.services.qdrant.client import QDRANT_CLIENT
 from appsearch.services.qdrant.upsert import upsert_documents
 from asgiref.sync import sync_to_async
@@ -183,7 +183,7 @@ async def maintain_memories(clustered_memories: list[ExistingMemory]) -> int:
 
         for memory in output:
             try:
-                await _check_related_card_uuids(memory.related_card_uuids)
+                await check_related_card_uuids(memory.related_card_uuids)
             except CardValidationError as e:
                 logfire.warning("Memory writing agent produced invalid related_card_uuids.", error=str(e))
                 raise ModelRetry("Invalid related_card_uuids: " + str(e))

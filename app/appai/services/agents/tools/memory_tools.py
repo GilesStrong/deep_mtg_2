@@ -16,7 +16,7 @@ from uuid import UUID
 
 import logfire
 import qdrant_client.http.models as qm
-from appcards.modules.card_validation import CardValidationError, _check_related_card_uuids
+from appcards.modules.card_validation import CardValidationError, check_related_card_uuids
 from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.client import QDRANT_CLIENT
 from appsearch.services.qdrant.search import run_query_from_dsl
@@ -95,7 +95,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         raise ModelRetry("A maximum of 10 related card UUIDs can be included in a memory.")
     if len(related_card_uuids) > 0:
         try:
-            await _check_related_card_uuids(related_card_uuids)
+            await check_related_card_uuids(related_card_uuids)
         except CardValidationError as e:
             logfire.warning("Memory writing tool called with invalid related_card_uuids.", error=str(e))
             raise ModelRetry("Invalid related_card_uuids: " + str(e))
@@ -131,7 +131,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         if output is None:
             return None
         try:
-            await _check_related_card_uuids(output.related_card_uuids)
+            await check_related_card_uuids(output.related_card_uuids)
         except CardValidationError as e:
             logfire.warning("Memory writing agent produced invalid related_card_uuids.", error=str(e))
             raise ModelRetry("Invalid related_card_uuids: " + str(e))
@@ -368,7 +368,7 @@ async def subagent_memory_search(ctx: RunContext[DeckBuildingDeps], query: str) 
     @agent.output_validator
     async def validate_memory_summary_output(output: MemorySummary) -> MemorySummary:
         try:
-            await _check_related_card_uuids(output.related_card_uuids)
+            await check_related_card_uuids(output.related_card_uuids)
         except CardValidationError as e:
             logfire.warning("Memory search agent produced invalid related_card_uuids.", error=str(e))
             raise ModelRetry("Invalid related_card_uuids: " + str(e))
