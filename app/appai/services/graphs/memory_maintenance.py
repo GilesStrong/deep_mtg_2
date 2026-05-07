@@ -253,6 +253,9 @@ class RunHDBSCAN(BaseNode[MemoryMaintenanceState]):
             cluster_selection_method=HDBSCAN_CLUSTER_SELECTION_METHOD,
         ).fit_predict(ctx.state.memories.umap_coords)
         ctx.state.memories.cluster_assignments = hdb_clusters
+        logfire.info(
+            f"HDBSCAN assigned {len(ctx.state.memories.memories)} memories to {len(set(hdb_clusters)) - (1 if -1 in hdb_clusters else 0)} clusters, with {list(hdb_clusters).count(-1)} noise points."
+        )
         return MaintainClusteredMemories()
 
 
