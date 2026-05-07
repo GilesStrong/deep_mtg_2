@@ -55,7 +55,8 @@ services:
       redis:
         condition: service_healthy
     command: >
-      sh -lc "cd /app/app &&
+      sh -lc "mkdir -p /app/.cache/numba /app/.cache/xdg /app/.cache/matplotlib &&
+          cd /app/app &&
           python manage.py migrate --noinput &&
           python manage.py collectstatic --noinput &&
           exec hypercorn app.asgi:application -b 0.0.0.0:8000 -w 2 --keep-alive 15"
@@ -68,15 +69,24 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,size=128m
+      - /tmp:rw,noexec,nosuid,size=128m,uid=998,gid=998,mode=1777
+      - /app/.cache:rw,nosuid,size=256m,uid=998,gid=998,mode=700
     volumes:
       - django_static_prod:/app/staticfiles
       - django_media_prod:/app/media
+    environment:
+      HOME: /app
+      XDG_CACHE_HOME: /app/.cache/xdg
+      NUMBA_CACHE_DIR: /app/.cache/numba
+      MPLCONFIGDIR: /app/.cache/matplotlib
 
   celery_worker:
     image: deepmtg-app:prod
     env_file: .env.prod
-    command: "sh -lc 'cd /app/app && celery -A app worker -Q default --loglevel=info --concurrency=8 -n worker_default@%h'"
+    command: >
+      sh -lc "mkdir -p /app/.cache/numba /app/.cache/xdg /app/.cache/matplotlib &&
+          cd /app/app &&
+          exec celery -A app worker -Q default --loglevel=info --concurrency=8 -n worker_default@%h"
     restart: unless-stopped
     depends_on:
       db:
@@ -92,12 +102,21 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,size=128m
+      - /tmp:rw,noexec,nosuid,size=128m,uid=998,gid=998,mode=1777
+      - /app/.cache:rw,nosuid,size=256m,uid=998,gid=998,mode=700
+    environment:
+      HOME: /app
+      XDG_CACHE_HOME: /app/.cache/xdg
+      NUMBA_CACHE_DIR: /app/.cache/numba
+      MPLCONFIGDIR: /app/.cache/matplotlib
 
   celery_llm_worker:
     image: deepmtg-app:prod
     env_file: .env.prod
-    command: "sh -lc 'cd /app/app && celery -A app worker -Q llm --loglevel=info --concurrency=1 --pool=prefork --max-tasks-per-child=50 -n worker_llm@%h'"
+    command: >
+      sh -lc "mkdir -p /app/.cache/numba /app/.cache/xdg /app/.cache/matplotlib &&
+          cd /app/app &&
+          exec celery -A app worker -Q llm --loglevel=info --concurrency=1 --pool=prefork --max-tasks-per-child=50 -n worker_llm@%h"
     restart: unless-stopped
     depends_on:
       db:
@@ -113,12 +132,21 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,size=128m
+      - /tmp:rw,noexec,nosuid,size=128m,uid=998,gid=998,mode=1777
+      - /app/.cache:rw,nosuid,size=256m,uid=998,gid=998,mode=700
+    environment:
+      HOME: /app
+      XDG_CACHE_HOME: /app/.cache/xdg
+      NUMBA_CACHE_DIR: /app/.cache/numba
+      MPLCONFIGDIR: /app/.cache/matplotlib
 
   celery_beat:
     image: deepmtg-app:prod
     env_file: .env.prod
-    command: "sh -lc 'cd /app/app && celery -A app beat --loglevel=info --schedule /tmp/celerybeat-schedule'"
+    command: >
+      sh -lc "mkdir -p /app/.cache/numba /app/.cache/xdg /app/.cache/matplotlib &&
+          cd /app/app &&
+          exec celery -A app beat --loglevel=info --schedule /tmp/celerybeat-schedule"
     restart: unless-stopped
     depends_on:
       db:
@@ -134,7 +162,13 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,size=128m
+      - /tmp:rw,noexec,nosuid,size=128m,uid=998,gid=998,mode=1777
+      - /app/.cache:rw,nosuid,size=128m,uid=998,gid=998,mode=700
+    environment:
+      HOME: /app
+      XDG_CACHE_HOME: /app/.cache/xdg
+      NUMBA_CACHE_DIR: /app/.cache/numba
+      MPLCONFIGDIR: /app/.cache/matplotlib
 
   frontend:
     build:
