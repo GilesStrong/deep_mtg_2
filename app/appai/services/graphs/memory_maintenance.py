@@ -99,8 +99,8 @@ class EmbeddedMemories(BaseModel):
     @classmethod
     @jaxtyped(typechecker=beartype)
     def validate_cluster_assignments(
-        cls, v: Int[np.ndarray, "num_memories 1"] | None
-    ) -> Int[np.ndarray, "num_memories 1"] | None:
+        cls, v: Int[np.ndarray, " num_memories"] | None
+    ) -> Int[np.ndarray, " num_memories"] | None:
         """Validate cluster assignment array shape.
 
         Args:
@@ -301,7 +301,9 @@ class RetrieveMemories(BaseNode[MemoryMaintenanceState]):
         Returns:
             The node that performs UMAP dimensionality reduction.
         """
-        pg_memories = list(PGMemory.objects.prefetch_related("related_cards").all())
+        pg_memories: list[PGMemory] = await sync_to_async(list)(
+            PGMemory.objects.prefetch_related("related_cards").all()  # type: ignore [call-arg]
+        )
         qdrant_memories = await sync_to_async(QDRANT_CLIENT.retrieve)(
             collection_name=MEMORY_COLLECTION_NAME,
             ids=[str(memory.id) for memory in pg_memories],

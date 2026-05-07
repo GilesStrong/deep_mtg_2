@@ -48,6 +48,7 @@ def update_memories(existing_memories: list[ExistingMemory], new_memories: list[
 
         # Insert new memories
         new_pg_memories: list[PGMemory] = []
+        related_card_uuids_per_memory: list[list] = []
         for memory in new_memories:
             related_card_uuids = sorted(memory.related_card_uuids)
 
@@ -55,10 +56,14 @@ def update_memories(existing_memories: list[ExistingMemory], new_memories: list[
                 name=memory.name,
                 text=memory.text,
             )
+            new_pg_memories.append(pg_memory)
+            related_card_uuids_per_memory.append(related_card_uuids)
+        persisted_pg_memories = PGMemory.objects.bulk_create(new_pg_memories)
+
+        # Add related cards after bulk_create so the instances have PKs
+        for pg_memory, related_card_uuids in zip(persisted_pg_memories, related_card_uuids_per_memory, strict=True):
             if len(related_card_uuids) > 0:
                 pg_memory.related_cards.add(*related_card_uuids)
-            new_pg_memories.append(pg_memory)
-        persisted_pg_memories = PGMemory.objects.bulk_create(new_pg_memories)
 
         # Delete old memories from Qdrant
         QDRANT_CLIENT.delete(
@@ -208,5 +213,5 @@ Related Cards:
     response = await agent.run(input_messages)
     output = response.output
     new_memories = output
-    update_memories(clustered_memories, new_memories)
+    await sync_to_async(update_memories)(clustered_memories, new_memories)
     return len(new_memories)
