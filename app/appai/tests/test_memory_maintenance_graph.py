@@ -86,9 +86,36 @@ class EmbeddedMemoriesTests(TestCase):
 class RunHDBSCANNodeTests(TestCase):
     async def test_assigns_cluster_labels_and_transitions(self) -> None:
         """
-        GIVEN UMAP coordinates are present in state
+        GIVEN UMAP coordinates are present and memory count meets the minimum cluster size
         WHEN RunHDBSCAN.run executes
-        THEN it stores cluster assignments and transitions to MaintainClusteredMemories
+        THEN it stores cluster assignments from fit_predict and transitions to MaintainClusteredMemories
+        """
+        first = _make_existing_memory(UUID("33333333-3333-3333-3333-333333333333"), "A", "a")
+        second = _make_existing_memory(UUID("44444444-4444-4444-4444-444444444444"), "B", "b")
+        third = _make_existing_memory(UUID("34444444-4444-4444-4444-444444444444"), "C", "c")
+        state = mm.MemoryMaintenanceState(
+            memories=mm.EmbeddedMemories(
+                memories=[first, second, third],
+                embeddings=np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], dtype=float),
+                umap_coords=np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]], dtype=float),
+            )
+        )
+        ctx = SimpleNamespace(state=state)
+
+        mock_clusterer = MagicMock()
+        mock_clusterer.fit_predict.return_value = np.array([2, 3, 4], dtype=int)
+
+        with patch.object(mm.hdbscan, "HDBSCAN", MagicMock(return_value=mock_clusterer)):
+            result = await mm.RunHDBSCAN().run(ctx)
+
+        self.assertIsInstance(result, mm.MaintainClusteredMemories)
+        np.testing.assert_array_equal(state.memories.cluster_assignments, np.array([2, 3, 4], dtype=int))
+
+    async def test_assigns_all_to_single_cluster_when_too_few_memories(self) -> None:
+        """
+        GIVEN fewer memories than HDBSCAN_MIN_CLUSTER_SIZE are present
+        WHEN RunHDBSCAN.run executes
+        THEN all memories are assigned to cluster 0 and MaintainClusteredMemories is returned
         """
         first = _make_existing_memory(UUID("33333333-3333-3333-3333-333333333333"), "A", "a")
         second = _make_existing_memory(UUID("44444444-4444-4444-4444-444444444444"), "B", "b")
@@ -102,13 +129,12 @@ class RunHDBSCANNodeTests(TestCase):
         ctx = SimpleNamespace(state=state)
 
         mock_clusterer = MagicMock()
-        mock_clusterer.fit_predict.return_value = np.array([2, 3], dtype=int)
-
         with patch.object(mm.hdbscan, "HDBSCAN", MagicMock(return_value=mock_clusterer)):
             result = await mm.RunHDBSCAN().run(ctx)
 
         self.assertIsInstance(result, mm.MaintainClusteredMemories)
-        np.testing.assert_array_equal(state.memories.cluster_assignments, np.array([2, 3], dtype=int))
+        np.testing.assert_array_equal(state.memories.cluster_assignments, np.zeros(2, dtype=int))
+        mock_clusterer.fit_predict.assert_not_called()
 
     async def test_raises_when_umap_coords_missing(self) -> None:
         """
@@ -127,6 +153,72 @@ class RunHDBSCANNodeTests(TestCase):
 
         with self.assertRaises(ValueError):
             await mm.RunHDBSCAN().run(ctx)
+
+
+class RunUMAPNodeTests(TestCase):
+    async def test_runs_umap_and_transitions_to_hdbscan(self) -> None:
+        """
+        GIVEN embeddings are present and memory count meets the UMAP minimum
+        WHEN RunUMAP.run executes
+        THEN umap_coords are stored in state and RunHDBSCAN is returned
+        """
+        memories = [
+            _make_existing_memory(UUID(f"{i:032x}"), f"M{i}", f"text {i}") for i in range(1, mm.UMAP_N_NEIGHBORS + 1)
+        ]
+        raw_embeddings = np.random.rand(mm.UMAP_N_NEIGHBORS, 4).astype(float)
+        state = mm.MemoryMaintenanceState(
+            memories=mm.EmbeddedMemories(
+                memories=memories,
+                embeddings=raw_embeddings,
+            )
+        )
+        ctx = SimpleNamespace(state=state)
+
+        projected = np.array([[float(i), float(i)] for i in range(mm.UMAP_N_NEIGHBORS)])
+        mock_umap_instance = MagicMock()
+        mock_umap_instance.fit_transform.return_value = projected
+
+        with patch.object(mm.umap, "UMAP", MagicMock(return_value=mock_umap_instance)):
+            result = await mm.RunUMAP().run(ctx)
+
+        self.assertIsInstance(result, mm.RunHDBSCAN)
+        self.assertIsNotNone(state.memories.umap_coords)
+        self.assertEqual(state.memories.umap_coords.shape, projected.shape)
+
+    async def test_uses_embeddings_directly_when_too_few_for_umap(self) -> None:
+        """
+        GIVEN fewer memories than UMAP_N_NEIGHBORS are present
+        WHEN RunUMAP.run executes
+        THEN umap_coords are set to the original embeddings and RunHDBSCAN is returned
+        """
+        first = _make_existing_memory(UUID("33333333-3333-3333-3333-333333333333"), "A", "a")
+        raw_embeddings = np.array([[1.0, 2.0]], dtype=float)
+        state = mm.MemoryMaintenanceState(
+            memories=mm.EmbeddedMemories(
+                memories=[first],
+                embeddings=raw_embeddings,
+            )
+        )
+        ctx = SimpleNamespace(state=state)
+
+        mock_umap_instance = MagicMock()
+        with patch.object(mm.umap, "UMAP", MagicMock(return_value=mock_umap_instance)):
+            result = await mm.RunUMAP().run(ctx)
+
+        self.assertIsInstance(result, mm.RunHDBSCAN)
+        np.testing.assert_array_equal(state.memories.umap_coords, raw_embeddings)
+        mock_umap_instance.fit_transform.assert_not_called()
+
+    async def test_raises_when_embeddings_missing(self) -> None:
+        """
+        GIVEN graph state has no embedded memories
+        WHEN RunUMAP.run executes
+        THEN it raises ValueError
+        """
+        ctx = SimpleNamespace(state=mm.MemoryMaintenanceState())
+
+        with self.assertRaises(ValueError):
+            await mm.RunUMAP().run(ctx)
 
 
 class MaintainClusteredMemoriesNodeTests(TestCase):
