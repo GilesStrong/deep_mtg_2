@@ -295,7 +295,7 @@ class WriteMemoryTests(TestCase):
         mock_upsert_documents.assert_not_called()
         self.assertEqual(ctx.deps.memories_written, 0)
 
-    @patch(f"{_TOOLS_MODULE}._check_related_card_uuids", new_callable=AsyncMock)
+    @patch(f"{_TOOLS_MODULE}.check_related_card_uuids", new_callable=AsyncMock)
     @patch(f"{_TOOLS_MODULE}.upsert_documents")
     @patch(f"{_TOOLS_MODULE}.dense_embed")
     @patch(f"{_TOOLS_MODULE}.PGMemory")

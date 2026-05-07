@@ -151,7 +151,7 @@ class MaintainMemoriesTests(TestCase):
             patch.object(mm, "Agent", new=_FakeAgent),
             patch.object(mm, "Card", card_model),
             patch.object(mm, "sync_to_async", _sync_to_async_passthrough),
-            patch.object(mm, "_check_related_card_uuids", check_uuids_mock),
+            patch.object(mm, "check_related_card_uuids", check_uuids_mock),
             patch.object(mm, "update_memories", update_mock),
         ):
             result = await mm.maintain_memories(clustered)
@@ -210,7 +210,7 @@ class MaintainMemoriesTests(TestCase):
             patch.object(mm, "Agent", new=_FakeAgent),
             patch.object(mm, "Card", card_model),
             patch.object(mm, "sync_to_async", _sync_to_async_passthrough),
-            patch.object(mm, "_check_related_card_uuids", check_uuids_mock),
+            patch.object(mm, "check_related_card_uuids", check_uuids_mock),
             patch.object(mm, "update_memories", update_mock),
         ):
             with self.assertRaises(ModelRetry):
