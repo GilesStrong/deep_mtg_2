@@ -19,7 +19,11 @@ from pydantic_ai import Agent
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC
 from appai.constants.prompt_gotchas import GOTCHAS
+from appai.services.agents.deps import MAX_THEME_SEARCHES, ThemeDeps
 from appai.services.agents.tools.query_tools import find_similar_themes
+
+MIN_LENGTH = 20
+MAX_LENGTH = 255
 
 DECK_THEME_PROMPT = f"""
 # Overview
@@ -39,27 +43,35 @@ If you wish to include specific keywords, only use evergreen keywords that are n
 The current set of evergreen keywords are: {EVERGREEN_KEYWORDS}.
 However, in general, err on the side of including general descriptions for what the mechanics should accomplish, rather than how they may be specified on the cards.
 
+You general flow should be:
+1. Come up with a theme based on your creativity and knowledge of Magic: The Gathering.
+2. Check if the theme is similar to any themes you have generated in the past using the find_similar_themes tool, to ensure you are not generating similar themes repeatedly.
+3. If the theme is similar to past themes, modify it to make it more unique and interesting, and check again for similarity until you have a theme that is not similar to past themes.
+4. If it is not similar to past themes, then you can go with it and finish.
+
 # Output
 Your output should be a few short sentences that describe the theme of the day.
 Make sure to check that your theme is not too similar to the themes you have generated in the past, and that it is something that can be used as a basis for building a deck around.
+The theme description must be between {MIN_LENGTH} and {MAX_LENGTH} characters in length.
 
 # Gotchas
-
 {GOTCHAS}
 
 # Tools
 You have access to the following tools to help you generate the theme:
-- find_similar_themes tool to find past themes that you have generated, to help you avoid generating similar themes repeatedly. You can search for themes based on keywords or concepts that are similar to the theme you are considering.
+- find_similar_themes tool to check that your theme is not too similar what you have generated in the past, to help you avoid generating similar themes repeatedly.
   - Do not make generic searches, like "fun themes". Instead, send the exact theme you are considering as the search query.
+  - Do not use the tool to get inspiration for your theme, instead only use it to ensure your idea is unique. 
 This should be a quick, cheap operation, so do not call many tools.
+You can make a maximum of {MAX_THEME_SEARCHES} calls to the find_similar_themes tool during this process, so use it wisely to check for similarity against your current theme idea.
 """
 
 
 class NewTheme(BaseModel):
     description: str = Field(
         description="A few sentences that describe the theme of the deck. Do not include any prefix like 'the theme of the deck is...', just the description of the theme itself. The description should be specific enough to provide a clear direction for building a deck, but not so specific that it relies on a particular card or mechanic.",
-        min_length=20,
-        max_length=255,
+        min_length=MIN_LENGTH,
+        max_length=MAX_LENGTH,
     )
 
 
@@ -85,5 +97,9 @@ def get_daily_deck_theme() -> NewTheme:
         instrument=True,
         output_type=NewTheme,
         tools=[find_similar_themes],
+        retries=1,
+        output_retries=3,
+        deps_type=ThemeDeps,
     )
-    return agent.run_sync().output
+    deps = ThemeDeps(n_searches=0)
+    return agent.run_sync(deps=deps).output

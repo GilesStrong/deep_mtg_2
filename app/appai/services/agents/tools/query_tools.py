@@ -15,6 +15,7 @@
 from datetime import datetime
 from uuid import UUID
 
+import logfire
 from appcards.constants.storage import CARD_COLLECTION_NAME, THEME_COLLECTION_NAME
 from appcards.models.card import Card
 from appcards.models.deck import DeckCard
@@ -26,10 +27,10 @@ from asgiref.sync import sync_to_async
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext
+from pydantic_ai import ModelRetry, RunContext
 
 from appai.models.deck_build import DeckBuildTask
-from appai.services.agents.deps import DeckBuildingDeps
+from appai.services.agents.deps import DeckBuildingDeps, ThemeDeps
 from appai.services.agents.filter_constructor import filter_constructor
 
 MAX_SEARCH_RESULTS = 25
@@ -150,7 +151,7 @@ class NewTheme(BaseModel):
 
 
 @beartype
-async def find_similar_themes(proposed_theme: NewTheme) -> list[Theme]:
+async def find_similar_themes(ctx: RunContext[ThemeDeps], proposed_theme: NewTheme) -> list[Theme]:
     """
     Searches for deck themes similar to a proposed theme.
 
@@ -160,6 +161,16 @@ async def find_similar_themes(proposed_theme: NewTheme) -> list[Theme]:
     Returns:
         list[Theme]: A list of previously run deck themes that are similar to the search query, along with the number of days since each theme was last used.
     """
+
+    # Check remaining search budget
+    if ctx.deps.n_searches >= ctx.deps.n_max_searches:
+        message = "Maximum number of theme searches reached. No more theme searches will be performed."
+        logfire.warning(
+            message,
+            total_theme_searches=ctx.deps.n_searches,
+        )
+        raise ModelRetry(message)
+    ctx.deps.n_searches += 1
 
     # Run search
     found_themes = await sync_to_async(run_query_from_dsl)(

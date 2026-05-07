@@ -17,6 +17,8 @@ from uuid import UUID
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
 from pydantic import BaseModel, Field
 
+MAX_THEME_SEARCHES = 3
+
 
 class DeckBuildingDeps(BaseModel):
     deck_id: UUID = Field(..., description="The ID of the deck to modify")
@@ -35,4 +37,15 @@ class DeckBuildingDeps(BaseModel):
     )
     memory_searches: int = Field(
         0, description="The number of times the agent has searched for memories during this deck construction process"
+    )
+
+
+class ThemeDeps(BaseModel):
+    n_searches: int = Field(
+        description="The number of times the agent has called the find_similar_themes tool during this run, which can be used to limit the number of searches and encourage the agent to come up with unique themes without relying too much on past themes.",
+        ge=0,
+    )
+    n_max_searches: int = Field(
+        default=MAX_THEME_SEARCHES,
+        description="The maximum number of times the agent should call the find_similar_themes tool during this run.",
     )
