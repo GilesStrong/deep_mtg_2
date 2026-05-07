@@ -17,7 +17,6 @@ from asyncio import Semaphore
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Self, cast
-from uuid import UUID
 
 import hdbscan
 import logfire
@@ -327,10 +326,10 @@ class RetrieveMemories(BaseNode[MemoryMaintenanceState, None, None]):
         )
 
         embedded_memories: list[ExistingMemory] = []
-        memory_ids: list[UUID] = []
         embeddings: list[list[float]] = []
+        qdrant_memories_by_id = {m.id: m for m in qdrant_memories}
         for memory in pg_memories:
-            qdrant_memory = next((m for m in qdrant_memories if m.id == str(memory.id)), None)
+            qdrant_memory = qdrant_memories_by_id.get(str(memory.id))
             if qdrant_memory is None:
                 logfire.warning(f"Memory with ID {memory.id} not found in Qdrant.")
             vector = None
@@ -364,7 +363,6 @@ class RetrieveMemories(BaseNode[MemoryMaintenanceState, None, None]):
                     created_at=memory.created_at.isoformat(),
                 )
             )
-            memory_ids.append(memory.id)
             embeddings.append(vector)  # type: ignore[arg-type]
 
         ctx.state.memories = EmbeddedMemories(memories=embedded_memories, embeddings=np.array(embeddings))

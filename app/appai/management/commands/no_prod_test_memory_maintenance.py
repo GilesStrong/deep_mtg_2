@@ -15,6 +15,7 @@
 import asyncio
 from typing import Any
 
+from app.settings import IS_DEPLOY_ENV
 from django.core.management.base import BaseCommand
 
 from appai.models.memory import Memory
@@ -528,6 +529,11 @@ class Command(BaseCommand):
     help = 'Test memory maintenance. Do not run this in production as it creates test memories'
 
     def handle(self, *args: Any, **options: Any) -> None:
+        if IS_DEPLOY_ENV:
+            print(
+                "This command should not be run in production because it creates test memories. Exiting without doing anything."
+            )
+            return
         memories = []
         for i, memory in enumerate(example_memories):
             memories.append(

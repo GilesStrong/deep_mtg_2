@@ -43,7 +43,7 @@ If you wish to include specific keywords, only use evergreen keywords that are n
 The current set of evergreen keywords are: {EVERGREEN_KEYWORDS}.
 However, in general, err on the side of including general descriptions for what the mechanics should accomplish, rather than how they may be specified on the cards.
 
-You general flow should be:
+Your general flow should be:
 1. Come up with a theme based on your creativity and knowledge of Magic: The Gathering.
 2. Check if the theme is similar to any themes you have generated in the past using the find_similar_themes tool, to ensure you are not generating similar themes repeatedly.
 3. If the theme is similar to past themes, modify it to make it more unique and interesting, and check again for similarity until you have a theme that is not similar to past themes.
@@ -59,7 +59,7 @@ The theme description must be between {MIN_LENGTH} and {MAX_LENGTH} characters i
 
 # Tools
 You have access to the following tools to help you generate the theme:
-- find_similar_themes tool to check that your theme is not too similar what you have generated in the past, to help you avoid generating similar themes repeatedly.
+- find_similar_themes tool to check that your theme is not too similar to what you have generated in the past, to help you avoid generating similar themes repeatedly.
   - Do not make generic searches, like "fun themes". Instead, send the exact theme you are considering as the search query.
   - Do not use the tool to get inspiration for your theme, instead only use it to ensure your idea is unique. 
 This should be a quick, cheap operation, so do not call many tools.

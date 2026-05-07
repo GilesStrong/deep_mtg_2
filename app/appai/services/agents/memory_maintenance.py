@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from uuid import UUID
+
 import logfire
 import qdrant_client.http.models as qm
 from appcards.constants.cards import CURRENT_STANDARD_SET_CODES
@@ -48,7 +50,7 @@ def update_memories(existing_memories: list[ExistingMemory], new_memories: list[
 
         # Insert new memories
         new_pg_memories: list[PGMemory] = []
-        related_card_uuids_per_memory: list[list] = []
+        related_card_uuids_per_memory: list[list[UUID]] = []
         for memory in new_memories:
             related_card_uuids = sorted(memory.related_card_uuids)
 
@@ -65,47 +67,47 @@ def update_memories(existing_memories: list[ExistingMemory], new_memories: list[
             if len(related_card_uuids) > 0:
                 pg_memory.related_cards.add(*related_card_uuids)
 
-        # Delete old memories from Qdrant
-        QDRANT_CLIENT.delete(
-            collection_name=MEMORY_COLLECTION_NAME, points_selector=[str(memory.id) for memory in existing_memories]
-        )
+    # Delete old memories from Qdrant
+    QDRANT_CLIENT.delete(
+        collection_name=MEMORY_COLLECTION_NAME, points_selector=[str(memory.id) for memory in existing_memories]
+    )
 
-        # Upsert new memories into Qdrant
-        new_qdrant_points: list[qm.PointStruct] = []
-        for pg_memory in persisted_pg_memories:
-            embedding = dense_embed(pg_memory.text)
-            str_related_card_uuids = sorted(str(card.id) for card in pg_memory.related_cards.all())
-            point = qm.PointStruct(
-                id=str(pg_memory.id),
-                vector={'dense': embedding},
-                payload={
-                    "name": pg_memory.name,
-                    "text": pg_memory.text,
-                    "related_card_uuids": str_related_card_uuids,
-                    "created_at": pg_memory.created_at.isoformat(),
-                },
-            )
-            new_qdrant_points.append(point)
-        upsert_documents(MEMORY_COLLECTION_NAME, points=new_qdrant_points)
+    # Upsert new memories into Qdrant
+    new_qdrant_points: list[qm.PointStruct] = []
+    for pg_memory in persisted_pg_memories:
+        embedding = dense_embed(pg_memory.text)
+        str_related_card_uuids = sorted(str(card.id) for card in pg_memory.related_cards.all())
+        point = qm.PointStruct(
+            id=str(pg_memory.id),
+            vector={'dense': embedding},
+            payload={
+                "name": pg_memory.name,
+                "text": pg_memory.text,
+                "related_card_uuids": str_related_card_uuids,
+                "created_at": pg_memory.created_at.isoformat(),
+            },
+        )
+        new_qdrant_points.append(point)
+    upsert_documents(MEMORY_COLLECTION_NAME, points=new_qdrant_points)
 
 
 MEMORY_MAINTENANCE_PROMPT = """
 # Overview
 You are a memory-maintenance agent for a Magic: The Gathering deck-building assistant.
 The assistant has a long-term memory system where it stores "memories" that contain information about the deck being built, specific cards, strategies, and other relevant details that the main agent wants to remember for future reference.
-However, overtime duplicate memories can build up, and others can become obsolete as the new sets are released or retired from Standard.
+However, over time duplicate memories can build up, and others can become obsolete as the new sets are released or retired from Standard.
 Your task is to maintain the memory system by taking clusters of potentially related memories and using them to create a set of replacement memories that consolidate the key information in the cluster, while removing any redundant or obsolete details.
 
 # Input
 You will receive a cluster of related memories as input. Each memory will have a name, text content, a creation date, and a list of related cards.
-Addtionally, you will be provided with the current legal set codes in Standard, which may be useful for determining if any memories are obsolete.
+Additionally, you will be provided with the current legal set codes in Standard, which may be useful for determining if any memories are obsolete.
 Treat these set codes as the definitive source of truth for what is currently in Standard, and do not rely on your knowledge of MTG for determining which cards are in Standard or not.
 
 # Instructions
 Read the incoming memories carefully and identify which:
-- Which memories are related to each other and should be consolidated together.
-- Which details in the memories are redundant and can be removed without losing important information.
-- Which details are obsolete and should be removed because they are no longer relevant due to changes in the Standard format or other factors.
+- Memories are related to each other and should be consolidated together.
+- Details in the memories are redundant and can be removed without losing important information.
+- Details are obsolete and should be removed because they are no longer relevant due to changes in the Standard format or other factors.
 
 Based on your analysis, create a new set of memories that consolidates the key information from the input cluster, while removing any redundant or obsolete details.
 The old memories will be deleted and replaced by the new ones you return, so make sure to include all important information in the new memories. Do Not rely on the old memories still being available for reference.
