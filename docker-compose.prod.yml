@@ -69,7 +69,7 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:rw,nosuid,size=128m,uid=998,gid=998,mode=1777
+      - /tmp:rw,noexec,nosuid,size=128m,uid=998,gid=998,mode=1777
       - /app/.cache:rw,nosuid,size=256m,uid=998,gid=998,mode=700
     volumes:
       - django_static_prod:/app/staticfiles
@@ -102,7 +102,7 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:rw,nosuid,size=128m,uid=998,gid=998,mode=1777
+      - /tmp:rw,noexec,nosuid,size=128m,uid=998,gid=998,mode=1777
       - /app/.cache:rw,nosuid,size=256m,uid=998,gid=998,mode=700
     environment:
       HOME: /app
@@ -132,7 +132,7 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:rw,nosuid,size=128m,uid=998,gid=998,mode=1777
+      - /tmp:rw,noexec,nosuid,size=128m,uid=998,gid=998,mode=1777
       - /app/.cache:rw,nosuid,size=256m,uid=998,gid=998,mode=700
     environment:
       HOME: /app
@@ -159,7 +159,7 @@ services:
       - ALL
     read_only: true
     tmpfs:
-    - /tmp:rw,nosuid,size=128m,uid=998,gid=998,mode=1777
+    - /tmp:rw,noexec,nosuid,size=128m,uid=998,gid=998,mode=1777
     - /app/.cache:rw,nosuid,size=128m,uid=998,gid=998,mode=700
     environment:
       HOME: /app

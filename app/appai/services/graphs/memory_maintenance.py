@@ -21,6 +21,7 @@ from typing import Self, cast
 import hdbscan
 import logfire
 import numpy as np
+import umap
 from app.app_settings import APP_SETTINGS
 from appcore.modules.beartype import beartype
 from appsearch.services.qdrant.client import QDRANT_CLIENT
@@ -282,9 +283,6 @@ class RunUMAP(BaseNode[MemoryMaintenanceState]):
             logfire.warning(message)
             ctx.state.memories.umap_coords = ctx.state.memories.embeddings
             return RunHDBSCAN()
-
-        # Lazy import to avoid caching issues due to numba
-        import umap
 
         coords = umap.UMAP(
             n_neighbors=UMAP_N_NEIGHBORS,
