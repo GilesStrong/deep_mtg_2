@@ -40,9 +40,6 @@ RUN addgroup --system --gid 998 appgroup && \
 
 COPY --chown=appuser:appgroup . .
 
-RUN mkdir -p /app/staticfiles /app/media && \
-    chown -R appuser:appgroup /app/staticfiles /app/media
-
 RUN mkdir -p \
     /app/staticfiles \
     /app/media \
