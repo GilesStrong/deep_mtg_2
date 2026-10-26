@@ -278,7 +278,7 @@ If not, please proceed to return the final output, and it will be accepted.
 
 
 CARD_CLASSIFIER_SYSTEM_PROMPT = f"""
-# Overiew
+# Overview
 You are an expert Magic: The Gathering deck builder.
 You have just finished constructing a deck, and are now in the process of explaining the roles of the card choices in the deck.
 For each card in the deck, classify the card based on its role in the deck, and how replacebable it is with other cards that serve a similar role.

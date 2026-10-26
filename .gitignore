@@ -8,6 +8,7 @@
 # dev
 data/
 dev/
+*.omx
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

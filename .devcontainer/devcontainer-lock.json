@@ -1,0 +1,14 @@
+{
+  "features": {
+    "ghcr.io/meaningful-ooo/devcontainer-features/fish:2.0.0": {
+      "version": "2.0.0",
+      "resolved": "ghcr.io/meaningful-ooo/devcontainer-features/fish@sha256:c37c61d097aca9f0f4e35193eecd7c1f4f6f92225deaef7d98852de363a68a34",
+      "integrity": "sha256:c37c61d097aca9f0f4e35193eecd7c1f4f6f92225deaef7d98852de363a68a34"
+    },
+    "ghcr.io/va-h/devcontainers-features/uv": {
+      "version": "1.1.4",
+      "resolved": "ghcr.io/va-h/devcontainers-features/uv@sha256:a15737142539d150ef4d358e2d6a7424a0a2f3dc43b29a3aa1b50162a8b11bc1",
+      "integrity": "sha256:a15737142539d150ef4d358e2d6a7424a0a2f3dc43b29a3aa1b50162a8b11bc1"
+    }
+  }
+}
