@@ -22,7 +22,7 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lockb') }}
+          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
             bun-${{ runner.os }}-${{ runner.arch }}-
 
@@ -47,7 +47,7 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lockb') }}
+          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
             bun-${{ runner.os }}-${{ runner.arch }}-
 
@@ -72,7 +72,7 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lockb') }}
+          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
             bun-${{ runner.os }}-${{ runner.arch }}-
 

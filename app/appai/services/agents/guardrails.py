@@ -21,6 +21,7 @@ from appuser.models.user import User
 from django.db.models import F
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import Instrumentation
 
 from appai.constants.llm_models import TEXT_MODEL
 
@@ -88,10 +89,10 @@ def guardrail_agent(user_request: str, context: str) -> RelevancyScore:
     agent = Agent(
         model=TEXT_MODEL,
         name="Guardrail Agent",
-        instrument=True,
+        capabilities=[Instrumentation()],
         model_settings={'thinking': False},
         system_prompt=get_guardrail_system_prompt(context),
-        output_retries=5,
+        retries={"output": 5},
         output_type=RelevancyScore,
     )
 

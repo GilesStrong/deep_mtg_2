@@ -31,6 +31,7 @@ from appcore.modules.beartype import beartype
 from asgiref.sync import sync_to_async
 from pydantic import BaseModel, Field, create_model, field_validator
 from pydantic_ai import Agent, ModelRetry, RunContext, UsageLimits
+from pydantic_ai.capabilities import Instrumentation
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC, TOOL_MODEL_THINKING
@@ -209,9 +210,8 @@ async def run_deck_constructor_agent(
             validate_deck,
             clear_deck,
         ],
-        instrument=True,
+        capabilities=[Instrumentation()],
         retries=10,
-        output_retries=10,
         output_type=DeckConstructionOutput,
     )
     deps = DeckBuildingDeps(
@@ -364,9 +364,8 @@ async def run_card_classifier_agent(deck_id: UUID, deck_description: str) -> Non
         name="Card Classifier Agent",
         model_settings={'thinking': False},
         tools=[],
-        instrument=True,
-        retries=0,
-        output_retries=10,
+        capabilities=[Instrumentation()],
+        retries={"tools": 0, "output": 10},
         output_type=output_type,
     )
 
@@ -456,9 +455,8 @@ async def run_card_replacement_agent(
         name="Card Replacement Agent",
         model_settings={'thinking': False},
         tools=[],
-        instrument=True,
-        retries=0,
-        output_retries=10,
+        capabilities=[Instrumentation()],
+        retries={"tools": 0, "output": 10},
         output_type=list[UUID],
     )
 

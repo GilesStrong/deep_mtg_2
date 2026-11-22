@@ -289,7 +289,6 @@ class WriteMemoryTests(TestCase):
 
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
         self.assertEqual(mock_agent_cls.call_args.kwargs["retries"], 10)
-        self.assertEqual(mock_agent_cls.call_args.kwargs["output_retries"], 10)
         mock_pg_memory.objects.acreate.assert_not_awaited()
         mock_dense_embed.assert_not_called()
         mock_upsert_documents.assert_not_called()
@@ -346,7 +345,6 @@ class WriteMemoryTests(TestCase):
 
         mock_create_collection.assert_called_once_with(MEMORY_COLLECTION_NAME)
         self.assertEqual(mock_agent_cls.call_args.kwargs["retries"], 10)
-        self.assertEqual(mock_agent_cls.call_args.kwargs["output_retries"], 10)
         mock_pg_memory.objects.acreate.assert_awaited_once_with(
             name=output.name,
             text=output.text,

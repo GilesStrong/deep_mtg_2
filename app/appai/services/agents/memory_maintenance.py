@@ -25,6 +25,7 @@ from appsearch.services.qdrant.upsert import upsert_documents
 from asgiref.sync import sync_to_async
 from django.db import transaction
 from pydantic_ai import Agent, ModelRetry
+from pydantic_ai.capabilities import Instrumentation
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC
 from appai.constants.storage import MEMORY_COLLECTION_NAME
@@ -145,10 +146,9 @@ async def maintain_memories(clustered_memories: list[ExistingMemory]) -> int:
         name="Memory Maintenance Agent",
         system_prompt=MEMORY_MAINTENANCE_PROMPT,
         model_settings={'thinking': "high"},
-        instrument=True,
+        capabilities=[Instrumentation()],
         output_type=list[Memory],
         retries=10,
-        output_retries=10,
     )
 
     @agent.output_validator

@@ -33,7 +33,7 @@ const { mockGetToken, mockRedirect, mockNext } = vi.hoisted(() => ({
             set: vi.fn(),
         },
     })),
-    mockNext: vi.fn((): MockResponse => ({
+    mockNext: vi.fn<(options?: { request: { headers: Headers } }) => MockResponse>(() => ({
         type: "next",
         headers: {
             set: vi.fn(),
@@ -105,11 +105,10 @@ describe("proxy", () => {
                 headers: expect.any(Headers),
             },
         });
-        const nextCall = mockNext.mock.calls[0]?.[0];
-        const requestHeaders = nextCall.request.headers as Headers;
+        const requestHeaders = mockNext.mock.calls[0]?.[0]?.request.headers;
 
-        expect(requestHeaders.get("x-nonce")).toBeTruthy();
-        expect(requestHeaders.get("Content-Security-Policy")).toContain("'strict-dynamic'");
+        expect(requestHeaders?.get("x-nonce")).toBeTruthy();
+        expect(requestHeaders?.get("Content-Security-Policy")).toContain("'strict-dynamic'");
         expect(response.type).toBe("next");
         expect(response.headers.set).toHaveBeenCalledWith(
             "Content-Security-Policy",

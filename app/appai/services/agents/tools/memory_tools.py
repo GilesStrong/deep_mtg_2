@@ -25,6 +25,7 @@ from appsearch.services.qdrant.upsert import create_collection_if_not_exists, up
 from asgiref.sync import sync_to_async
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai.capabilities import Instrumentation
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC
 from appai.constants.storage import MEMORY_COLLECTION_NAME
@@ -110,8 +111,7 @@ async def write_memory(ctx: RunContext[DeckBuildingDeps], content: str, related_
         model_settings={'thinking': False},
         output_type=Memory | None,  # type: ignore [arg-type, call-overload]
         retries=10,
-        output_retries=10,
-        instrument=True,
+        capabilities=[Instrumentation()],
     )
 
     @agent.output_validator
@@ -357,11 +357,10 @@ async def subagent_memory_search(ctx: RunContext[DeckBuildingDeps], query: str) 
         system_prompt=MEMORY_SEARCH_PROMPT,
         model_settings={'thinking': False},
         name="Memory Search Agent",
-        instrument=True,
+        capabilities=[Instrumentation()],
         tools=[semantic_memory_search, card_memory_search],
         output_type=MemorySummary,
         retries=10,
-        output_retries=10,
         deps_type=DeckBuildingDeps,
     )
 
