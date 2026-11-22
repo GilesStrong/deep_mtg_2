@@ -22,12 +22,6 @@ jobs:
         working-directory: frontend
         run: bun install --frozen-lockfile
 
-      - name: Generate text lockfile for Trivy (bun.lock)
-        working-directory: frontend
-        run: |
-          bun install --save-text-lockfile
-          ls -la
-
       - name: Install Grype
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
@@ -37,17 +31,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Human-readable output for the Actions log
-          grype dir:. \
+          grype dir:frontend \
             --only-fixed=false \
             --fail-on high \
-            -o table
-
-          # SARIF for artifacts
-          grype dir:. \
-            --only-fixed=false \
-            --fail-on high \
-            -o sarif > grype-frontend.sarif
+            -o table -o sarif=grype-frontend.sarif
 
       # Re-enable SARIF upload once public
       # - name: Upload Grype SARIF

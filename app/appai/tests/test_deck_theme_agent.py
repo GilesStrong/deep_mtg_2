@@ -55,5 +55,4 @@ class GetDailyDeckThemeTests(TestCase):
         self.assertIn("tools", agent_kwargs)
         self.assertEqual(len(agent_kwargs["tools"]), 1)
         self.assertEqual(agent_kwargs["deps_type"].__name__, "ThemeDeps")
-        self.assertEqual(agent_kwargs["retries"], 1)
-        self.assertEqual(agent_kwargs["output_retries"], 3)
+        self.assertEqual(agent_kwargs["retries"], {"tools": 1, "output": 3})

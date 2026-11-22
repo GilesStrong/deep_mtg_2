@@ -22,6 +22,7 @@ from appcore.modules.beartype import beartype
 from celery.result import AsyncResult
 from pydantic import BaseModel, Field, field_validator
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import Instrumentation
 
 from appcards.constants.cards import CARD_TAGS
 from appcards.modules.card_info import CardInfo
@@ -112,7 +113,7 @@ def _summarise_card(card_details: CardInfo) -> CardSummary:
         system_prompt=SUMMARY_PROMPT,
         name="Card Summary Agent",
         model_settings={'thinking': False},
-        instrument=True,
+        capabilities=[Instrumentation()],
         output_type=CardSummary,
     )
     data = card_details.model_dump_json(exclude={"id"})

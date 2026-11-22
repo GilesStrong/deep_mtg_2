@@ -26,6 +26,7 @@ from appsearch.services.qdrant.search_dsl import (
     MatchValueCondition,
 )
 from pydantic_ai import Agent, ModelRetry
+from pydantic_ai.capabilities import Instrumentation
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC
 
@@ -222,9 +223,9 @@ async def filter_constructor(query: str) -> Filter:
         system_prompt=FILTER_CONSTRUCTION_PROMPT,
         name="Filter Construction Agent",
         model_settings={'thinking': False},
-        output_retries=10,
+        retries={"output": 10},
         output_type=Filter,
-        instrument=True,
+        capabilities=[Instrumentation()],
     )
 
     @agent.output_validator

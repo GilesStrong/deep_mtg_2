@@ -16,6 +16,7 @@ from appcards.constants.cards import EVERGREEN_KEYWORDS
 from appcore.modules.beartype import beartype
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import Instrumentation
 
 from appai.constants.llm_models import TOOL_MODEL_BASIC
 from appai.constants.prompt_gotchas import GOTCHAS
@@ -94,11 +95,10 @@ def get_daily_deck_theme() -> NewTheme:
         system_prompt=DECK_THEME_PROMPT,
         name="Daily Deck Theme Agent",
         model_settings={'thinking': False},
-        instrument=True,
+        capabilities=[Instrumentation()],
         output_type=NewTheme,
         tools=[find_similar_themes],
-        retries=1,
-        output_retries=3,
+        retries={"tools": 1, "output": 3},
         deps_type=ThemeDeps,
     )
     deps = ThemeDeps(n_searches=0)

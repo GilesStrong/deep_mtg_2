@@ -41,7 +41,7 @@ RUN apt-get update \
 RUN npm i -g bun@1.3.9
 
 # Copy only manifests for caching
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 
 # Install deps
 RUN bun install --frozen-lockfile
